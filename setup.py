@@ -27,10 +27,14 @@ setup(
     keywords=["testing", "cad"],
     classifiers=[],
     package_data={
+        "terminus": [
+            "ga201/*"
+        ]
     },
     include_package_data=True,
     install_requires=[
     ],
     extras_require={
     },
+    zip_safe = False,
 )
