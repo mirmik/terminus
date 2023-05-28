@@ -36,14 +36,10 @@ class Motor:
 
     def transform_point(self, p):
         q = self
-        a = q.w
-        a12 = q.z
-        a31 = q.y
-        a23 = q.x
         return Point(
-            (a**2 - a12**2)*p.x - 2*a*a12*p.y + (2*a*a23 - 2*a12*a31)*p.z,
-            (a**2 - a12**2)*p.y + 2*a*a12*p.x + (2*a*a31 + 2*a12*a23)*p.z,
-            (a**2 + a12**2)*p.z
+            (q.w**2 - q.z**2)*p.x - 2*q.w*q.z*p.y + (2*q.w*q.x - 2*q.z*q.y)*p.z,
+            (q.w**2 - q.z**2)*p.y + 2*q.w*q.z*p.x + (2*q.w*q.y + 2*q.z*q.x)*p.z,
+            (q.w**2 + q.z**2)*p.z
         )
 
     def transform(self, o):
@@ -66,9 +62,15 @@ class Motor:
         return Motor(-self.x, -self.y, -self.z, self.w)
 
     def factorize_translation(self):
-        probe = Point(0,0)
-        r = self.transform_point(probe)
-        return Motor(r.x/2, r.y/2, 0, 1)
+        #probe = Point(0,0)
+        #r = self.transform_point(probe)
+        #return Motor(r.x/2, r.y/2, 0, 1)
+        q = self
+        return Point(
+            q.w*q.x - q.z*q.y,
+            q.w*q.y + q.z*q.x,
+            1
+        )
         
     def factorize_parameters(self):
         t = self.factorize_translation()
