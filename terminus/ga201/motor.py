@@ -68,7 +68,7 @@ class Motor:
     def factorize_translation(self):
         probe = Point(0,0)
         r = self.transform_point(probe)
-        return Motor(r.x, r.y, 0, 1)
+        return Motor(r.x/2, r.y/2, 0, 1)
         
     def factorize_parameters(self):
         t = self.factorize_translation()
