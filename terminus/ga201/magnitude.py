@@ -14,3 +14,9 @@ class Magnitude:
             self.v / self.w,
             1
         )
+
+    def to_float(self):
+        return self.v / self.w
+
+    def __abs__(self):
+        return Magnitude(abs(self.v), abs(self.w))

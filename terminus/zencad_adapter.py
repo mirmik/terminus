@@ -17,9 +17,12 @@ def draw_line2_positive(line, step=1, length=0.1):
         zencad.display(zencad.segment(zencad.point3(a.x, a.y, 0), zencad.point3(b.x, b.y, 0)))
 
 def draw_line2(line):
-    a = line.parameter_point(-100)
-    b = line.parameter_point(100)
+    unitized_line = line.unitized()
+    a = unitized_line.parameter_point(-100)
+    b = unitized_line.parameter_point(100)
+    print("DRAW:", a, b)
     zencad.display(zencad.segment(zencad.point3(a.x, a.y, 0), zencad.point3(b.x, b.y, 0)))
 
 def draw_point2(point):
+    point = point.unitized()
     zencad.display(zencad.point3(point.x, point.y, 0))

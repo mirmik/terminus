@@ -21,10 +21,38 @@ def projection_point_line(p, l):
         a * p.z
     )
 
-def oriented_distance(p,l):
+def point_projection(p, l):
+    if isinstance(l, Point):
+        return l
+    if isinstance(l, Line):
+        return projection_point_line(p, l)
+
+def meet(l, k):
+    return Point(
+        l.y*k.z - k.y*l.z,
+        k.x*l.z - l.x*k.z,
+        l.x*k.y - k.x*l.y
+    )
+
+def oriented_distance_point_line(p,l):
     return Magnitude(
         p.x*l.x + p.y*l.y + p.z*l.z, 
-        p.z*math.sqrt(l.x*l.x + l.y*l.y + l.z*l.z))
+        p.z*math.sqrt(l.x*l.x + l.y*l.y))
+
+def distance_point_point(p, q):
+    return Magnitude(
+        math.sqrt((q.x*p.z - p.x*q.z)**2 + (q.y*p.z - p.y*q.z)**2),
+        abs(p.z*q.z)
+    )
+
+def oriented_distance(a, b):
+    if isinstance(b, Line):
+        return oriented_distance_point_line(a, b)
+    raise Exception("Oriented distance allowed only for hyperplanes")
+    
+
+def distance(p, l):
+    return abs(oriented_distance(p, l))
 
 if __name__ == "__main__":
     p = Point(1, 1)

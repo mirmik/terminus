@@ -4,30 +4,41 @@ from terminus.zencad_adapter import draw_line2, draw_point2, draw_line2_positive
 from terminus.ga201.line import Line
 from terminus.ga201.point import Point
 from terminus.ga201.join import join_point_point, oriented_distance
+from terminus.ga201.convex_hull import ConvexBody
 
 import zencad
+zencad.disable_lazy()
 
-p = Point(1, 1)
-q = Point(0, 1)
+zencad.set_default_point_color(zencad.Color(1,0,0))
+
 r = Point(0, 0)
-
-draw_point2(p)
-draw_point2(q)
-draw_point2(r)
+s = Point(1, 0)
+p = Point(1, 2)
+q = Point(0, 1)
 
 lines = [
+    join_point_point(s, r),
+    join_point_point(p, s),
     join_point_point(q, p),
     join_point_point(r, q),
-    join_point_point(p, r)
 ]
 
-for line in lines:
-    draw_line2(line)
-    draw_line2_positive(line, 0.1, 0.05)
+convex = ConvexBody(lines)
 
-k = Point(0.5, 0.7)
-draw_point2(k)
-for i in range(3):
-    print(oriented_distance(k, lines[i]).unitize())
+
+print("count_of_vertices", convex.count_of_vertices())
+print("count_of_planes", convex.count_of_hyperplanes())
+
+print("vertices", convex.vertices())
+print("hyperplanes", convex.hyperplanes())
+
+#for v in convex.vertices():
+#    draw_point2(v)
+
+p=Point(2, 3)
+proj = convex.point_projection(p)
+draw_point2(p)
+draw_point2(proj)
+print("proj", proj)
 
 zencad.show()
