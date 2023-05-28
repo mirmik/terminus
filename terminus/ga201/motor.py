@@ -66,11 +66,8 @@ class Motor:
         return Motor(-self.x, -self.y, -self.z, self.w)
 
     def factorize_translation(self):
-        factorize_rotation = self.factorize_rotation()
-        inv_rotation = factorize_rotation.reverse()
-        inverted = inv_rotation * self
-        p = Point(inverted.x, inverted.y, 1)
-        r = factorize_rotation.transform_point(p)
+        probe = Point(0,0)
+        r = self.transform_point(probe)
         return Motor(r.x, r.y, 0, 1)
         
     def factorize_parameters(self):
