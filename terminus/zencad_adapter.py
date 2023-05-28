@@ -21,8 +21,8 @@ def draw_line2(line):
     a = unitized_line.parameter_point(-100)
     b = unitized_line.parameter_point(100)
     print("DRAW:", a, b)
-    zencad.display(zencad.segment(zencad.point3(a.x, a.y, 0), zencad.point3(b.x, b.y, 0)))
+    return zencad.display(zencad.segment(zencad.point3(a.x, a.y, 0), zencad.point3(b.x, b.y, 0)))
 
 def draw_point2(point):
     point = point.unitized()
-    zencad.display(zencad.point3(point.x, point.y, 0))
+    return zencad.display(zencad.point3(point.x, point.y, 0))

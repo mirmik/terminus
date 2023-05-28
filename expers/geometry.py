@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import time
 
 from terminus.zencad_adapter import draw_line2, draw_point2, draw_line2_positive
 from terminus.ga201.line import Line
@@ -27,22 +28,35 @@ lines = [
 
 convex = ConvexBody(lines)
 
-ip = draw_point2(Point(0,0))
+ip1 = draw_point2(Point(0,0))
+ip2 = draw_point2(Point(0,0))
 
-q1 = Motor.rotation(0)
+q1 = Motor.rotation(math.pi/2)
 q2 = Motor.translation(2,0)
-q3 = Motor.rotation(0)
+q3 = Motor.rotation(math.pi/2)
 q4 = Motor.translation(2,0)
 q = q1 * q2 * q3 * q4
-tr=q.factorize_translation()
+p = Point(1, 0)
 
-#def animate(wdg):
-#    q1 = Motor.rotation(0)
-#    q2 = Motor.translation(2,0)
-#    q3 = Motor.rotation(0)
-#    q4 = Motor.translation(2,0)
-#    q = q1 * q2 * q3 * q4
-#    tr=q.factorize_translation()
+def motor_to_zencad_trsf(m):
+    angle, vec = m.factorize_parameters()
+    tr = zencad.translate(vec[0], vec[1], 0)
+    rot = zencad.rotate([0,0,1], angle)
+    return tr * rot
 
-print(tr)
-#zencad.show(animate=animate)
+def animate(wdg):
+    t = time.time()
+    q1 = Motor.rotation(t)
+    q2 = Motor.translation(2,0)
+    q3 = Motor.rotation(t)
+    q4 = Motor.translation(2,0)
+    q = q1 * q2 * q3 * q4
+    qq = q1 * q2
+
+    par1 = q.factorize_parameters()
+    par2 = qq.factorize_parameters()
+
+    ip1.relocate(motor_to_zencad_trsf(q))
+    ip2.relocate(motor_to_zencad_trsf(qq))
+
+zencad.show(animate = animate)

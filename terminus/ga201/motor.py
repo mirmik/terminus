@@ -56,16 +56,26 @@ class Motor:
     def __str__(self):
         return repr(self)
 
-    def factorize_rotation(self):
+    def factorize_rotation_angle(self):
         return math.atan2(self.z, self.w) * 2
 
+    def factorize_rotation(self):
+        return Motor(0,0,self.z,self.w)
+
+    def reverse(self):
+        return Motor(-self.x, -self.y, -self.z, self.w)
+
     def factorize_translation(self):
-        a = self.w
-        a12 = self.z
-        a31 = self.y
-        a23 = self.x
-        return Point(
-            (a**2 - a12**2)*a23 + 2*a*a12*a31,
-            (a**2 - a12**2)*a31 - 2*a*a12*a23,
-            1
-        )
+        factorize_rotation = self.factorize_rotation()
+        inv_rotation = factorize_rotation.reverse()
+        inverted = inv_rotation * self
+        p = Point(inverted.x, inverted.y, 1)
+        r = factorize_rotation.transform_point(p)
+        return Motor(r.x, r.y, 0, 1)
+        
+    def factorize_parameters(self):
+        t = self.factorize_translation()
+        angle = self.factorize_rotation_angle()
+        x = t.x * 2
+        y = t.y * 2
+        return (angle, (x,y))

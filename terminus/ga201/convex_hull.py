@@ -53,7 +53,6 @@ class ConvexBody:
             vertices.append(self.meet_of_hyperplanes_combination(cmb))
 
         non_infinite_points = self.drop_infinite_points(vertices)
-        print("non_infinite_points", non_infinite_points)
         int_vertices = self.internal_vertices(non_infinite_points)
 
         return int_vertices
