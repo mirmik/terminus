@@ -27,36 +27,22 @@ lines = [
 
 convex = ConvexBody(lines)
 
+ip = draw_point2(Point(0,0))
 
-print("count_of_vertices", convex.count_of_vertices())
-print("count_of_planes", convex.count_of_hyperplanes())
+q1 = Motor.rotation(0)
+q2 = Motor.translation(2,0)
+q3 = Motor.rotation(0)
+q4 = Motor.translation(2,0)
+q = q1 * q2 * q3 * q4
+tr=q.factorize_translation()
 
-print("vertices", convex.vertices())
-print("hyperplanes", convex.hyperplanes())
+#def animate(wdg):
+#    q1 = Motor.rotation(0)
+#    q2 = Motor.translation(2,0)
+#    q3 = Motor.rotation(0)
+#    q4 = Motor.translation(2,0)
+#    q = q1 * q2 * q3 * q4
+#    tr=q.factorize_translation()
 
-#for v in convex.vertices():
-#    draw_point2(v)
-
-p=Point(2, 3)
-proj = convex.point_projection(p)
-draw_point2(p)
-draw_point2(proj)
-print("proj", proj)
-
-print("***")
-print("***")
-q1 = Motor.rotation(math.pi/2)
-q2 = Motor.translation(20,0)
-q3 = Motor.rotation(-math.pi/2)
-q = q1*q2*q3
-print("q1", q1)
-print("q2", q2)
-print("q", q)
-
-p = Point(1,0)
-qp = q.transform(p)
-
-print("***")
-print(qp)
-
-zencad.show()
+print(tr)
+#zencad.show(animate=animate)

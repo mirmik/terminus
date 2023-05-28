@@ -55,3 +55,17 @@ class Motor:
     
     def __str__(self):
         return repr(self)
+
+    def factorize_rotation(self):
+        return math.atan2(self.z, self.w) * 2
+
+    def factorize_translation(self):
+        a = self.w
+        a12 = self.z
+        a31 = self.y
+        a23 = self.x
+        return Point(
+            (a**2 - a12**2)*a23 + 2*a*a12*a31,
+            (a**2 - a12**2)*a31 - 2*a*a12*a23,
+            1
+        )
