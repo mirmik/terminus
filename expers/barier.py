@@ -3,24 +3,21 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-def barrier(b, r):
+def barrier(b, l):
     def func(x):
-        return b/x + b*x/(r**2) - 2*b/r
+        if x >= l: 
+            return 0
+        return b/x + b*x/(l**2) - 2*b/l
     return func
 
-def derivative_barrier(b,r):
-    def func(x):
-        return -b/(x**2) + b/(r**2)
-    return func
+bf = np.vectorize(barrier(1,5))
 
-
-bf = np.vectorize(barrier(0.1,5))
-dbf = np.vectorize(derivative_barrier(0.1,5))
-
-x = np.arange(4, 6, 0.1)
+x = np.arange(0.01, 10, 0.1)
 y = bf(x)
-dy = dbf(x)
 
-plt.plot(x,y, x,dy)
+plt.plot(x,y, 'k')
+plt.ylim(-0.2,2)
 plt.grid()
+plt.xlabel("|r|")
+plt.ylabel("B(|r|)")
 plt.show()
