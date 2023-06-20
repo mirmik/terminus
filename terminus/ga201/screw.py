@@ -1,10 +1,14 @@
 
-class Screw:
-    def __init__(self, x, y, z):
-        self.x = x
-        self.y = y
-        self.z = z
+#!/usr/bin/env python3
 
-    def carry(self, motor):
+class Screw:
+    def __init__(self, x, y, a):
+        self.x = X
+        self.y = y
+        self.a = a
+
+    def kinematic_screw_transform(self, motor):
         pass
-        #return motor
+
+    def force_screw_transform(self, motor):
+        pass
