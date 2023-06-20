@@ -1,13 +1,30 @@
 import terminus.ga201.join as join
+import terminus.ga201.point as point
 import numpy as np
 from itertools import combinations
+from scipy.spatial import ConvexHull
 
 class ConvexBody:
     def __init__(self, planes, inverted = False):
         self.planes = planes
         self.linear_formes_by_grades = [0] * (self.max_grade()) 
         self.find_linear_formes()
+
+        print("HP", self.hyperplanes())
+        print("VX", self.vertices())
+
         self.inverted = inverted
+
+    @staticmethod
+    def from_points(points):
+        cpnts = [(p.x, p.y) for p in [p.unitized() for p in points]]
+        c = ConvexHull(cpnts)    
+        planes = []
+        for i in range(len(c.vertices)-1):
+            planes.append(join.join_point_point(points[i], points[i+1]))
+        planes.append(join.join_point_point(points[len(c.vertices)-1], points[0]))
+        body = ConvexBody(planes)
+        return body
 
     def max_grade(self):
         return 2
@@ -20,6 +37,9 @@ class ConvexBody:
 
     def internal_vertices(self, vertices):
         int_vertices = []
+
+        print("V", vertices)
+
         for vertex in vertices:
             is_internal = True
             for plane in self.planes:
@@ -28,6 +48,8 @@ class ConvexBody:
                     break
             if is_internal:
                 int_vertices.append(vertex)        
+
+        print("V", int_vertices)
         return int_vertices
 
     def drop_infinite_points(self, vertices):
@@ -82,7 +104,9 @@ class ConvexBody:
     def is_internal_point(self, point):
         for plane in self.planes:
             if join.oriented_distance(point, plane).to_float() > 1e-8:
+                print("is_internal", point, "False")
                 return False
+        print("is_internal", point, "True")
         return True
     
     def point_projection(self, point):

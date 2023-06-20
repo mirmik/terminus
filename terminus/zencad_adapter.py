@@ -2,8 +2,11 @@
 
 import numpy
 import zencad
+import zencad.assemble
 import terminus.ga201.point as point
 import terminus.ga201.join as join
+
+from scipy.spatial import ConvexHull
 
 def draw_line2_positive(line, step=1, length=0.1):
     min = -100
@@ -26,3 +29,12 @@ def draw_line2(line):
 def draw_point2(point):
     point = point.unitized()
     return zencad.display(zencad.point3(point.x, point.y, 0))
+
+def draw_body2(body):
+    cpnts = [(p.x, p.y) for p in [p.unitized() for p in body.vertices()]]
+    print(cpnts)
+    c = ConvexHull(cpnts)
+    zpoints = [zencad.point3(cpnts[i][0], cpnts[i][1]) for i in c.vertices]
+    return zencad.display(zencad.polygon(zpoints))
+
+    
