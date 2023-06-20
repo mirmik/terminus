@@ -9,10 +9,6 @@ class ConvexBody:
         self.planes = planes
         self.linear_formes_by_grades = [0] * (self.max_grade()) 
         self.find_linear_formes()
-
-        print("HP", self.hyperplanes())
-        print("VX", self.vertices())
-
         self.inverted = inverted
 
     @staticmethod
@@ -37,9 +33,6 @@ class ConvexBody:
 
     def internal_vertices(self, vertices):
         int_vertices = []
-
-        print("V", vertices)
-
         for vertex in vertices:
             is_internal = True
             for plane in self.planes:
@@ -48,8 +41,6 @@ class ConvexBody:
                     break
             if is_internal:
                 int_vertices.append(vertex)        
-
-        print("V", int_vertices)
         return int_vertices
 
     def drop_infinite_points(self, vertices):
@@ -85,8 +76,6 @@ class ConvexBody:
         vertices = self.meet_of_hyperplanes()
         self.linear_formes_by_grades[0] = vertices
 
-        print(self.linear_formes_by_grades)
-        
         #TODO: middle grades
 
     def count_of_vertices(self):
@@ -104,28 +93,21 @@ class ConvexBody:
     def is_internal_point(self, point):
         for plane in self.planes:
             if join.oriented_distance(point, plane).to_float() > 1e-8:
-                print("is_internal", point, "False")
                 return False
-        print("is_internal", point, "True")
         return True
     
     def point_projection(self, point):
         candidates = []
         for grade in range(self.max_grade()-1, -1, -1):
-            print("grade", grade)
             for linear_form in self.linear_formes_by_grades[grade]:
                 proj = join.point_projection(point, linear_form)
-                print("proj", proj)
                 if self.is_internal_point(proj):
                     candidates.append(proj)
 
             if len(candidates) == 0:
                 continue
 
-            print("point", point)
-            print("candidates", candidates)
             distances = [join.distance_point_point(point, candidate).to_float() for candidate in candidates]
-            print("distances", distances)
             min_distance_index = np.argmin(distances)
             return candidates[min_distance_index]
 

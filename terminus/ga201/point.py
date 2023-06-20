@@ -36,7 +36,6 @@ class Point:
         )
 
     def is_infinite(self):
-        print("is_infinite", self.z, self.z == 0)
         return self.z == 0
 
 def origin():
