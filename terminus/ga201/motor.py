@@ -1,7 +1,7 @@
 
 import math
-
 from terminus.ga201.point import Point
+import numpy
 
 class Motor:
     def __init__(self, x, y, z, w):
@@ -71,6 +71,11 @@ class Motor:
             q.w*q.y + q.z*q.x,
             1
         )
+
+    def factorize_translation_vector(self):
+        ft = self.factorize_translation()
+        return numpy.array([ft.x, ft.y])
+
         
     def factorize_parameters(self):
         t = self.factorize_translation()
@@ -78,3 +83,21 @@ class Motor:
         x = t.x * 2
         y = t.y * 2
         return (angle, (x,y))
+
+    def rotate_nparray(self, a):
+        angle = self.factorize_rotation_angle()
+        s = math.sin(angle)
+        c = math.cos(angle)
+        return numpy.array([ 
+            c*a[0] - s*a[1],
+            s*a[0] + c*a[1]
+        ])
+
+    def rotate_nparray_inverse(self, a):
+        angle = self.factorize_rotation_angle()
+        s = math.sin(angle)
+        c = math.cos(angle)
+        return numpy.array([ 
+            c*a[0] + s*a[1],
+            -s*a[0] + c*a[1]
+        ])

@@ -1,14 +1,44 @@
 
 #!/usr/bin/env python3
 
-class Screw:
-    def __init__(self, x, y, a):
-        self.x = X
-        self.y = y
-        self.a = a
+import math
+import numpy
 
-    def kinematic_screw_transform(self, motor):
-        pass
+class Screw2:
+    def __init__(self, m, v):
+        self.m = m
+        self.v = v
+
+    def kinematic_carry_vec(self, translation):
+        #angle = motor.factorize_rotation_angle()
+        #translation = motor.factorize_translation_vector()
+
+        #rotated_scr = self.rotate_by_angle(angle)
+        #m = rotated_scr.m
+        #v = rotated_scr.v
+        m = self.m
+        v = self.v
+
+        b = translation
+        a = m
+
+        ret = Screw2(m=m, v=v + numpy.array([
+            -a * b[1], a * b[0]
+        ]))
+        return ret
+
+    def rotate_by_angle(self, angle):
+        m = self.m
+        v = self.v
+        s = math.sin(angle)
+        c = math.cos(angle)
+        return Screw2(m=m, v= numpy.array([ 
+            c*v[0] - s*v[1],
+            s*v[0] + c*v[1]
+        ]))
 
     def force_screw_transform(self, motor):
         pass
+
+    def __str__(self):
+        return "Screw2(%s, %s)" % (self.m, self.v)
