@@ -1,6 +1,6 @@
 
 import math
-from terminus.ga201.point import Point
+from terminus.ga201.point import Point2
 import numpy
 
 class Motor2:
@@ -36,14 +36,14 @@ class Motor2:
 
     def transform_point(self, p):
         q = self
-        return Point(
+        return Point2(
             (q.w**2 - q.z**2)*p.x - 2*q.w*q.z*p.y + (2*q.w*q.x - 2*q.z*q.y)*p.z,
             (q.w**2 - q.z**2)*p.y + 2*q.w*q.z*p.x + (2*q.w*q.y + 2*q.z*q.x)*p.z,
             (q.w**2 + q.z**2)*p.z
         )
 
     def transform(self, o):
-        if isinstance(o, Point):
+        if isinstance(o, Point2):
             return self.transform_point(o)
 
     def __repr__(self):
@@ -76,11 +76,11 @@ class Motor2:
         )
 
     def factorize_translation_point(self):
-        #probe = Point(0,0)
+        #probe = Point2(0,0)
         #r = self.transform_point(probe)
         #return Motor(r.x/2, r.y/2, 0, 1)
         q = self
-        return Point(
+        return Point2(
             q.w*q.x - q.z*q.y,
             q.w*q.y + q.z*q.x,
             1

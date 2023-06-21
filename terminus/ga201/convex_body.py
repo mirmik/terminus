@@ -4,7 +4,7 @@ import numpy as np
 from itertools import combinations
 from scipy.spatial import ConvexHull
 
-class ConvexBody:
+class ConvexBody2:
     def __init__(self, planes, inverted = False):
         self.planes = planes
         self.linear_formes_by_grades = [0] * (self.max_grade()) 
@@ -19,7 +19,7 @@ class ConvexBody:
         for i in range(len(c.vertices)-1):
             planes.append(join.join_point_point(points[i], points[i+1]))
         planes.append(join.join_point_point(points[len(c.vertices)-1], points[0]))
-        body = ConvexBody(planes)
+        body = ConvexBody2(planes)
         return body
 
     def max_grade(self):
@@ -63,7 +63,8 @@ class ConvexBody:
         for cmb in cmbs:
             # get all vertices of cmb
             # and add them to vertices list
-            vertices.append(self.meet_of_hyperplanes_combination(cmb))
+            pnt = self.meet_of_hyperplanes_combination(cmb)
+            vertices.append(pnt.unitized())
 
         non_infinite_points = self.drop_infinite_points(vertices)
         int_vertices = self.internal_vertices(non_infinite_points)
@@ -104,14 +105,8 @@ class ConvexBody:
                 if self.is_internal_point(proj):
                     candidates.append(proj)
 
-            if len(candidates) == 0:
-                continue
-
-            distances = [join.distance_point_point(point, candidate).to_float() for candidate in candidates]
-            min_distance_index = np.argmin(distances)
-            return candidates[min_distance_index]
-
-        #unreachable
-        raise Exception("point_projection: unreachable")
+        distances = [join.distance_point_point(point, candidate).to_float() for candidate in candidates]
+        min_distance_index = np.argmin(distances)
+        return candidates[min_distance_index]
 
 

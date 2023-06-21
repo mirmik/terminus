@@ -17,7 +17,7 @@ def draw_line2_positive(line, step=1, length=0.1):
     for i in numpy.arange(min, max, step):
         x = line.x
         y = line.y
-        d = point.Point(x, y, 0) * length
+        d = point.Point2(x, y, 0) * length
         a = line.parameter_point(i) + d 
         b = line.parameter_point(i)
         zencad.display(zencad.segment(zencad.point3(a.x, a.y, 0), zencad.point3(b.x, b.y, 0)))
@@ -41,7 +41,7 @@ def draw_body2(body):
 def zencad_sensivity_to_screw2(sensivity):
     a = sensivity[0]
     l = sensivity[1]
-    return screw.Screw2(v=numpy.array([l.x, l.y]), m=a.z)
+    return screw.Screw2(v=numpy.array([l.x, l.y], dtype=numpy.float64), m=a.z)
 
 def zencad_transform_to_motor2(transform):
     l = transform.translation()
@@ -78,18 +78,3 @@ def right_jacobi_matrix_lin2(kinunits, senunit):
     cols = len(kinunits)
     mat = np.concatenate([k.v.reshape(2, 1) for k in sensivities], axis=1)
     return mat
-
-def solve_2d_velocity_system(velocities, alphas, matrices):
-    qdim = matrices.rows()
-    sdim = len(matrices)
-    
-    b = numpy.ndarray([0]*qdim)
-    for i in range(sdim):
-        b += alphas[i] * numpy.matmul(matrices[i], velocities[i])
-
-    A = numpy.ndarray(([0]*qdim)*qdim)
-    for i in range(sdim):
-        A += alphas[i] * numpy.matmul(matrices[i].T, matrices[i])
-
-    #A_pinv = A.pinv()
-    return solve(A, b)

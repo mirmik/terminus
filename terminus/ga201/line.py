@@ -2,7 +2,7 @@ import terminus.ga201.point as point
 import terminus.ga201.join as join
 
 
-class Line:
+class Line2:
     def __init__(self, x, y, z):
         n = (x*x + y*y)**0.5
         self.x = x / n
@@ -24,7 +24,7 @@ class Line:
         dir_x = -self.y / n
         origin = point.origin()
         c = join.projection_point_line(origin, self).unitized()
-        return point.Point(
+        return point.Point2(
             c.x + dir_x * t,
             c.y + dir_y * t
         )
@@ -32,4 +32,4 @@ class Line:
     def unitized(self):
         x, y = self.x, self.y
         n = (x*x + y*y)**0.5
-        return Line(self.x/n, self.y/n, self.z/n)
+        return Line2(self.x/n, self.y/n, self.z/n)
