@@ -165,8 +165,6 @@ def animate(wdg):
     #    target_pos = numpy.array([2,0])
     
     tgt = (target_pos - current_pos)  * 5
-
-
     target_speed = manipulator.final_sensor.global_to_local(tgt)
     s = j.solve(target_speed)
     d = j.dot(s)
@@ -175,6 +173,10 @@ def animate(wdg):
     s = s.reshape((manipulator.N))
     
     manipulator.apply_speed_control(s)
+
+    trans = manipulator.final_sensor().global_location.translation()
+    p = Point2(trans.x, trans.y)
+    pp = body.point_projection()
 
 
 zencad.show(animate = animate)
