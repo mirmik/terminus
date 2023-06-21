@@ -110,3 +110,15 @@ class ConvexBody2:
         return candidates[min_distance_index]
 
 
+class ConvexWorld2:
+    def __init__(self, bodies):
+        self.bodies = bodies
+
+    def point_projection(self, point):
+        candidates = []
+        for body in self.bodies:
+            candidates.append(body.point_projection(point))
+
+        distances = [join.distance_point_point(point, candidate).to_float() for candidate in candidates]
+        min_distance_index = np.argmin(distances)
+        return candidates[min_distance_index]
