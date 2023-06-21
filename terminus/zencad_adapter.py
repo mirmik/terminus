@@ -46,22 +46,30 @@ def zencad_sensivity_to_screw2(sensivity):
 def zencad_transform_to_motor2(transform):
     l = transform.translation()
     a = transform.rotation_quat()
-    return motor.Motor(l[0], l[1], 0, 1) * motor.Motor(0, 0, a.z, a.w)
+    return motor.Motor2(l[0], l[1], 0, 1) * motor.Motor2(0, 0, a.z, a.w)
 
 def right_sensivity_screw2_of_kinunit(kinunit, senunit):
+    """
+        Возвращает правую чувствительность сенсорного фрейма 
+        к изменению координаты кинематического фрэйма.
+
+        H=KRS
+        K - кинематический юнит
+        R - мотор выхода юнита ко входу
+        H - сенсорный фрейм
+        S - относительный мотор сенсорного фрейма
+
+        ->
+        V_H = [H^-1 * KR]V_R
+        carried = (senmotor.inverse() * kinmotor).carry(sensivity) 
+    """
+
     sensivity = zencad_sensivity_to_screw2(kinunit.sensivity())
-    kinmotor = zencad_transform_to_motor2(kinunit.global_location)
+    kinout = kinunit.output
+    kinmotor = zencad_transform_to_motor2(kinout.global_location)
     senmotor = zencad_transform_to_motor2(senunit.global_location)
-
-    # Тут вообще-то надо винт чувствительности развернуть в систему senmotor,
-    # но я пока нет примера на котором это можно проверить.
-
-    motor = senmotor.reverse() * kinmotor
-    translation = motor.factorize_translation_vector()
-    carried = sensivity.kinematic_carry_vec(-translation)
-    #print("carried: ", carried)
-    #carried_in_global_frame = carried.rotate_by_angle(kinmotor.factorize_rotation_angle())
-    #print("carried_in_global_frame: ", carried_in_global_frame)
+    motor = senmotor.inverse() * kinmotor
+    carried = sensivity.kinematic_carry(motor)
     return carried
 
 def right_jacobi_matrix_lin2(kinunits, senunit):

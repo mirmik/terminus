@@ -3,7 +3,7 @@ import math
 from terminus.ga201.point import Point
 import numpy
 
-class Motor:
+class Motor2:
     def __init__(self, x, y, z, w):
         self.x = x
         self.y = y
@@ -14,7 +14,7 @@ class Motor:
     def rotation(rads):
         z = math.sin(rads/2)
         w = math.cos(rads/2)
-        return Motor(0, 0, z, w)
+        return Motor2(0, 0, z, w)
 
     @staticmethod
     def translation(x, y):
@@ -22,12 +22,12 @@ class Motor:
         y = y/2
         z = 0
         w = 1
-        return Motor(x, y, z, w)
+        return Motor2(x, y, z, w)
 
     def __mul__(self, other):
         q = self
         p = other
-        return Motor(
+        return Motor2(
             q.w*p.x + q.x*p.w - q.z*p.y + q.y*p.z,
             q.w*p.y + q.y*p.w - q.x*p.z + q.z*p.x,
             q.w*p.z + q.z*p.w,
@@ -56,12 +56,26 @@ class Motor:
         return math.atan2(self.z, self.w) * 2
 
     def factorize_rotation(self):
-        return Motor(0,0,self.z,self.w)
+        return Motor2(0,0,self.z,self.w)
 
     def reverse(self):
-        return Motor(-self.x, -self.y, -self.z, self.w)
+        return Motor2(-self.x, -self.y, -self.z, self.w)
 
+    def inverse(self):
+        rotation = self.factorize_rotation()
+        translation = self.factorize_translation()
+        return rotation.reverse() * translation.reverse()
+        
     def factorize_translation(self):
+        q = self
+        return Motor2(
+            q.w*q.x - q.z*q.y,
+            q.w*q.y + q.z*q.x,
+            0,
+            1
+        )
+
+    def factorize_translation_point(self):
         #probe = Point(0,0)
         #r = self.transform_point(probe)
         #return Motor(r.x/2, r.y/2, 0, 1)
@@ -101,3 +115,31 @@ class Motor:
             c*a[0] + s*a[1],
             -s*a[0] + c*a[1]
         ])
+
+    def __eq__(self, oth):
+        return (
+            self.x == oth.x and
+            self.y == oth.y and
+            self.z == oth.z and
+            self.w == oth.w
+        )
+
+    def __sub__(self, oth):
+        return Motor2(
+            self.x - oth.x,
+            self.y - oth.y,
+            self.z - oth.z,
+            self.w - oth.w
+        )
+
+    def __truediv__(self, s):
+        return Motor2(
+            self.x / s,
+            self.y / s,
+            self.z / s,
+            self.w / s
+        )
+
+    def is_zero_equal(self, eps = 1e-8):
+        a = numpy.array([self.x, self.y, self.z, self.w])
+        return numpy.linalg.norm(a) < eps

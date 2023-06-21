@@ -4,7 +4,7 @@ import time
 from terminus.zencad_adapter import *
 from terminus.ga201.line import Line
 from terminus.ga201.point import Point
-from terminus.ga201.motor import Motor
+from terminus.ga201.motor import Motor2
 from terminus.ga201.join import join_point_point, oriented_distance
 from terminus.ga201.convex_body import ConvexBody
 import math
@@ -75,7 +75,7 @@ class Link(zencad.assemble.unit):
 class Manipulator(zencad.assemble.unit):
     def __init__(self):
         super().__init__()
-        self.N = 5
+        self.N = 3
         self.L = 1
         self.A = -math.pi/6
         self.make_body()
@@ -178,5 +178,5 @@ def animate(wdg):
 
 
 zencad.show(animate = animate)
-animate(None)
-zencad.show()
+#animate(None)
+#zencad.show()
