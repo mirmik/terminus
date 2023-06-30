@@ -2,8 +2,8 @@
 
 import numpy as np
 
-a = np.array([1, 0, 0])
-b = np.array([0, 1, 0])
+a = np.array([2, 0, 0])
+b = np.array([0, 2, 0])
 c = np.array([0, 0, 0])
 d = np.cross((a-c), (b-c))
 d = d / np.linalg.norm(d)
