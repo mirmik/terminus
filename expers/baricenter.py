@@ -13,7 +13,7 @@ b = b.reshape(3, 1)
 c = c.reshape(3, 1)
 d = d.reshape(3, 1)
 
-p = np.array([1, 1, 15, 1])
+p = np.array([2, 2, 15, 1])
 
 A = np.hstack([a, b, c, d])
 A = np.vstack([A, np.array([1, 1, 1, 0]).T])
