@@ -140,13 +140,13 @@ class Link(zencad.assemble.unit):
         super().__init__()
         self.add(zencad.segment((0,0),(0,l)))
         self.spoints = [
-            #SensorPoint(location=zencad.move(0,l*1/8,0)),
+            SensorPoint(location=zencad.move(0,l*1/8,0)),
             SensorPoint(location=zencad.move(0,l*2/8,0)),
-            #SensorPoint(location=zencad.move(0,l*3/8,0)),
+            SensorPoint(location=zencad.move(0,l*3/8,0)),
             SensorPoint(location=zencad.move(0,l*4/8,0)),
-            #SensorPoint(location=zencad.move(0,l*5/8,0)),
+            SensorPoint(location=zencad.move(0,l*5/8,0)),
             SensorPoint(location=zencad.move(0,l*6/8,0)),
-            #SensorPoint(location=zencad.move(0,l*7/8,0)),
+            SensorPoint(location=zencad.move(0,l*7/8,0)),
             SensorPoint(location=zencad.move(0,l*8/8,0)),
         ]
         for s in self.spoints:
@@ -244,7 +244,7 @@ body = ConvexBody2.from_points([
 body2 = ConvexBody2.from_points([
     #Point2(1,0.1),
     Point2(0.5+0.2,3-0.2),
-    Point2(1.0+0.2,2.5-0.2),
+    Point2(1.0+0.2,2.5-0.6),
     Point2(0.5+0.2,2-0.2),
 ])
 
@@ -283,6 +283,8 @@ zencad.display(zencad.segment(zencad.point3(P25), zencad.point3(P26)))
 start_time = time.time()
 def animate(wdg):
     t = time.time() - start_time
+    if (t < 1):
+        return
     
     current1_pos = manipulator.half_sensor.global_location.translation()
     current1_pos = numpy.array([current1_pos.x, current1_pos.y])
@@ -292,7 +294,7 @@ def animate(wdg):
 
 #    t = 10
 
-    TT = 5
+    TT = 4
     FT = 6*TT
     if (t%(FT)) < TT*1:
         target2_pos = numpy.array(P21)
@@ -308,7 +310,7 @@ def animate(wdg):
         target2_pos = numpy.array(P26)
 
 #    tgt1 = (target1_pos - current1_pos)  * 5
-    tgt2 = (target2_pos - current2_pos)  * 5
+    tgt2 = (target2_pos - current2_pos)  * 3
  #   target1_speed = manipulator.half_sensor.global_to_local(tgt1)
     target2_speed = manipulator.final_sensor.global_to_local(tgt2)
     
@@ -349,18 +351,17 @@ def animate(wdg):
         diffnorm = diff.bulk_norm()
         udiff = diff / diffnorm
         L = 0.2
-        L2= 0.4
+        L2= 0.5
         barrier_value = shotki_barrier(b=0.5, l=L)(diffnorm)
-        barrier_value2 = shotki_barrier(b=0.5, l=L2)(diffnorm)
-        alpha = alpha_function(l=L, k=0.5)(diffnorm) + 0.000000
-        alpha2 = alpha_function(l=L2, k=0.5)(diffnorm) + 0.000000
+        barrier_value2 = shotki_barrier(b=2, l=L2)(diffnorm)
+        alpha = alpha_function(l=L, k=0.5)(diffnorm) * 0 + 0.0000
+        alpha2 = alpha_function(l=L2, k=0.5)(diffnorm) + 0.00000
         
 #        if i % 4 == 3:
  #           alpha = alpha * 20
 
         if alpha != 0:
             v = numpy.array([udiff.x,udiff.y], dtype=numpy.float64).reshape((2,1))
-            alphas.append(alpha)
             v = s.global_to_local(v)
             u = v / numpy.linalg.norm(v)
             P = numpy.array([
@@ -370,9 +371,10 @@ def animate(wdg):
             J = s.expanded_jacobi_matrix(qdim)
             PJ = Jacobian(numpy.matmul(P, J.matrix))
             #PJN = Jacobian(numpy.matmul(PJ.matrix, NullProjector))
-            projectors.append(P)
-            jacobians.append(PJ)
-            velocities.append(-v*barrier_value)
+            alphas.append(alpha)
+            #projectors.append(P)
+            #jacobians.append(PJ)
+            #velocities.append(-v*barrier_value)
 
         if alpha2 != 0:
             v = numpy.array([udiff.x,udiff.y], dtype=numpy.float64).reshape((2,1))
@@ -390,11 +392,16 @@ def animate(wdg):
             projectors.append(P)
             velocities.append(-v*barrier_value2)
 
-    prepare_q = numpy.diag([0.1] * qdim)
+    prepare_q = numpy.diag([0.3] * qdim)
     prepare_q = NullProjector @ prepare_q
     prepare_q = prepare_q.T @ prepare_q
 
-    gamma = NullProjector @ (numpy.array([0.5,0.00,0.00,0.00]).reshape((qdim,1)) * 1)
+    gamma = numpy.array([
+        0.6,
+        0.00,
+        -manipulator.rots[2].coord * 3,
+        -manipulator.rots[3].coord * 3])
+    gamma = NullProjector @ (gamma.reshape((qdim,1)))
     #prepare_q[qdim-1,qdim-1] = 1
 
     for i in range(len(velocities)):
