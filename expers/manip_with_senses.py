@@ -145,9 +145,13 @@ class Link(zencad.assemble.unit):
         super().__init__()
         self.add(zencad.segment((0,0),(0,l)))
         self.spoints = [
+            SensorPoint(location=zencad.move(0,l*1/8,0)),
             SensorPoint(location=zencad.move(0,l*2/8,0)),
+            SensorPoint(location=zencad.move(0,l*3/8,0)),
             SensorPoint(location=zencad.move(0,l*4/8,0)),
+            SensorPoint(location=zencad.move(0,l*5/8,0)),
             SensorPoint(location=zencad.move(0,l*6/8,0)),
+            SensorPoint(location=zencad.move(0,l*7/8,0)),
             SensorPoint(location=zencad.move(0,l*8/8,0)),
         ]
         for s in self.spoints:
@@ -302,7 +306,7 @@ def animate(wdg):
         target2_pos = numpy.array(P26)
 
 #    tgt1 = (target1_pos - current1_pos)  * 5
-    tgt2 = (target2_pos - current2_pos)  * 3
+    tgt2 = (target2_pos - current2_pos)  * 7
  #   target1_speed = manipulator.half_sensor.global_to_local(tgt1)
     target2_speed = manipulator.final_sensor.global_to_local(tgt2)
     
@@ -328,7 +332,10 @@ def animate(wdg):
         target2_speed.reshape([2,1]),
     ] 
 
-    #print(jacobians[0])
+    outJ = manipulator.final_sensor.expanded_jacobi_matrix(qdim).matrix
+    outJp = numpy.linalg.pinv(outJ)
+    NullProjector = numpy.diag([1,1,1,1]) - outJp@outJ
+
 
     for i, s in enumerate(manipulator.sensor_points):
         center = s.center_as_point()
@@ -337,8 +344,11 @@ def animate(wdg):
         diffnorm = diff.bulk_norm()
         udiff = diff / diffnorm
         L = 0.3
-        barrier_value = shotki_barrier(b=2, l=L)(diffnorm)
-        alpha = alpha_function(l=L, k=0.5)(diffnorm) + 0.001
+        L2= 0.4
+        barrier_value = shotki_barrier(b=1, l=L)(diffnorm)
+        barrier_value2 = shotki_barrier(b=1, l=L2)(diffnorm)
+        alpha = alpha_function(l=L, k=0.5)(diffnorm) + 0.0000001
+        alpha2 = alpha_function(l=L2, k=0.5)(diffnorm) + 0.0000001
         
 #        if i % 4 == 3:
  #           alpha = alpha * 20
@@ -354,11 +364,27 @@ def animate(wdg):
             ]).reshape((2,2))
             J = s.expanded_jacobi_matrix(qdim)
             PJ = Jacobian(numpy.matmul(P, J.matrix))
+            #PJN = Jacobian(numpy.matmul(PJ.matrix, NullProjector))
             jacobians.append(PJ)
             velocities.append(-v*barrier_value)
 
-    prepare_q = numpy.diag([0.1] * qdim)
-    gamma = numpy.array([0.01,0.01,0.01,0.01]).reshape((qdim,1)) * 0
+        if alpha2 != 0:
+            v = numpy.array([udiff.x,udiff.y], dtype=numpy.float64).reshape((2,1))
+            v = s.global_to_local(v)
+            u = v / numpy.linalg.norm(v)
+            P = numpy.array([
+                u[0]*u[0], u[0]*u[1],
+                u[1]*u[0], u[1]*u[1],
+            ]).reshape((2,2))
+            J = s.expanded_jacobi_matrix(qdim)
+            PJ = Jacobian(numpy.matmul(P, J.matrix))
+            PJN = Jacobian(numpy.matmul(PJ.matrix, NullProjector))
+            alphas.append(alpha2)
+            jacobians.append(PJN)
+            velocities.append(-v*barrier_value2)
+
+    prepare_q = numpy.diag([0.05] * qdim)
+    gamma = NullProjector @ (numpy.array([0.5,0.00,0.00,0.00]).reshape((qdim,1)) * 1)
     #prepare_q[qdim-1,qdim-1] = 1
 
     for i in range(len(velocities)):

@@ -26,7 +26,7 @@ class Jacobian:
         return str(self.matrix)
 
     def solve(self, vector):
-        p = numpy.linalg.pinv(self.matrix)
+        p = numpy.linalg.inv(self.matrix)
         return p.dot(vector)
 
     def solve2(self, vector):
