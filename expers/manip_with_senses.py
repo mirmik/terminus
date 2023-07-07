@@ -273,6 +273,13 @@ zencad.display(zencad.point3(P24))
 zencad.display(zencad.point3(P25))
 zencad.display(zencad.point3(P26))
 
+zencad.display(zencad.segment(zencad.point3(P21), zencad.point3(P22)))
+zencad.display(zencad.segment(zencad.point3(P22), zencad.point3(P23)))
+zencad.display(zencad.segment(zencad.point3(P23), zencad.point3(P24)))
+zencad.display(zencad.segment(zencad.point3(P24), zencad.point3(P25)))
+zencad.display(zencad.segment(zencad.point3(P25), zencad.point3(P26)))
+
+
 start_time = time.time()
 def animate(wdg):
     t = time.time() - start_time
