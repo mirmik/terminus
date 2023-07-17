@@ -8,7 +8,8 @@ class IndexedMatrix:
     def __init__(self, matrix, lidxs=None, ridxs=None):
         self.lidxs = lidxs
         self.ridxs = ridxs
-        self.matrix = scipy.sparse.lil_matrix(matrix)
+        #self.matrix = scipy.sparse.lil_matrix(matrix)
+        self.matrix = matrix
         self.index_of_lidxs = {idx: lidxs.index(idx) for idx in lidxs}
         self.index_of_ridxs = {idx: ridxs.index(idx) for idx in ridxs}
 
@@ -30,6 +31,12 @@ class IndexedMatrix:
         else:
             return self.matmul(oth)
 
+    def inv(self):
+        return IndexedMatrix(scipy.sparse.linalg.inv(self.matrix), self.ridxs, self.lidxs)
+
+    def solve(self, b):
+        return numpy.linalg.solve(self.matrix, b.matrix)
+
     def raise_if_lidxs_is_not_same(self, oth):
         if self.lidxs != oth.lidxs:
             raise Exception("indexes is not same in convolution")
@@ -48,7 +55,7 @@ class IndexedMatrix:
         return IndexedMatrix(self.matrix + oth.matrix, self.lidxs, self.ridxs)
 
     def unsparse(self):
-        return self.matrix.to_array()
+        return self.matrix.toarray()
 
     def transpose(self):
         return IndexedMatrix(self.matrix.T, self.ridxs, self.lidxs)
@@ -66,8 +73,9 @@ class IndexedVector:
     def __init__(self, matrix, idxs):
         if isinstance(matrix, numpy.ndarray) and len(matrix.shape) == 1:
             matrix = matrix.reshape(matrix.shape[0], 1)
+        self.matrix = matrix
         self.idxs = idxs
-        self.matrix = scipy.sparse.lil_matrix(matrix)
+        #self.matrix = scipy.sparse.lil_matrix(matrix)
         self.index_of_idxs = {idx: idxs.index(idx) for idx in idxs}
 
     def __str__(self):
@@ -159,9 +167,9 @@ if __name__ == "__main__":
 
     C = indexed_matrix_summation([A, B])
 
-    V1 = IndexedVector(numpy.array([0, 1, 4]), ["x", "y", "z"])
+    V1 = IndexedVector(numpy.array([1, 1, 4]), ["x", "y", "z"])
     V2 = IndexedVector(numpy.array([1, 1, 3]), ["a", "y", "z"])
 
-    print((A + B).unsparse())
+    print((((A).solve(V1))))
     print(A @ V1)
     print(indexed_vector_summation([V1, V2]))
