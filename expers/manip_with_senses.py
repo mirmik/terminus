@@ -9,11 +9,18 @@ from terminus.ga201.motor import Motor2
 from terminus.ga201.join import join_point_point, oriented_distance
 from terminus.ga201.convex_body import ConvexBody2, ConvexWorld2
 import math
-
 import zencad
+import pickle
+import rxsignal
+import rxsignal.rxmqtt
+
 zencad.disable_lazy()
 
-#zencad.set_default_point_color(zencad.Color(1,0,0))
+publisher = rxsignal.rxmqtt.mqtt_rxclient()
+
+zencad.set_default_point_color(zencad.Color(0,0,0))
+zencad.set_default_wire_color(zencad.Color(0,0,0))
+#zencad.set_default_border_color(zencad.Color(1,1,1))
 
 class Jacobian:
     def __init__(self, matrix):
@@ -171,6 +178,9 @@ class Manipulator(zencad.assemble.unit):
 
         self.init_position()
 
+    def coords(self):
+        return [r.coord for r in self.rots]
+
     def init_position(self):
         for i in range(self.N):
             self.rots[i].set_coord(self.A)
@@ -279,9 +289,10 @@ zencad.display(zencad.segment(zencad.point3(P23), zencad.point3(P24)))
 zencad.display(zencad.segment(zencad.point3(P24), zencad.point3(P25)))
 zencad.display(zencad.segment(zencad.point3(P25), zencad.point3(P26)))
 
-
+last_q = numpy.array([0,0,0,0])
 start_time = time.time()
 def animate(wdg):
+    global last_q
     t = time.time() - start_time
     if (t < 1):
         return
@@ -294,23 +305,36 @@ def animate(wdg):
 
 #    t = 10
 
+    P = False
     TT = 4
     FT = 6*TT
     if (t%(FT)) < TT*1:
-        target2_pos = numpy.array(P21)
+        k = (TT*1 - (t%(FT))) / TT if P else 1
+        target2_pos = (1-k)*numpy.array(P21) + k*numpy.array(P26)
     elif (t%(FT)) < TT*2:
-        target2_pos = numpy.array(P22)
+        k = (TT*2 - (t%(FT))) / TT if P else 1
+        target2_pos = (1-k)*numpy.array(P22) + k*numpy.array(P21)
     elif (t%(FT)) < TT*3:
-        target2_pos = numpy.array(P23)
+        k = (TT*3 - (t%(FT))) / TT if P else 1
+        target2_pos = (1-k)*numpy.array(P23) + k*numpy.array(P22)
     elif (t%(FT)) < TT*4:
-        target2_pos = numpy.array(P24)
+        k = (TT*4 - (t%(FT))) / TT if P else 1
+        target2_pos = (1-k)*numpy.array(P24) + k*numpy.array(P23)
     elif (t%(FT)) < TT*5:
-        target2_pos = numpy.array(P25)
+        k = (TT*5 - (t%(FT))) / TT if P else 1
+        target2_pos = (1-k)*numpy.array(P25) + k*numpy.array(P24)
     else:
-        target2_pos = numpy.array(P26)
+        k = (TT*6 - (t%(FT))) / TT if P else 1
+        target2_pos = (1-k)*numpy.array(P26) + k*numpy.array(P25)
+
+    pos_error = target2_pos - current2_pos
+    abs_pos_error = numpy.linalg.norm(pos_error)
+    publisher.publish("pos_error_norm", abs_pos_error)
+
+    publisher.publish("posout", current2_pos)
 
 #    tgt1 = (target1_pos - current1_pos)  * 5
-    tgt2 = (target2_pos - current2_pos)  * 3
+    tgt2 = (target2_pos - current2_pos)  * 4
  #   target1_speed = manipulator.half_sensor.global_to_local(tgt1)
     target2_speed = manipulator.final_sensor.global_to_local(tgt2)
     
@@ -333,6 +357,7 @@ def animate(wdg):
     #    1, 
         1
     ]
+    barrier_alphas = []
     velocities = [
     #    target1_speed.reshape([2,1]),
         target2_speed.reshape([2,1]),
@@ -352,10 +377,10 @@ def animate(wdg):
         udiff = diff / diffnorm
         L = 0.2
         L2= 0.5
-        barrier_value = shotki_barrier(b=0.5, l=L)(diffnorm)
+        barrier_value = shotki_barrier(b=0.2, l=L)(diffnorm)
         barrier_value2 = shotki_barrier(b=2, l=L2)(diffnorm)
-        alpha = alpha_function(l=L, k=0.5)(diffnorm) * 0 + 0.0000
-        alpha2 = alpha_function(l=L2, k=0.5)(diffnorm) + 0.00000
+        alpha = alpha_function(l=L, k=0)(diffnorm) * 0 + 0.0000
+        alpha2 = alpha_function(l=L2, k=0)(diffnorm) + 0.00000
         
 #        if i % 4 == 3:
  #           alpha = alpha * 20
@@ -391,17 +416,23 @@ def animate(wdg):
             jacobians.append(PJN)
             projectors.append(P)
             velocities.append(-v*barrier_value2)
+        barrier_alphas.append(barrier_value2)
 
+    publisher.publish("barrier", barrier_alphas)
+    
+    # betta
     prepare_q = numpy.diag([0.3] * qdim)
+    #prepare_q = numpy.diag([3] * qdim)
     prepare_q = NullProjector @ prepare_q
     prepare_q = prepare_q.T @ prepare_q
 
     gamma = numpy.array([
-        0.6,
+        8,
         0.00,
-        -manipulator.rots[2].coord * 3,
-        -manipulator.rots[3].coord * 3])
-    gamma = NullProjector @ (gamma.reshape((qdim,1)))
+        -manipulator.rots[2].coord * 20,
+        -manipulator.rots[3].coord * 20])
+    gamma = prepare_q @ (gamma.reshape((qdim,1))) 
+    gamma += prepare_q @ (last_q.reshape((qdim,1)))
     #prepare_q[qdim-1,qdim-1] = 1
 
     for i in range(len(velocities)):
@@ -418,6 +449,14 @@ def animate(wdg):
     #print(q)
     manipulator.apply_speed_control(q)
 
+    accels = last_q - q
+    last_q = q
+
+    coords = manipulator.coords()
+    publisher.publish("vels", q)
+    publisher.publish("accels", accels)
+    publisher.publish("coords", coords)
+
     for s in manipulator.sensor_points:
         trans = s.global_location.translation()
         p = Point2(trans.x, trans.y)
@@ -426,7 +465,14 @@ def animate(wdg):
         #s.line_interactive.set_points(p1=(p.x,p.y), p2=(pp.x, pp.y))
         #s.line_interactive.redisplay()
 
+def preanimate(wdg, anthr):
+    print(wdg, anthr)
+    wdg.enable_axis_triedron(False)
+    wdg.enable_axis_biedron(True, colors=[zencad.black, zencad.black])
+    wdg.set_background_color(
+        zencad.Color(1,1,1,1))
 
-zencad.show(animate = animate)
+
+zencad.show(animate = animate, preanimate = preanimate)
 animate(None)
 zencad.show()
