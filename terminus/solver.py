@@ -47,6 +47,9 @@ class IndexedMatrix:
         self.raise_if_ridxs_is_not_same(oth)
         return IndexedMatrix(self.matrix + oth.matrix, self.lidxs, self.ridxs)
 
+    def unsparse(self):
+        return self.matrix.to_array()
+
     def transpose(self):
         return IndexedMatrix(self.matrix.T, self.ridxs, self.lidxs)
 
@@ -159,6 +162,6 @@ if __name__ == "__main__":
     V1 = IndexedVector(numpy.array([0, 1, 4]), ["x", "y", "z"])
     V2 = IndexedVector(numpy.array([1, 1, 3]), ["a", "y", "z"])
 
-    print(A + B)
+    print((A + B).unsparse())
     print(A @ V1)
     print(indexed_vector_summation([V1, V2]))
