@@ -333,28 +333,18 @@ def animate(wdg):
 
     publisher.publish("posout", current2_pos)
 
-#    tgt1 = (target1_pos - current1_pos)  * 5
-    tgt2 = (target2_pos - current2_pos)  * 4
- #   target1_speed = manipulator.half_sensor.global_to_local(tgt1)
+    tgt2 = (target2_pos - current2_pos)  * 3
     target2_speed = manipulator.final_sensor.global_to_local(tgt2)
     
-    #j = manipulator.final_sensor.jacobi_matrix()
-    #s = j.solve2(target_speed)
-    #d = j.dot(s)
-    #t = manipulator.final_sensor.local_to_global(d)
-    #s = s.reshape((manipulator.N))
-
     III = numpy.diag([1,1])
 
     sdim = len(manipulator.sensor_points) 
     qdim = manipulator.qdim()   
     
     jacobians = [ 
-        #manipulator.half_sensor.expanded_jacobi_matrix(qdim),
         manipulator.final_sensor.expanded_jacobi_matrix(qdim),
     ]
     alphas = [
-    #    1, 
         1
     ]
     barrier_alphas = []
@@ -367,6 +357,7 @@ def animate(wdg):
     outJ = manipulator.final_sensor.expanded_jacobi_matrix(qdim).matrix
     outJp = numpy.linalg.pinv(outJ)
     NullProjector = numpy.diag([1,1,1,1]) - outJp@outJ
+    AntiNullProjector = outJp@outJ
 
 
     for i, s in enumerate(manipulator.sensor_points):
@@ -375,31 +366,26 @@ def animate(wdg):
         diff = proj_to_nearest - center
         diffnorm = diff.bulk_norm()
         udiff = diff / diffnorm
-        L = 0.2
-        L2= 0.5
-        barrier_value = shotki_barrier(b=0.2, l=L)(diffnorm)
-        barrier_value2 = shotki_barrier(b=2, l=L2)(diffnorm)
-        alpha = alpha_function(l=L, k=0)(diffnorm) * 0 + 0.0000
-        alpha2 = alpha_function(l=L2, k=0)(diffnorm) + 0.00000
+        L2= 0.4
+        #barrier_value = shotki_barrier(b=0.2, l=L)(diffnorm)
+        barrier_value2 = shotki_barrier(b=2, l=L2)(diffnorm) * 2
+        #alpha = alpha_function(l=L, k=0)(diffnorm) * 0 + 0.0000
+        alpha2 = alpha_function(l=L2, k=0)(diffnorm) * 2 + 0.00000
         
 #        if i % 4 == 3:
  #           alpha = alpha * 20
 
-        if alpha != 0:
-            v = numpy.array([udiff.x,udiff.y], dtype=numpy.float64).reshape((2,1))
-            v = s.global_to_local(v)
-            u = v / numpy.linalg.norm(v)
-            P = numpy.array([
-                u[0]*u[0], u[0]*u[1],
-                u[1]*u[0], u[1]*u[1],
-            ]).reshape((2,2))
-            J = s.expanded_jacobi_matrix(qdim)
-            PJ = Jacobian(numpy.matmul(P, J.matrix))
-            #PJN = Jacobian(numpy.matmul(PJ.matrix, NullProjector))
-            alphas.append(alpha)
-            #projectors.append(P)
-            #jacobians.append(PJ)
-            #velocities.append(-v*barrier_value)
+        # if alpha != 0:
+        #     v = numpy.array([udiff.x,udiff.y], dtype=numpy.float64).reshape((2,1))
+        #     v = s.global_to_local(v)
+        #     u = v / numpy.linalg.norm(v)
+        #     P = numpy.array([
+        #         u[0]*u[0], u[0]*u[1],
+        #         u[1]*u[0], u[1]*u[1],
+        #     ]).reshape((2,2))
+        #     J = s.expanded_jacobi_matrix(qdim)
+        #     PJ = Jacobian(numpy.matmul(P, J.matrix))
+        #     alphas.append(alpha)
 
         if alpha2 != 0:
             v = numpy.array([udiff.x,udiff.y], dtype=numpy.float64).reshape((2,1))
@@ -421,19 +407,33 @@ def animate(wdg):
     publisher.publish("barrier", barrier_alphas)
     
     # betta
-    prepare_q = numpy.diag([0.3] * qdim)
-    #prepare_q = numpy.diag([3] * qdim)
+    prepare_q = numpy.diag([0.5] * qdim)
     prepare_q = NullProjector @ prepare_q
     prepare_q = prepare_q.T @ prepare_q
 
-    gamma = numpy.array([
-        8,
+    prepare_q2 = numpy.diag([0.5] * qdim)
+    prepare_q2 = NullProjector @ prepare_q2
+    prepare_q2 = prepare_q2.T @ prepare_q2
+
+    prepare_q_zero = numpy.diag([0.5] * qdim)
+    prepare_q_zero = AntiNullProjector @ prepare_q_zero
+    prepare_q_zero = prepare_q_zero.T @ prepare_q_zero
+
+    gamma1 = prepare_q @ (
+        numpy.array([
+        0.8 + math.pi/2-manipulator.rots[2].coord,
         0.00,
-        -manipulator.rots[2].coord * 20,
-        -manipulator.rots[3].coord * 20])
-    gamma = prepare_q @ (gamma.reshape((qdim,1))) 
-    gamma += prepare_q @ (last_q.reshape((qdim,1)))
-    #prepare_q[qdim-1,qdim-1] = 1
+        -manipulator.rots[2].coord,
+        -manipulator.rots[3].coord]).reshape((qdim,1))
+        )
+
+    gamma2 = prepare_q2 @ (
+        + last_q.reshape((qdim,1))
+        )
+
+    gamma3 = prepare_q_zero @ ( #numpy.array([1,1,1,1]).reshape((qdim,1))
+        + last_q.reshape((qdim,1))
+        )
 
     for i in range(len(velocities)):
         n = numpy.linalg.norm(velocities[i])
@@ -441,7 +441,8 @@ def animate(wdg):
         if n > V:
             velocities[i] = velocities[i] / n * V
 
-    q = solve_2d_velocity_system(jacobians, velocities, alphas, prepare_q, gamma, projectors)
+    q = solve_2d_velocity_system(jacobians, velocities, alphas, prepare_q + prepare_q2 + prepare_q_zero, 
+        gamma1+gamma2+gamma3, projectors)
     q = q.reshape((manipulator.N))
 
     qn = numpy.linalg.norm(q)

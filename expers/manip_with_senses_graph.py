@@ -69,7 +69,7 @@ mqttclient.stop_spin()
 fig, ((ax5, ax4), (ax6, ax1), (ax2, ax3)) = plt.subplots(3, 2)
 
 ax1.plot(collect_time, collect_data, 'k')
-ax1.set_xlabel('время, с', fontsize=F)
+#ax1.set_xlabel('время, с', fontsize=F)
 ax1.set_ylabel('невязка, см', fontsize=F)
 
 ax2.plot(collect_coords_time, collect_coords, 'k')
@@ -77,7 +77,7 @@ ax2.set_xlabel('время, с', fontsize=F)
 ax2.set_ylabel('координаты, рад', fontsize=F)
 
 ax4.plot(posout_time, posout_data, 'k')
-ax4.set_xlabel('время, с', fontsize=F)
+#ax4.set_xlabel('время, с', fontsize=F)
 ax4.set_ylabel('положение ВЗ, см', fontsize=F)
 
 # set line width
@@ -86,11 +86,11 @@ ax3.set_xlabel('время, с', fontsize=F)
 ax3.set_ylabel('барьерный потенциал, ед', fontsize=F)
 
 ax5.plot(accels_time, accels_data, 'k', linewidth=1)
-ax5.set_xlabel('время, с', fontsize=F)
+#ax5.set_xlabel('время, с', fontsize=F)
 ax5.set_ylabel('ускорения, см', fontsize=F)
 
 ax6.plot(vels_time, vels_data, 'k', linewidth=1)
-ax6.set_xlabel('время, с', fontsize=F)
+#ax6.set_xlabel('время, с', fontsize=F)
 ax6.set_ylabel('скорости, см', fontsize=F)
 
 plt.show()
