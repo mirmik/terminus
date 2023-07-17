@@ -45,9 +45,14 @@ class IndexedVector:
     def __init__(self, matrix, idxs):
         self.idxs = idxs
         self.matrix = matrix
+        self.index_of_idxs = {idx: idxs.index(idx) for idx in idxs}
 
     def __str__(self):
         return "{} {}".format(self.matrix, self.idxs)
+
+    def accumulate_from(self, other):
+        idxs = [self.index_of_idxs[i] for i in other.idxs]
+        self.matrix[idxs] += other.matrix
 
 
 def create_matrix_of_mass(self, mass, inertia):
@@ -58,12 +63,12 @@ def create_matrix_of_mass(self, mass, inertia):
     return indexed_matrix
 
 
-def full_indexes_list(arr):
+def full_indexes_list_vector(arr):
     s = set()
     for a in arr:
         for index in a.idxs:
-            s.insert(index)
-    return list(s)
+            s.add(index)
+    return sorted(list(s))
 
 
 def indexed_matrix_summation(arr):
@@ -76,7 +81,12 @@ def indexed_matrix_summation(arr):
 
 
 def indexed_vector_summation(arr):
-    return sum(arr)
+    idxs = full_indexes_list_vector(arr)
+    result_matrix = IndexedVector(numpy.zeros(
+        (len(idxs))), idxs)
+    for m in arr:
+        result_matrix.accumulate_from(m)
+    return result_matrix
 
 
 def invoke_set_values_for_indexed_vector(self, indexed_vector):
@@ -111,6 +121,8 @@ if __name__ == "__main__":
     A = IndexedMatrix(numpy.array([[1, 2, 0], [0, 1, 0], [0, 0, 1]]), [
         "a", "b", "c"], ["x", "y", "z"])
 
-    V = IndexedVector(numpy.array([0, 1, 0]), ["x", "y", "z"])
+    V1 = IndexedVector(numpy.array([0, 1, 4]), ["x", "y", "z"])
+    V2 = IndexedVector(numpy.array([1, 1, 3]), ["a", "y", "z"])
 
-    print(A @ V)
+    print(A @ V1)
+    print(indexed_vector_summation([V1, V2]))
