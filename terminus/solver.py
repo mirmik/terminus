@@ -8,7 +8,7 @@ class IndexedMatrix:
     def __init__(self, matrix, lidxs=None, ridxs=None):
         self.lidxs = lidxs
         self.ridxs = ridxs
-        self.matrix = scipy.sparce(matrix)
+        self.matrix = scipy.sparse.lil_matrix(matrix)
         self.index_of_lidxs = {idx: lidxs.index(idx) for idx in lidxs}
         self.index_of_ridxs = {idx: ridxs.index(idx) for idx in ridxs}
 
@@ -30,26 +30,45 @@ class IndexedMatrix:
         else:
             return self.matmul(oth)
 
+    def raise_if_lidxs_is_not_same(self, oth):
+        if self.lidxs != oth.lidxs:
+            raise Exception("indexes is not same in convolution")
+
+    def raise_if_ridxs_is_not_same(self, oth):
+        if self.ridxs != oth.ridxs:
+            raise Exception("indexes is not same in convolution")
+
+    def raise_if_not_linkaged(self, oth):
+        if self.ridxs != oth.lidxs:
+            raise Exception("indexes is not same in convolution")
+
+    def __add__(self, oth):
+        self.raise_if_lidxs_is_not_same(oth)
+        self.raise_if_ridxs_is_not_same(oth)
+        return IndexedMatrix(self.matrix + oth.matrix, self.lidxs, self.ridxs)
+
     def transpose(self):
         return IndexedMatrix(self.matrix.T, self.ridxs, self.lidxs)
 
     def accumulate_from(self, other):
-        lidxs = [self.index_of_lidxs[i] for i in other.lidx]
-        ridxs = [self.index_of_ridxs[i] for i in other.ridx]
+        lidxs = [self.index_of_lidxs[i] for i in other.lidxs]
+        ridxs = [self.index_of_ridxs[i] for i in other.ridxs]
         self.matrix[lidxs, ridxs]
 
     def __str__(self):
-        return "{} {} {}".format(self.matrix, self.lidxs, self.ridxs)
+        return "Matrix:\r\n{}\r\nLeft Indexes: {}\r\nRight Indexes: {}\r\n".format(self.matrix, self.lidxs, self.ridxs)
 
 
 class IndexedVector:
     def __init__(self, matrix, idxs):
+        if isinstance(matrix, numpy.ndarray) and len(matrix.shape) == 1:
+            matrix = matrix.reshape(matrix.shape[0], 1)
         self.idxs = idxs
-        self.matrix = matrix
+        self.matrix = scipy.sparse.lil_matrix(matrix)
         self.index_of_idxs = {idx: idxs.index(idx) for idx in idxs}
 
     def __str__(self):
-        return "{} {}".format(self.matrix, self.idxs)
+        return "Vector:\r\n{}\r\nIndexes: {}\r\n".format(self.matrix, self.idxs)
 
     def accumulate_from(self, other):
         idxs = [self.index_of_idxs[i] for i in other.idxs]
@@ -72,8 +91,19 @@ def full_indexes_list_vector(arr):
     return sorted(list(s))
 
 
+def full_indexes_list_matrix(arr):
+    l = set()
+    r = set()
+    for a in arr:
+        for index in a.lidxs:
+            l.add(index)
+        for index in a.ridxs:
+            r.add(index)
+    return sorted(list(l)), sorted(list(r))
+
+
 def indexed_matrix_summation(arr):
-    lidxs, ridxs = full_indexes_list(arr)
+    lidxs, ridxs = full_indexes_list_matrix(arr)
     result_matrix = IndexedMatrix(numpy.zeros(
         (len(lidxs), len(ridxs))), lidxs, ridxs)
     for m in arr:
@@ -113,7 +143,7 @@ def quadratic_problem_solver_indexes(A: IndexedMatrix, B: IndexedMatrix, C: Inde
 def quadratic_problem_solver(A, B, C, D):
     """
         [A]x + [B]l = C
-        [B^t]x = D  
+        [B^t]x = D
     """
     return x, l
 
@@ -121,9 +151,14 @@ def quadratic_problem_solver(A, B, C, D):
 if __name__ == "__main__":
     A = IndexedMatrix(numpy.array([[1, 2, 0], [0, 1, 0], [0, 0, 1]]), [
         "a", "b", "c"], ["x", "y", "z"])
+    B = IndexedMatrix(numpy.array([[1, 2, 0], [0, 1, 0], [0, 0, 1]]), [
+        "a", "b", "c"], ["x", "y", "z"])
+
+    C = indexed_matrix_summation([A, B])
 
     V1 = IndexedVector(numpy.array([0, 1, 4]), ["x", "y", "z"])
     V2 = IndexedVector(numpy.array([1, 1, 3]), ["a", "y", "z"])
 
+    print(A + B)
     print(A @ V1)
     print(indexed_vector_summation([V1, V2]))
