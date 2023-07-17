@@ -28,7 +28,8 @@ setup(
     classifiers=[],
     package_data={
         "terminus": [
-            "ga201/*"
+            "ga201/*",
+            "physics/*",
         ]
     },
     include_package_data=True,
@@ -36,5 +37,5 @@ setup(
     ],
     extras_require={
     },
-    zip_safe = False,
+    zip_safe=False,
 )

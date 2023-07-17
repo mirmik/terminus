@@ -1,10 +1,12 @@
 
 import math
 from terminus.ga201.point import Point2
+from terminus.ga201.screw import Screw2
 import numpy
 
+
 class Motor2:
-    def __init__(self, x, y, z, w):
+    def __init__(self, x=0, y=0, z=0, w=1):
         self.x = x
         self.y = y
         self.z = z
@@ -37,8 +39,10 @@ class Motor2:
     def transform_point(self, p):
         q = self
         return Point2(
-            (q.w**2 - q.z**2)*p.x - 2*q.w*q.z*p.y + (2*q.w*q.x - 2*q.z*q.y)*p.z,
-            (q.w**2 - q.z**2)*p.y + 2*q.w*q.z*p.x + (2*q.w*q.y + 2*q.z*q.x)*p.z,
+            (q.w**2 - q.z**2)*p.x - 2*q.w*q.z *
+            p.y + (2*q.w*q.x - 2*q.z*q.y)*p.z,
+            (q.w**2 - q.z**2)*p.y + 2*q.w*q.z *
+            p.x + (2*q.w*q.y + 2*q.z*q.x)*p.z,
             (q.w**2 + q.z**2)*p.z
         )
 
@@ -48,7 +52,7 @@ class Motor2:
 
     def __repr__(self):
         return "Motor(%s, %s, %s, %s)" % (self.x, self.y, self.z, self.w)
-    
+
     def __str__(self):
         return repr(self)
 
@@ -56,7 +60,7 @@ class Motor2:
         return math.atan2(self.z, self.w) * 2
 
     def factorize_rotation(self):
-        return Motor2(0,0,self.z,self.w)
+        return Motor2(0, 0, self.z, self.w)
 
     def reverse(self):
         return Motor2(-self.x, -self.y, -self.z, self.w)
@@ -65,7 +69,7 @@ class Motor2:
         rotation = self.factorize_rotation()
         translation = self.factorize_translation()
         return rotation.reverse() * translation.reverse()
-        
+
     def factorize_translation(self):
         q = self
         return Motor2(
@@ -78,7 +82,7 @@ class Motor2:
     def factorize_translation_point(self):
         #probe = Point2(0,0)
         #r = self.transform_point(probe)
-        #return Motor(r.x/2, r.y/2, 0, 1)
+        # return Motor(r.x/2, r.y/2, 0, 1)
         q = self
         return Point2(
             q.w*q.x - q.z*q.y,
@@ -90,19 +94,18 @@ class Motor2:
         ft = self.factorize_translation()
         return numpy.array([ft.x, ft.y])
 
-        
     def factorize_parameters(self):
         t = self.factorize_translation()
         angle = self.factorize_rotation_angle()
         x = t.x * 2
         y = t.y * 2
-        return (angle, (x,y))
+        return (angle, (x, y))
 
     def rotate_nparray(self, a):
         angle = self.factorize_rotation_angle()
         s = math.sin(angle)
         c = math.cos(angle)
-        return numpy.array([ 
+        return numpy.array([
             c*a[0] - s*a[1],
             s*a[0] + c*a[1]
         ])
@@ -111,7 +114,7 @@ class Motor2:
         angle = self.factorize_rotation_angle()
         s = math.sin(angle)
         c = math.cos(angle)
-        return numpy.array([ 
+        return numpy.array([
             c*a[0] + s*a[1],
             -s*a[0] + c*a[1]
         ])
@@ -140,6 +143,10 @@ class Motor2:
             self.w / s
         )
 
-    def is_zero_equal(self, eps = 1e-8):
+    def is_zero_equal(self, eps=1e-8):
         a = numpy.array([self.x, self.y, self.z, self.w])
         return numpy.linalg.norm(a) < eps
+
+    @staticmethod
+    def from_screw(scr):
+        return Motor2.translation(*scr.lin()) * Motor2.rotation(scr.ang())
