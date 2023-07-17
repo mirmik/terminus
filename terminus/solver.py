@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 
 import numpy
+import scipy
 
 
 class IndexedMatrix:
     def __init__(self, matrix, lidxs=None, ridxs=None):
         self.lidxs = lidxs
         self.ridxs = ridxs
-        self.matrix = matrix
+        self.matrix = scipy.sparce(matrix)
         self.index_of_lidxs = {idx: lidxs.index(idx) for idx in lidxs}
         self.index_of_ridxs = {idx: ridxs.index(idx) for idx in ridxs}
 
