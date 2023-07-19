@@ -15,9 +15,11 @@ bf = np.vectorize(barrier(1,5))
 x = np.arange(0.01, 10, 0.1)
 y = bf(x)
 
+plt.rcParams["font.size"] = 16
+
 plt.plot(x,y, 'k')
 plt.ylim(-0.2,2)
 plt.grid()
-plt.xlabel("|r|")
-plt.ylabel("B(|r|)")
+plt.xlabel("|r|", fontsize=18)
+plt.ylabel("B(|r|)", fontsize=18)
 plt.show()

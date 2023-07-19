@@ -73,12 +73,12 @@ class IndexedMatrix:
 
 class IndexedVector:
     def __init__(self, matrix, idxs):
-        if isinstance(matrix, numpy.ndarray) and len(matrix.shape) == 1:
+        if isinstance(matrix, numpy.ndarray) and len(matrix.shape) != 1:
             matrix = matrix.reshape(matrix.shape[0], 1)
         self.matrix = matrix
         self.idxs = idxs
-        #self.matrix = scipy.sparse.lil_matrix(matrix)
-        self.index_of_idxs = {idx: idxs.index(idx) for idx in idxs}
+        if self.idxs:
+            self.index_of_idxs = {idx: idxs.index(idx) for idx in idxs}
 
     def __str__(self):
         return "Vector:\r\n{}\r\nIndexes: {}\r\n".format(self.matrix, self.idxs)
@@ -87,3 +87,7 @@ class IndexedVector:
         idxs = [self.index_of_idxs[i] for i in other.idxs]
         for i in range(len(idxs)):
             self.matrix[idxs[i]] += other.matrix[i]
+
+    def upbind_values(self):
+        for i in range(len(self.idxs)):
+            self.idxs[i].set_value(self.matrix[i])

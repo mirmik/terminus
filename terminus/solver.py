@@ -30,12 +30,10 @@ def indexed_matrix_summation(arr):
         (len(lidxs), len(ridxs))), lidxs, ridxs)
     for m in arr:
         result_matrix.accumulate_from(m)
-        print(result_matrix)
     return result_matrix
 
 
 def indexed_vector_summation(arr):
-    print(arr)
     idxs = full_indexes_list_vector(arr)
     result_vector = IndexedVector(numpy.zeros(
         (len(idxs))), idxs)
@@ -50,11 +48,12 @@ def invoke_set_values_for_indexed_vector(self, indexed_vector):
     for idx, val in zip(indexes, values):
         idx.set_value(val)
 
-
 def quadratic_problem_solver_indexes_array(Aarr: list, Carr: list, Barr: list = [], Darr: list = []):
-    print(*Aarr)
-    print(*Carr)
     A = indexed_matrix_summation(Aarr)
+
+    if len(Carr) == 0:
+        Carr = [IndexedVector([0] * len(A.lidxs), idxs=A.lidxs)]
+
     B = indexed_matrix_summation(Barr)
     C = indexed_vector_summation(Carr)
     D = indexed_vector_summation(Darr)
@@ -62,12 +61,11 @@ def quadratic_problem_solver_indexes_array(Aarr: list, Carr: list, Barr: list = 
     return x, l
 
 
-def quadratic_problem_solver_indexes(A: IndexedMatrix, C: IndexedVector, B: IndexedMatrix, D: IndexedVector):
-    print(A.matrix)
-    print(C.matrix)
+def quadratic_problem_solver_indexes(A: IndexedMatrix, C: IndexedVector, B: IndexedMatrix, D: IndexedVector):    
     x = numpy.linalg.pinv(A.matrix) @ C.matrix
     l = 0
-    return IndexedVector(x, idxs=A.ridxs), IndexedVector(l, idxs=B.ridxs)
+    Bridxs = [] 
+    return IndexedVector(x, idxs=A.ridxs), IndexedVector(l, idxs=Bridxs)
 
 
 def quadratic_problem_solver(A, B, C, D):
@@ -76,7 +74,6 @@ def quadratic_problem_solver(A, B, C, D):
         [B^t]x = D
     """
     return x, l
-
 
 if __name__ == "__main__":
     A = IndexedMatrix(numpy.array([[1, 2, 0], [0, 1, 0], [0, 0, 1]]), [

@@ -10,8 +10,10 @@ class ScrewCommutator:
         return self._sources
 
     def set_value(self, idx, value):
-        self.values[idx] = value
+        self._values[idx] = value
 
+    def values(self):
+        return self._values
 
 class ScrewSource:
     def __init__(self, commutator, index):

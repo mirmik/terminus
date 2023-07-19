@@ -12,6 +12,14 @@ class Motor2:
         self.z = z
         self.w = w
 
+    def self_normalize(self):
+        l = self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w 
+        n = math.sqrt(l)
+        return Motor2(self.x / n,
+        self.y / n,
+        self.z / n,
+        self.w / n)
+
     @staticmethod
     def rotation(rads):
         z = math.sin(rads/2)
@@ -46,6 +54,17 @@ class Motor2:
             (q.w**2 + q.z**2)*p.z
         )
 
+    def rotation_matrix(self):
+        angle = self.angle()
+        s = math.sin(angle)
+        c = math.cos(angle)
+        arr = numpy.array([
+            [1,0,0],
+            [0,c,-s],
+            [0,s,c],
+        ])
+        return arr
+
     def transform(self, o):
         if isinstance(o, Point2):
             return self.transform_point(o)
@@ -58,6 +77,9 @@ class Motor2:
 
     def factorize_rotation_angle(self):
         return math.atan2(self.z, self.w) * 2
+
+    def angle(self):
+        return self.factorize_rotation_angle()
 
     def factorize_rotation(self):
         return Motor2(0, 0, self.z, self.w)
