@@ -2,8 +2,9 @@ import numpy
 from terminus.ga201.screw import Screw2
 from terminus.physics.indexed_matrix import IndexedVector
 
+
 class Force:
-    def __init__(self, v=[0,0], m=0):
+    def __init__(self, v=[0, 0], m=0):
         self._screw = Screw2(v=v, m=m)
         self._linked_object = None
         self._is_right_global = False
@@ -24,7 +25,7 @@ class Force:
 
     def is_right(self):
         return self._is_right
-        
+
     def set_linked_object(self, obj):
         self._linked_object = obj
 
@@ -38,10 +39,10 @@ class Force:
         self._screw.set_moment(v)
 
     def to_indexed_vector(self):
-        return IndexedVector(self._screw.toarray(), self._linked_object.commutation_indexes())
+        return IndexedVector(self._screw.toarray(), self._linked_object.equation_indexes())
 
     def to_indexed_vector_rotated_by(self, motor):
-        return IndexedVector((self._screw.rotate_by(motor)).toarray(), self._linked_object.commutation_indexes())
+        return IndexedVector((self._screw.rotate_by(motor)).toarray(), self._linked_object.equation_indexes())
 
     def unbind(self):
         self._linked_object.unbind_force(self)

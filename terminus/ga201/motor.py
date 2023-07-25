@@ -13,12 +13,12 @@ class Motor2:
         self.w = w
 
     def self_normalize(self):
-        l = self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w 
+        l = self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w
         n = math.sqrt(l)
         return Motor2(self.x / n,
-        self.y / n,
-        self.z / n,
-        self.w / n)
+                      self.y / n,
+                      self.z / n,
+                      self.w / n)
 
     @staticmethod
     def rotation(rads):
@@ -59,9 +59,9 @@ class Motor2:
         s = math.sin(angle)
         c = math.cos(angle)
         arr = numpy.array([
-            [1,0,0],
-            [0,c,-s],
-            [0,s,c],
+            [1, 0, 0],
+            [0, c, -s],
+            [0, s, c],
         ])
         return arr
 
@@ -114,7 +114,7 @@ class Motor2:
 
     def factorize_translation_vector(self):
         ft = self.factorize_translation()
-        return numpy.array([ft.x, ft.y])
+        return numpy.array([ft.x*2, ft.y*2])
 
     def factorize_parameters(self):
         t = self.factorize_translation()
