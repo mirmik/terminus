@@ -23,11 +23,22 @@ def full_indexes_list_matrix(arr, lidxs=None, ridxs=None):
         if ridxs is None:
             for index in a.ridxs:
                 r.add(index)
-    
+
     lidxs = lidxs if lidxs is not None else sorted(list(l))
     ridxs = ridxs if ridxs is not None else sorted(list(r))
 
     return lidxs, ridxs
+
+
+def symmetric_full_indexes_list_matrix(arr, idxs=None):
+    l = set()
+    for a in arr:
+        if idxs is None:
+            for index in a.lidxs:
+                l.add(index)
+
+    idxs = idxs if idxs is not None else sorted(list(l))
+    return idxs
 
 
 def indexed_matrix_summation(arr, lidxs=None, ridxs=None):
@@ -36,6 +47,23 @@ def indexed_matrix_summation(arr, lidxs=None, ridxs=None):
     result_matrix = IndexedMatrix(numpy.zeros(
         (len(lidxs), len(ridxs))), lidxs, ridxs)
     for m in arr:
+        result_matrix.accumulate_from(m)
+    return result_matrix
+
+
+def symmetric_indexed_matrix_summation(arr, idxs=None):
+    idxs = symmetric_full_indexes_list_matrix(
+        arr, idxs=idxs)
+
+    result_matrix = IndexedMatrix(numpy.zeros(
+        (len(idxs), len(idxs))), idxs, idxs)
+    for m in arr:
+        if m.lidxs != m.ridxs:
+            raise Exception("indexes is not same in convolution")
+
+        if numpy.equal(m.matrix, m.matrix.T).all() == False:
+            raise Exception("matrix is not symmetric")
+
         result_matrix.accumulate_from(m)
     return result_matrix
 
@@ -56,8 +84,9 @@ def invoke_set_values_for_indexed_vector(self, indexed_vector):
     for idx, val in zip(indexes, values):
         idx.set_value(val)
 
+
 def quadratic_problem_solver_indexes_array(Aarr: list, Carr: list, Barr: list = [], Darr: list = []):
-    A = indexed_matrix_summation(Aarr)
+    A = symmetric_indexed_matrix_summation(Aarr)
 
     if len(Carr) == 0:
         Carr = [IndexedVector([0] * len(A.lidxs), idxs=A.lidxs)]
@@ -75,16 +104,21 @@ def quadratic_problem_solver_indexes_array(Aarr: list, Carr: list, Barr: list = 
     return x, l
 
 
-def quadratic_problem_solver_indexes(A: IndexedMatrix, C: IndexedVector, B: IndexedMatrix, D: IndexedVector):    
-  
+def quadratic_problem_solver_indexes(A: IndexedMatrix, C: IndexedVector, B: IndexedMatrix, D: IndexedVector):
+
     C.matrix = C.matrix.reshape((C.matrix.shape[0], 1))
     if B is not None:
-        D.matrix = D.matrix.reshape((D.matrix.shape[0], 1))  
-        Q = numpy.block([[A.matrix, B.matrix], [B.matrix.T, numpy.zeros((len(B.ridxs), len(B.ridxs)))]])
+        D.matrix = D.matrix.reshape((D.matrix.shape[0], 1))
+        Q = numpy.block([[A.matrix, B.matrix], [B.matrix.T,
+                                                numpy.zeros((len(B.ridxs), len(B.ridxs)))]])
         b = numpy.block([[C.matrix], [D.matrix]])
     else:
         Q = A.matrix
         b = C.matrix
+
+    if (Q != Q.T).any():
+        print(Q)
+        raise Exception("Q is not symmetric")
 
     if A.lidxs != C.idxs:
         raise Exception("indexes is not same in convolution")
@@ -92,20 +126,11 @@ def quadratic_problem_solver_indexes(A: IndexedMatrix, C: IndexedVector, B: Inde
     if B.ridxs != D.idxs:
         raise Exception("indexes is not same in convolution")
 
-    print("Equation:")
-    print(Q)
-    print(b)
-    print(numpy.linalg.pinv(Q))
-
     X = numpy.linalg.pinv(Q) @ b
     X = X.reshape((X.shape[0],))
     x = X[:len(A.lidxs)]
     l = X[len(A.lidxs):]
 
-    print("Answer:")
-    print(x)
-    print(l)
-    
     if B is not None:
         return IndexedVector(x, idxs=A.ridxs), IndexedVector(l, idxs=B.ridxs)
     else:

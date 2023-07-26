@@ -3,12 +3,17 @@
 from terminus.solver import quadratic_problem_solver_indexes_array
 from terminus.ga201 import Screw2
 
+
 class World:
     def __init__(self):
         self.bodies = []
         self._force_links = []
         self._iteration_counter = 0
-        self._gravity = Screw2(v=[0,-1])
+        self._gravity = Screw2(v=[0, -1])
+        self._last_solution = None
+
+    def last_solution(self):
+        return self._last_solution
 
     def add_link_force(self, force_link):
         self._force_links.append(force_link)
@@ -50,7 +55,6 @@ class World:
                 raise Exception("Matrix is not square by indexes")
             arr.append(matrix)
         return arr
-        
 
     def iteration(self, delta):
         A_list = self.A_matrix_list()
@@ -58,14 +62,15 @@ class World:
         C_list = self.C_matrix_list()
         D_list = self.D_matrix_list()
 
-        x,l = quadratic_problem_solver_indexes_array(A_list, C_list, B_list, D_list)
+        x, l = quadratic_problem_solver_indexes_array(
+            A_list, C_list, B_list, D_list)
         x.upbind_values()
 
-        #print(x)
-        
+        self._last_solution = (x, l)
+
         for body in self.bodies:
             body.downbind_left_acceleration()
-            body.integrate(0.01)
+            body.integrate(delta)
 
         self._iteration_counter += 1
 

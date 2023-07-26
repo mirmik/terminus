@@ -21,9 +21,12 @@ class VariableMultiForce:
         self._position_in_child_frame = position * child.position().inverse()
         if parent is not None:
             self._position_in_parent_frame = position * parent.position().inverse()
+        else:
+            self._position_in_parent_frame = position
         self._child = child
         self._parent = parent
         self._senses = senses
+        self._last_error = Screw2()
 
         self._pose_object = ReferencedPoseObject(
             parent=child._pose_object, pose=self._position_in_child_frame)
@@ -36,7 +39,18 @@ class VariableMultiForce:
     def global_position(self):
         return self.global_position_by_parent()
 
+    def position_error_motor(self):
+        position_as_child = self.global_position_by_child()
+        position_as_parent = self.global_position_by_parent()
+        diff = position_as_child * position_as_parent.inverse()
+        return diff
+
+    def position_error_screw(self):
+        return self.position_error_motor().log()
+
     def global_position_by_parent(self):
+        if self._parent is None:
+            return self._position_in_parent_frame
         return self._parent.global_position() * self._position_in_parent_frame
 
     def global_position_by_child(self):
@@ -54,20 +68,26 @@ class VariableMultiForce:
 
     def B_matrix_list(self):
         dQdl_child = self._force_screw_variables.derivative_matrix_from(
-            self._child.acceleration_indexer()).transpose()
-
-        #print("dQdl:", dQdl_child)
-
+            self._child.equation_indexer()).transpose()
         if self._parent is not None:
             dQdl_parent = self._force_screw_variables.derivative_matrix_from(
-                self._parent.acceleration_indexer()).transpose()
+                self._parent.equation_indexer()).transpose()
             return [dQdl_child, dQdl_parent]
         else:
             return [dQdl_child]
 
     def D_matrix_list(self):
+        error = self.position_error_screw()
+        diff_error = error - self._last_error
+        dots = numpy.array([error.fulldot(s) for s in self._senses])
+        diff_dots = numpy.array([error.fulldot(s) for s in self._senses])
+        correction = dots*10 + diff_dots*100
+        self._last_error = error
+
+        print("Error:", dots)
+
         return [IndexedVector(
-            numpy.zeros(len(self._force_screw_variables.indexes())), 
+            correction,
             idxs=self._force_screw_variables.indexes())]
 
 

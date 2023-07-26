@@ -14,7 +14,7 @@ class Motor2:
 
         if not isinstance(self.x, (int, float)):
             raise TypeError("x must be float")
-        
+
         if not isinstance(self.y, (int, float)):
             raise TypeError("y must be float")
 
@@ -31,6 +31,11 @@ class Motor2:
                       self.y / n,
                       self.z / n,
                       self.w / n)
+
+    def log(self):
+        angle = self.factorize_rotation_angle()
+        translation = self.factorize_translation_vector()
+        return Screw2(angle, translation)
 
     @staticmethod
     def rotation(rads):

@@ -3,6 +3,7 @@
 import math
 import numpy
 
+
 class Screw2:
     def __init__(self, m=0, v=numpy.array([0, 0])):
         self._m = m
@@ -104,6 +105,9 @@ class Screw2:
 
     def __add__(self, oth):
         return Screw2(v=self._v+oth._v, m=self._m+oth._m)
+
+    def __sub__(self, oth):
+        return Screw2(v=self._v-oth._v, m=self._m-oth._m)
 
     def toarray(self):
         return numpy.array([self.moment(), *self.vector()])

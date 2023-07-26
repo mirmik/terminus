@@ -85,7 +85,7 @@ class Body:
     def indexed_right_mass_matrix_global(self):
         return IndexedMatrix(self.right_mass_matrix(),
                              self.equation_indexes(),
-                             self.acceleration_indexes()
+                             self.equation_indexes()
                              )
 
     def main_matrix(self):
@@ -166,7 +166,10 @@ class Body:
         return self._variable_indexer
 
     def equation_indexes(self):
-        return self._commutation_indexer.sources()
+        return self._variable_indexer.sources()
+
+    def equation_indexer(self) -> ScrewCommutator:
+        return self._variable_indexer
 
 
 class Body2(Body):
@@ -179,7 +182,6 @@ class Body2(Body):
             Screw2(v=numpy.array([1, 0])),
             Screw2(v=numpy.array([0, 1]))
         ], self._pose_object)
-        self._commutation_indexer = VariableValueCommutator(3)
 
     def create_matrix_of_mass(self, mass, inertia):
         A = inertia
