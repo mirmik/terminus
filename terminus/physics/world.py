@@ -76,3 +76,7 @@ class World:
 
     def iteration_counter(self):
         return self._iteration_counter
+
+    def correction(self):
+        for force_link in self._force_links:
+            force_link.velocity_correction()

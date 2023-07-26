@@ -10,16 +10,17 @@ from terminus.physics.force_link import VariableMultiForce
 from terminus.ga201 import Screw2
 from terminus.ga201 import Motor2
 import numpy
+import zencad
 
 numpy.set_printoptions(precision=3, suppress=True)
 
 body = Body2()
-body.set_resistance_coefficient(1)
+body.set_resistance_coefficient(0)
 
 world = World()
 world.add_body(body)
 
-body.set_position(Motor2.translation(10, -100))
+body.set_position(Motor2.translation(100, 0))
 #body.set_right_velocity_global(Screw2(v=[0,0], m=0.01))
 
 force_link = VariableMultiForce(child=body, parent=None, position=Motor2.translation(0, 0), senses=[
@@ -27,17 +28,24 @@ force_link = VariableMultiForce(child=body, parent=None, position=Motor2.transla
 
 world.add_link_force(force_link)
 
+sph0 = zencad.disp(zencad.sphere(1))
+
 start_time = time.time()
 planned_time = start_time
-while True:
+
+def animate(wdg):
+    global planned_time
     current_time = time.time()
     world.iteration(0.01)
+    world.correction()
+
+    sph0.relocate(zencad.translate(body.translation()[0], body.translation()[1], 0))
 
     if 1 == 1 or world.iteration_counter() % 10 == 0:
         print()
-        print("Position:", body.translation())
-        print("Velocity:", body.right_velocity_global())
-        print("Last solution:", world.last_solution()[0])
+        #print("Position:", body.translation())
+        #print("Velocity:", body.right_velocity_global())
+        #print("Last solution:", world.last_solution()[0])
 
     planned_time += 0.01
     sleep_interval = planned_time - time.time()
@@ -47,4 +55,5 @@ while True:
     # exit()
     # break
 
-print(force_link.B_matrix_list()[0])
+
+zencad.show(animate=animate)

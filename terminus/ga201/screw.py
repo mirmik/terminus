@@ -106,6 +106,9 @@ class Screw2:
     def __add__(self, oth):
         return Screw2(v=self._v+oth._v, m=self._m+oth._m)
 
+    def __neg__(self):
+        return Screw2(v=-self._v, m=-self._m)
+
     def __sub__(self, oth):
         return Screw2(v=self._v-oth._v, m=self._m-oth._m)
 

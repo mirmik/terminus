@@ -68,7 +68,13 @@ class Body:
 
     def right_velocity(self):
         return self._right_velocity_global.inverse_rotate_by(self.position())
+ 
+    def set_right_velocity_global(self, vel):
+        self._right_velocity_global = vel
 
+    def set_right_velocity(self, vel):
+        self._right_velocity_global = vel.rotate_by(self.position())
+ 
     def position(self):
         return self._pose_object.position()
 
@@ -102,12 +108,6 @@ class Body:
 
     def jacobian(self):
         return numpy.diag([1, 1, 1])
-
-    def set_right_velocity_global(self, vel):
-        self._right_velocity_global = vel
-
-    # def set_right_velocity(self, vel):
-    #    self._right_velocity_global = vel.rotate_by(self.position())
 
     def right_kinetic_screw(self):
         return Screw2.from_array(self._mass_matrix @ self.right_velocity().toarray())

@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+
+import time
+from terminus.physics.indexed_matrix import IndexedVector
+from terminus.physics.body import Body2
+from terminus.solver import quadratic_problem_solver_indexes_array
+from terminus.physics.world import World
+from terminus.physics.force import Force
+from terminus.physics.force_link import VariableMultiForce
+from terminus.ga201 import Screw2
+from terminus.ga201 import Motor2
+import numpy
+
+import zencad
+
+S = 0.1
+#numpy.set_printoptions(precision=1, suppress=True)
+
+body1 = Body2(mass=1)
+
+world = World()
+world.add_body(body1)
+
+body1.set_resistance_coefficient(S)
+
+body1.set_position(Motor2.translation(0, -10))
+
+force_link1 = VariableMultiForce(child=body1, parent=None, position=Motor2.translation(0, 0), senses=[
+    Screw2(v=[1, 0]), Screw2(v=[0, 1])], stiffness=[1, 1], use_child_frame=False)
+world.add_link_force(force_link1)
+
+
+def add_body(parent, position, mass = 1):
+    body = Body2(mass=mass)
+    world.add_body(body)
+    body.set_position(position)
+    body.set_resistance_coefficient(S)
+    force_link = VariableMultiForce(child=body, parent=parent, position=parent.position(), senses=[
+        Screw2(v=[1, 0]), Screw2(v=[0, 1])], stiffness=[1, 1], use_child_frame=False)
+    world.add_link_force(force_link)
+    sph = zencad.disp(zencad.sphere(1))
+    return body, sph
+
+
+sph0 = zencad.disp(zencad.sphere(1))
+
+body2, sph1 = add_body(body1, Motor2.translation(10, -10))
+body3, sph2 = add_body(body2, Motor2.translation(20, -10))
+body4, sph3 = add_body(body3, Motor2.translation(30, -10))
+body5, sph4 = add_body(body4, Motor2.translation(40, -10))
+body6, sph5 = add_body(body5, Motor2.translation(50, -10))
+body7, sph6 = add_body(body6, Motor2.translation(60, -10))
+body8, sph7 = add_body(body7, Motor2.translation(70, -10), mass=100)
+body9, sph8 = add_body(body8, Motor2.translation(80, -10))
+body10, sph9 = add_body(body9, Motor2.translation(90, -10))
+body11, sph10 = add_body(body10, Motor2.translation(100, -10))
+body12, sph11 = add_body(body11, Motor2.translation(110, -10))
+body13, sph12 = add_body(body12, Motor2.translation(120, -10))
+body14, sph13 = add_body(body13, Motor2.translation(130, -10))
+body15, sph14 = add_body(body14, Motor2.translation(140, -10), mass=100)
+
+
+start_time = time.time()
+planned_time = start_time
+
+#while True:
+last_time = time.time()
+start_time = time.time()
+def animate(wdg):
+    global last_time
+    global planned_time
+    current_time = time.time()
+
+    if time.time() - start_time < 1:
+        return
+
+    world.iteration(0.01)
+    world.correction()
+    
+    sph0.relocate(zencad.translate(body1.translation()[0], body1.translation()[1], 0))
+    sph1.relocate(zencad.translate(body2.translation()[0], body2.translation()[1], 0))
+    sph2.relocate(zencad.translate(body3.translation()[0], body3.translation()[1], 0))
+    sph3.relocate(zencad.translate(body4.translation()[0], body4.translation()[1], 0))
+    sph4.relocate(zencad.translate(body5.translation()[0], body5.translation()[1], 0))
+    sph5.relocate(zencad.translate(body6.translation()[0], body6.translation()[1], 0))
+    sph6.relocate(zencad.translate(body7.translation()[0], body7.translation()[1], 0))
+    sph7.relocate(zencad.translate(body8.translation()[0], body8.translation()[1], 0))
+    sph8.relocate(zencad.translate(body9.translation()[0], body9.translation()[1], 0))
+    sph9.relocate(zencad.translate(body10.translation()[0], body10.translation()[1], 0))
+    sph10.relocate(zencad.translate(body11.translation()[0], body11.translation()[1], 0))
+    sph11.relocate(zencad.translate(body12.translation()[0], body12.translation()[1], 0))
+    sph12.relocate(zencad.translate(body13.translation()[0], body13.translation()[1], 0))
+    sph13.relocate(zencad.translate(body14.translation()[0], body14.translation()[1], 0))
+    sph14.relocate(zencad.translate(body15.translation()[0], body15.translation()[1], 0))
+    
+    print(time.time() - last_time)
+    last_time = time.time()
+
+    # break
+
+#while True:
+#    animate(None)
+    #time.sleep(0.1)
+zencad.show(animate=animate)
