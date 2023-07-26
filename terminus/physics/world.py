@@ -21,6 +21,9 @@ class World:
     def gravity(self):
         return self._gravity
 
+    def set_gravity(self, gravity):
+        self._gravity = gravity
+
     def add_body(self, body):
         self.bodies.append(body)
         body.bind_world(self)
