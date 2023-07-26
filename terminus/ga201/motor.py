@@ -12,6 +12,18 @@ class Motor2:
         self.z = z
         self.w = w
 
+        if not isinstance(self.x, (int, float)):
+            raise TypeError("x must be float")
+        
+        if not isinstance(self.y, (int, float)):
+            raise TypeError("y must be float")
+
+        if not isinstance(self.z, (int, float)):
+            raise TypeError("z must be float")
+
+        if not isinstance(self.w, (int, float)):
+            raise TypeError("w must be float")
+
     def self_normalize(self):
         l = self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w
         n = math.sqrt(l)

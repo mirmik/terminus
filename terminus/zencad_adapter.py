@@ -94,7 +94,7 @@ def indexes_of_kinunits(arr):
 def right_jacobi_matrix_lin2(kinunits, senunit):
     sensivities = [right_sensivity_screw2_of_kinunit(
         k, senunit) for k in kinunits]
-    mat = np.concatenate([k.v.reshape(2, 1) for k in sensivities], axis=1)
+    mat = np.concatenate([k.vector().reshape(2, 1) for k in sensivities], axis=1)
     return mat
 
 

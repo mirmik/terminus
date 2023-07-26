@@ -54,10 +54,10 @@ class ScrewCommutator(VariableValueCommutator):
         dim = len(local_senses)
         super().__init__(dim)
         self.pose_object = pose_object
-        self._values = local_senses
+        self._screws = local_senses
 
     def screws(self):
-        return self._values
+        return self._screws
 
     def derivative_matrix_from(self, other):
         self_screws = self.screws()
@@ -73,7 +73,7 @@ class ScrewCommutator(VariableValueCommutator):
                     diff_pose)
                 B[i, j] = self_screw.fulldot(carried)
 
-        return IndexedMatrix(B, self.indexes(), other.indexes())
+        return IndexedMatrix(-B, self.indexes(), other.indexes())
 
 
 if __name__ == "__main__":

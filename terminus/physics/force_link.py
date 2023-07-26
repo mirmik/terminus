@@ -19,7 +19,8 @@ class VariableMultiForceLink:
 class VariableMultiForce:
     def __init__(self, position, child, parent, senses=[]):
         self._position_in_child_frame = position * child.position().inverse()
-        self._position_in_parent_frame = position * parent.position().inverse()
+        if parent is not None:
+            self._position_in_parent_frame = position * parent.position().inverse()
         self._child = child
         self._parent = parent
         self._senses = senses
@@ -55,6 +56,8 @@ class VariableMultiForce:
         dQdl_child = self._force_screw_variables.derivative_matrix_from(
             self._child.acceleration_indexer()).transpose()
 
+        #print("dQdl:", dQdl_child)
+
         if self._parent is not None:
             dQdl_parent = self._force_screw_variables.derivative_matrix_from(
                 self._parent.acceleration_indexer()).transpose()
@@ -63,7 +66,9 @@ class VariableMultiForce:
             return [dQdl_child]
 
     def D_matrix_list(self):
-        return IndexedVector(numpy.zeros(len(self._force_screw_variables.indexes())), [self._force_screw_variables.indexes()])
+        return [IndexedVector(
+            numpy.zeros(len(self._force_screw_variables.indexes())), 
+            idxs=self._force_screw_variables.indexes())]
 
 
 if __name__ == "__main__":

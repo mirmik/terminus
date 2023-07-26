@@ -63,6 +63,7 @@ class IndexedMatrix:
     def accumulate_from(self, other):
         lidxs = [self.index_of_lidxs[i] for i in other.lidxs]
         ridxs = [self.index_of_ridxs[i] for i in other.ridxs]
+        
         for i in range(len(lidxs)):
             for j in range(len(ridxs)):
                 self.matrix[lidxs[i], ridxs[j]] += other.matrix[i, j]

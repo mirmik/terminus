@@ -3,11 +3,16 @@
 import math
 import numpy
 
-
 class Screw2:
     def __init__(self, m=0, v=numpy.array([0, 0])):
         self._m = m
         self._v = numpy.array(v)
+
+        if not isinstance(self._v, numpy.ndarray) and self._v.shape != (2,):
+            raise Exception("Vector must be numpy.ndarray")
+
+        if not isinstance(self._m, (int, float)):
+            raise Exception("Moment must be int or float")
 
     def lin(self):
         return self._v
