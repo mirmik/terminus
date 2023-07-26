@@ -46,6 +46,8 @@ class World:
         arr = []
         for body in self.bodies:
             matrix = body.main_matrix()
+            if matrix.lidxs != matrix.ridxs:
+                raise Exception("Matrix is not square by indexes")
             arr.append(matrix)
         return arr
         
