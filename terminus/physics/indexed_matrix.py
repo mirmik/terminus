@@ -31,6 +31,9 @@ class IndexedMatrix:
         else:
             return self.matmul(oth)
 
+    def __neg__(self):
+        return IndexedMatrix(-self.matrix, self.lidxs, self.ridxs)
+
     def inv(self):
         return IndexedMatrix(scipy.sparse.linalg.inv(self.matrix), self.ridxs, self.lidxs)
 
@@ -63,7 +66,7 @@ class IndexedMatrix:
     def accumulate_from(self, other):
         lidxs = [self.index_of_lidxs[i] for i in other.lidxs]
         ridxs = [self.index_of_ridxs[i] for i in other.ridxs]
-        
+
         for i in range(len(lidxs)):
             for j in range(len(ridxs)):
                 self.matrix[lidxs[i], ridxs[j]] += other.matrix[i, j]

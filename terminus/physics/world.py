@@ -41,10 +41,10 @@ class World:
             arr.extend(force_link.B_matrix_list())
         return arr
 
-    def D_matrix_list(self):
+    def D_matrix_list(self, delta):
         arr = []
         for force_link in self._force_links:
-            arr.extend(force_link.D_matrix_list())
+            arr.extend(force_link.D_matrix_list(delta))
         return arr
 
     def A_matrix_list(self):
@@ -60,7 +60,7 @@ class World:
         A_list = self.A_matrix_list()
         B_list = self.B_matrix_list()
         C_list = self.C_matrix_list()
-        D_list = self.D_matrix_list()
+        D_list = self.D_matrix_list(delta)
 
         x, l = quadratic_problem_solver_indexes_array(
             A_list, C_list, B_list, D_list)
@@ -69,7 +69,7 @@ class World:
         self._last_solution = (x, l)
 
         for body in self.bodies:
-            body.downbind_left_acceleration()
+            body.downbind_solution()
             body.integrate(delta)
 
         self._iteration_counter += 1

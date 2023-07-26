@@ -120,13 +120,15 @@ def quadratic_problem_solver_indexes(A: IndexedMatrix, C: IndexedVector, B: Inde
         print(Q)
         raise Exception("Q is not symmetric")
 
+    # print(Q)
+
     if A.lidxs != C.idxs:
         raise Exception("indexes is not same in convolution")
 
     if B.ridxs != D.idxs:
         raise Exception("indexes is not same in convolution")
 
-    X = numpy.linalg.pinv(Q) @ b
+    X = numpy.linalg.inv(Q) @ b
     X = X.reshape((X.shape[0],))
     x = X[:len(A.lidxs)]
     l = X[len(A.lidxs):]

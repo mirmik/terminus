@@ -18,8 +18,8 @@ class PoseObject:
 
 class ReferencedPoseObject:
     def __init__(self, pose=Motor2(), parent=None):
-        self._position = pose
+        self._pose_in_frame = pose
         self._parent = parent
 
     def position(self):
-        return self._parent.position() * self._position
+        return self._parent.position() * self._pose_in_frame

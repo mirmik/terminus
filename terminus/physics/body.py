@@ -13,7 +13,7 @@ class Body:
     def __init__(self, space_dim, dof) -> None:
         self.space_dim = space_dim
         self.dof = dof
-        self._right_acceleration_global = Screw2()
+        self._right_acceleration = Screw2()
         self._right_velocity_global = Screw2()
         self._resistance_coefficient = 0
         self._right_forces_global = []
@@ -25,14 +25,17 @@ class Body:
     def bind_world(self, w):
         self._world = w
 
+    def set_resistance_coefficient(self, coeff):
+        self._resistance_coefficient = coeff
+
     def translation(self):
         return self.position().factorize_translation_vector()
 
     def rotation(self):
         return self.position().factorize_rotation_angle()
 
-    def downbind_left_acceleration(self):
-        self._left_acceleration = Screw2(
+    def downbind_solution(self):
+        self._right_acceleration = Screw2(
             m=self._variable_indexer.values()[0],
             v=numpy.array(self._variable_indexer.values()[1:])
         )
@@ -58,7 +61,7 @@ class Body:
         force.set_linked_object(self)
 
     def right_acceleration_global(self):
-        return self._left_acceleration
+        return self._right_acceleration.rotate_by(self.position())
 
     def right_velocity_global(self):
         return self._right_velocity_global
@@ -103,8 +106,8 @@ class Body:
     def set_right_velocity_global(self, vel):
         self._right_velocity_global = vel
 
-    def set_right_velocity(self, vel):
-        self._right_velocity_global = vel.rotate_by(self.position())
+    # def set_right_velocity(self, vel):
+    #    self._right_velocity_global = vel.rotate_by(self.position())
 
     def right_kinetic_screw(self):
         return Screw2.from_array(self._mass_matrix @ self.right_velocity().toarray())
@@ -116,15 +119,16 @@ class Body:
     def computation_indexes(self):
         return self._commutator.sources()
 
-    def right_global_gravity(self):
-        world_gravity = self._world.gravity()
+    def right_gravity(self):
+        world_gravity = self._world.gravity().inverse_rotate_by(self.position())
         return IndexedVector(
             (world_gravity*self._mass).toarray(),
             self.equation_indexes())
 
-    def right_global_resistance(self):
+    def right_resistance(self):
         return IndexedVector(
-            - self._right_velocity_global.toarray() * self._resistance_coefficient,
+            (- self.right_velocity().toarray()
+             * self._resistance_coefficient) * 1,
             self.equation_indexes()
         )
 
@@ -142,11 +146,11 @@ class Body:
 
     def forces_in_right_part(self):
         return ([
-            self.right_global_gravity(),
-            self.right_global_resistance()
+            self.right_gravity(),
+            self.right_resistance()
         ]
-            + self.right_forces_global_as_indexed_vectors()
-            + self.right_forces_as_indexed_vectors()
+            #+ self.right_forces_global_as_indexed_vectors()
+            #+ self.right_forces_as_indexed_vectors()
         )
 
     def integrate(self, delta):
