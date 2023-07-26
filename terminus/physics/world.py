@@ -24,7 +24,7 @@ class World:
         for body in self.bodies:
             body.integrate(delta)
 
-    def main_right_parts(self):
+    def C_matrix_list(self):
         arr = []
         for body in self.bodies:
             arr.extend(body.forces_in_right_part())
@@ -42,10 +42,18 @@ class World:
             arr.extend(force_link.D_matrix_list())
         return arr
 
+    def A_matrix_list(self):
+        arr = []
+        for body in self.bodies:
+            matrix = body.main_matrix()
+            arr.append(matrix)
+        return arr
+        
+
     def iteration(self, delta):
-        A_list = [ body.main_matrix() for body in self.bodies ]
+        A_list = self.A_matrix_list()
         B_list = self.B_matrix_list()
-        C_list = self.main_right_parts()
+        C_list = self.C_matrix_list()
         D_list = self.D_matrix_list()
 
         x,l = quadratic_problem_solver_indexes_array(A_list, C_list, B_list, D_list)
