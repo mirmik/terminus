@@ -80,6 +80,30 @@ class ScrewCommutator(VariableValueCommutator):
         return IndexedMatrix(B, self.indexes(), other.indexes())
 
 
+    def global_derivative_matrix_from(self, other):
+        self_screws = self.screws()
+
+#        self_screws = [
+#            screw.rotate_by(self.pose_object.position()) for screw in self_screws
+#        ]
+
+        other_screws = other.screws()
+        self_pose = self.pose_object.position()
+        self_pose = self_pose.factorize_translation()
+
+        other_pose = other.pose_object.position()
+        diff_pose = self_pose.inverse() * other_pose
+
+        B = numpy.zeros((len(self_screws), len(other_screws)))
+        for i, self_screw in enumerate(self_screws):
+            for j, other_screw in enumerate(other_screws):
+                carried = other_screw.kinematic_carry(
+                    diff_pose)
+                B[i, j] = self_screw.fulldot(carried)
+
+        return IndexedMatrix(B, self.indexes(), other.indexes())
+
+
 if __name__ == "__main__":
     numpy.set_printoptions(precision=3, suppress=True)
 

@@ -7,10 +7,11 @@ from terminus.physics.pose_object import PoseObject
 from terminus.physics.screw_commutator import ScrewCommutator
 from terminus.ga201 import Motor2
 from terminus.ga201 import Screw2
+from terminus.physics.frame import Frame
 
-
-class Body:
-    def __init__(self, space_dim, dof) -> None:
+class Body(Frame):
+    def __init__(self, space_dim, dof, screws) -> None:
+        super().__init__(pose_object=PoseObject(), screws=screws)
         self.space_dim = space_dim
         self.dof = dof
         self._right_acceleration = Screw2()
@@ -19,7 +20,6 @@ class Body:
         self._right_forces_global = []
         self._right_forces = []
         self.unknown_force_source = []
-        self._pose_object = PoseObject()
         self._world = None
 
     def bind_world(self, w):
@@ -36,8 +36,8 @@ class Body:
 
     def downbind_solution(self):
         self._right_acceleration = Screw2(
-            m=self._variable_indexer.values()[0],
-            v=numpy.array(self._variable_indexer.values()[1:])
+            m=self._screw_commutator.values()[0],
+            v=numpy.array(self._screw_commutator.values()[1:])
         )
 
     def unbind_force(self, force):
@@ -59,6 +59,9 @@ class Body:
         self._right_forces.append(force)
         force.set_right_type()
         force.set_linked_object(self)
+
+    def right_acceleration(self):
+        return self._right_acceleration
 
     def right_acceleration_global(self):
         return self._right_acceleration.rotate_by(self.position())
@@ -102,9 +105,6 @@ class Body:
 
     def set_position(self, pos):
         self._pose_object.update_position(pos)
-
-    def screw_commutator(self):
-        return self.commutator
 
     def jacobian(self):
         return numpy.diag([1, 1, 1])
@@ -164,28 +164,27 @@ class Body:
         self.position().self_normalize()
 
     def acceleration_indexes(self):
-        return self._variable_indexer.sources()
+        return self._screw_commutator.sources()
 
     def acceleration_indexer(self) -> ScrewCommutator:
-        return self._variable_indexer
+        return self._screw_commutator
 
     def equation_indexes(self):
-        return self._variable_indexer.sources()
+        return self._screw_commutator.sources()
 
     def equation_indexer(self) -> ScrewCommutator:
-        return self._variable_indexer
+        return self._screw_commutator
 
 
 class Body2(Body):
     def __init__(self, mass=1, inertia=numpy.diag([1])):
-        super().__init__(space_dim=2, dof=3)
-        self._mass = mass
-        self._mass_matrix = self.create_matrix_of_mass(mass, inertia)
-        self._variable_indexer = ScrewCommutator([
+        super().__init__(space_dim=2, dof=3, screws=[
             Screw2(m=1),
             Screw2(v=numpy.array([1, 0])),
             Screw2(v=numpy.array([0, 1]))
-        ], self._pose_object)
+        ])
+        self._mass = mass
+        self._mass_matrix = self.create_matrix_of_mass(mass, inertia)
 
     def create_matrix_of_mass(self, mass, inertia):
         A = inertia

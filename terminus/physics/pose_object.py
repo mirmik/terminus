@@ -23,3 +23,9 @@ class ReferencedPoseObject:
 
     def position(self):
         return self._parent.position() * self._pose_in_frame
+
+    def relative_position(self):
+        return self._pose_in_frame
+
+    def parent(self):
+        return self._parent

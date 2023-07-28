@@ -33,6 +33,9 @@ class Screw2:
     def set_moment(self, m):
         self._m = m
 
+    def as_array(self):
+        return numpy.array([self._m, *self._v])
+
     def kinematic_carry(self, motor):
         angle = motor.factorize_rotation_angle()
         translation = motor.factorize_translation_vector()

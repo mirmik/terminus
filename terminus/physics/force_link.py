@@ -7,16 +7,17 @@ from terminus.ga201.screw import Screw2
 from terminus.physics.pose_object import ReferencedPoseObject, PoseObject
 from terminus.physics.screw_commutator import ScrewCommutator
 from terminus.physics.indexed_matrix import IndexedVector
+from terminus.physics.frame import Frame
 
 
-class VariableMultiForceLink:
-    def __init__(self, body, coeff, position_in_local_frame):
-        self._coeff = coeff
-        self._position_in_local_frame = position_in_local_frame
-        self._body = body
+#class VariableMultiForceLink:
+#    def __init__(self, body, coeff, position_in_local_frame):
+#        self._coeff = coeff
+#        self._position_in_local_frame = position_in_local_frame
+#        self._body = body
 
 
-class VariableMultiForce:
+class VariableMultiForce(Frame):
     def __init__(self, position, child, parent, senses=[], stiffness=[1, 1], use_child_frame=False):
         self._use_child_frame = use_child_frame
         if self._use_child_frame is not False:
@@ -39,13 +40,12 @@ class VariableMultiForce:
                 self._pose_object = PoseObject(
                     pose=self._position_in_parent_frame)
 
+        super().__init__(pose_object=self._pose_object, screws=senses)
+        
         self._child = child
         self._parent = parent
         self._senses = senses
         self._stiffness = stiffness
-
-        self._force_screw_variables = ScrewCommutator(
-            local_senses=senses, pose_object=self._pose_object)
 
     def senses(self):
         return self._senses
@@ -158,13 +158,11 @@ class VariableMultiForce:
         return self._child.global_position() * self._position_in_child_frame
 
     def B_matrix_list(self):
-        dQdl_child = self._force_screw_variables.derivative_matrix_from(
-            self._child.equation_indexer()).transpose()
+        dQdl_child = self.derivative_by_frame(self._child).transpose()
 
         if self._parent is not None:
             # Минус из-за того, что в родительском фрейме чувствительность обратна чувствительности в дочернем фрейме
-            dQdl_parent = -self._force_screw_variables.derivative_matrix_from(
-                self._parent.equation_indexer()).transpose()
+            dQdl_parent = -self.derivative_by_frame(self._parent).transpose()
             return [dQdl_child, dQdl_parent]
         else:
             return [dQdl_child]
@@ -181,7 +179,7 @@ class VariableMultiForce:
         correction = - posdots - veldots
         return [IndexedVector(
                 correction,
-                idxs=self._force_screw_variables.indexes())]
+                idxs=self._screw_commutator.indexes())]
 
 
 if __name__ == "__main__":

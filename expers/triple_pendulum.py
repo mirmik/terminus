@@ -13,7 +13,7 @@ import numpy
 
 import zencad
 
-S = 0.3
+S = 0
 #numpy.set_printoptions(precision=1, suppress=True)
 
 body1 = Body2(mass=1)
