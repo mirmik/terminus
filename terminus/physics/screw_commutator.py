@@ -82,11 +82,6 @@ class ScrewCommutator(VariableValueCommutator):
 
     def global_derivative_matrix_from(self, other):
         self_screws = self.screws()
-
-#        self_screws = [
-#            screw.rotate_by(self.pose_object.position()) for screw in self_screws
-#        ]
-
         other_screws = other.screws()
         self_pose = self.pose_object.position()
         self_pose = self_pose.factorize_translation()
