@@ -44,11 +44,12 @@ class ControlLink(VariableMultiForce):
 
         curtime = time.time()
 
-        k = (math.sin((curtime - start_time)/2))
+        s = (math.sin((curtime - start_time)/2))
+        c = (math.cos((curtime - start_time)/2))
 
         target_pos = (numpy.array([10,0]) 
-            + (k) * numpy.array([5,0])
-            + (1-k) * numpy.array([0,5])
+            + (s) * numpy.array([5,0])
+            + (c) * numpy.array([0,5])
         )
 
         errorpos = Screw2(v=target_pos - curpos) * 60 * delta
@@ -56,7 +57,7 @@ class ControlLink(VariableMultiForce):
 
         #target_spd = Screw2(v=[0,0.1])
 
-        errorspd = (target_spd - current_vel) * 20000000  * delta
+        errorspd = (target_spd - current_vel) * 30000000  * delta
         error = errorspd
 
         task_control = error.as_array()
