@@ -44,9 +44,12 @@ class ControlLink(VariableMultiForce):
 
         curtime = time.time()
 
-        k = (math.sin((curtime - start_time)/2) + 1) / 2
+        k = (math.sin((curtime - start_time)/2))
 
-        target_pos = k * numpy.array([10,0]) + (1-k) * numpy.array([10,5])
+        target_pos = (numpy.array([10,0]) 
+            + (k) * numpy.array([5,0])
+            + (1-k) * numpy.array([0,5])
+        )
 
         errorpos = Screw2(v=target_pos - curpos) * 60 * delta
         target_spd = errorpos
