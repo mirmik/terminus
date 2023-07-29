@@ -12,18 +12,6 @@ class Motor2:
         self.z = z
         self.w = w
 
-        if not isinstance(self.x, (int, float)):
-            raise TypeError("x must be float")
-
-        if not isinstance(self.y, (int, float)):
-            raise TypeError("y must be float")
-
-        if not isinstance(self.z, (int, float)):
-            raise TypeError("z must be float")
-
-        if not isinstance(self.w, (int, float)):
-            raise TypeError("w must be float")
-
     def self_unitize(self):
         l = self.z * self.z + self.w * self.w
         n = math.sqrt(l)
@@ -204,6 +192,13 @@ class Motor2:
     def is_zero_equal(self, eps=1e-8):
         a = numpy.array([self.x, self.y, self.z, self.w])
         return numpy.linalg.norm(a) < eps
+
+    def splash_to_screw(self):
+        return Screw2(
+            m=self.z,
+            v=[self.x,
+            self.y]
+        )
 
     @staticmethod
     def from_screw(scr):

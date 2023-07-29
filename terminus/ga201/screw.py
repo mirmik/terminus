@@ -37,17 +37,20 @@ class Screw2:
         return numpy.array([self._m, *self._v])
 
     def kinematic_carry(self, motor):
-        angle = motor.factorize_rotation_angle()
-        translation = motor.factorize_translation_vector()
-        rotated_scr = self.rotate_by_angle(angle)
-        m = rotated_scr._m
-        v = rotated_scr._v
-        b = translation
-        a = -m
-        new_m = m
-        new_v = v + numpy.array([-a * b[1], a * b[0]])
-        ret = Screw2(m=new_m, v=new_v)
-        return ret
+        a = motor.mul_screw(self)
+        a = a * motor.reverse()
+        return a.splash_to_screw()
+        # angle = motor.factorize_rotation_angle()
+        # translation = motor.factorize_translation_vector()
+        # rotated_scr = self.rotate_by_angle(angle)
+        # m = rotated_scr._m
+        # v = rotated_scr._v
+        # b = translation
+        # a = -m
+        # new_m = m
+        # new_v = v + numpy.array([-a * b[1], a * b[0]])
+        # ret = Screw2(m=new_m, v=new_v)
+        # return ret
 
     def fulldot(self, other):
         return self._m * other._m + self._v.dot(other._v)

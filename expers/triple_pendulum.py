@@ -96,9 +96,20 @@ def animate(wdg):
     print(time.time() - last_time)
     last_time = time.time()
 
-    # break
 
-#while True:
-#    animate(None)
-    #time.sleep(0.1)
-zencad.show(animate=animate)
+def main():
+    start_time = time.time()
+    while True:
+        animate(None)
+        if time.time() - start_time > 10:
+            break
+
+#zencad.show(animate=animate, display_only=True)
+    
+import cProfile, pstats
+profiler = cProfile.Profile()
+profiler.enable()
+main()
+profiler.disable()
+stats = pstats.Stats(profiler).sort_stats('cumtime')
+stats.print_stats()
