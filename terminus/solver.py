@@ -117,15 +117,17 @@ def qpc_solver_indexes(
     ])
     b = numpy.block([[C.matrix], [D.matrix], [Ksi.matrix]])    
 
-    Q_torch = torch.tensor(Q, dtype=torch.float64).cuda()
-    b_torch = torch.tensor(b, dtype=torch.float64).cuda()
+    #Q_torch = torch.tensor(Q, dtype=torch.float64).cuda()
+    #b_torch = torch.tensor(b, dtype=torch.float64).cuda()
 
     #X = numpy.linalg.inv(Q) @ b
-    X_torch = torch.linalg.solve(Q_torch, b_torch)
+    #X_torch = torch.linalg.solve(Q_torch, b_torch)
     #X = X_torch.cpu().detach().numpy()
-    #X = numpy.linalg.solve(Q, b)
+    X = numpy.linalg.solve(Q, b)
 
-    X = X_torch.reshape((X_torch.shape[0],))
+    #X = X_torch
+
+    X = X.reshape((X.shape[0],))
     x = X[:len(A.lidxs)]
     l = X[len(A.lidxs):len(A.lidxs) + len(B.ridxs)]
     ksi = X[len(A.lidxs) + len(B.ridxs):]
