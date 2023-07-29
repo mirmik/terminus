@@ -153,17 +153,75 @@ class Body(Frame):
             #+ self.right_forces_as_indexed_vectors()
         )
 
+    def derivative(self, p, v, a):
+        l = v
+        r = a
+        return l, r
+
+    def summation(self, x, f, h):
+        p, v = x
+        l, r = f
+        p1 = p + l * h
+        v1 = v + r * h
+        return p1, v1
+
+    def summ_f(self, f1, f2, f3, f4):
+        l1 = f1[0]
+        l2 = f2[0]
+        l3 = f3[0]
+        l4 = f4[0]
+        r1 = f1[1]
+        r2 = f2[1]
+        r3 = f3[1]
+        r4 = f4[1]
+        l = l1 + l2*2 + l3*2 + l4
+        r = r1 + r2*2 + r3*2 + r4
+        return l, r
+
+    # def integrate_runge_kutta(self, delta):
+    #     p = self.position()
+    #     v = self.right_velocity()
+    #     a = self.right_acceleration()
+    #     x0 = (Screw2(),v)
+
+    #     f1 = self.derivative(*x0, a)
+    #     f2 = self.derivative(*self.summation(x0, f1, delta/2), a)
+    #     f3 = self.derivative(*self.summation(x0, f2, delta/2), a)
+    #     f4 = self.derivative(*self.summation(x0, f3, delta), a)
+
+    #     add = self.summ_f(f1, f2, f3, f4)
+    #     add = (add[0]*1/6, add[1]*1/6)
+    #     p1, v1 = self.summation(x0, add, delta)
+    #     p2 = p * Motor2.from_screw(p1)
+    #     p2.self_unitize()
+    #     self.set_right_velocity(v1)
+    #     self.set_position(p2)
+
+    def integrate_euler(self, delta):
+        acc = self.right_acceleration()
+        rvel = self.right_velocity() + acc * delta
+        self.set_right_velocity(rvel)
+        drvel = rvel * delta
+        self.set_position(self.position() * Motor2.from_screw(drvel))
+        self.position().self_unitize()
+
+    def integrate_euler_with_correction(self, delta):
+        rvel1 = self.right_velocity()
+        rvel2 = rvel1 + self.right_acceleration() * delta
+        self.set_right_velocity(rvel2)
+
+        mot1 = self.position() * Motor2.from_screw(rvel1 * delta)
+        mot1.self_unitize()
+        mot2 = self.position() * Motor2.from_screw(rvel2 * delta)
+        mot2.self_unitize()
+
+        self.set_position(mot2.average_with(mot1))
+
     def integrate(self, delta):
-        self.set_right_velocity_global(
-            self.right_velocity_global() +
-            self.right_acceleration_global() * delta
-        )
-
-        rvel = self.right_velocity()
-        rvel = rvel * delta
-        self.set_position(self.position() * Motor2.from_screw(rvel))
-        self.position().self_normalize()
-
+        #self.integrate_runge_kutta(delta)
+        self.integrate_euler(delta)
+        #self.integrate_euler_with_correction(delta)
+        
     def acceleration_indexes(self):
         return self._screw_commutator.sources()
 

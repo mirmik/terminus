@@ -24,8 +24,8 @@ class Motor2:
         if not isinstance(self.w, (int, float)):
             raise TypeError("w must be float")
 
-    def self_normalize(self):
-        l = self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w
+    def self_unitize(self):
+        l = self.z * self.z + self.w * self.w
         n = math.sqrt(l)
         return Motor2(self.x / n,
                       self.y / n,
@@ -60,6 +60,15 @@ class Motor2:
             q.w*p.z + q.z*p.w,
             q.w*p.w - q.z*p.z
         )
+
+    def mul_screw(self, scr):
+        return self * Motor2.from_screw_naive(scr)
+
+    def __add__(self, other):
+        return Motor2(self.x+other.x, self.y+other.y, self.z+other.z, self.w+other.w)
+
+    def mul_scalar(self, s):
+        return Motor2(self.x*s, self.y*s, self.z*s, self.w*s)
 
     def transform_point(self, p):
         q = self
@@ -149,6 +158,16 @@ class Motor2:
             s*a[0] + c*a[1]
         ])
 
+    def average_with(self, other):
+        ft = self.factorize_translation_vector()
+        ft2 = other.factorize_translation_vector()
+        ft_avg = (ft + ft2) / 2
+        fr = self.factorize_rotation_angle()
+        fr2 = other.factorize_rotation_angle()
+        fr_avg = (fr + fr2) / 2
+        return Motor2.translation(ft_avg[0], ft_avg[1]) * Motor2.rotation(fr_avg)
+
+
     def rotate_nparray_inverse(self, a):
         angle = self.factorize_rotation_angle()
         s = math.sin(angle)
@@ -189,3 +208,12 @@ class Motor2:
     @staticmethod
     def from_screw(scr):
         return Motor2.translation(*scr.lin()) * Motor2.rotation(scr.ang())
+
+    @staticmethod
+    def from_screw_naive(scr):
+        return Motor2(
+            scr.lin()[0],
+            scr.lin()[1],
+            scr.ang(),
+            0
+        )

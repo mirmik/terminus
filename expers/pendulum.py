@@ -56,4 +56,5 @@ def animate(wdg):
     # exit()
     # break
 
+#animate(None)
 zencad.show(animate=animate)
