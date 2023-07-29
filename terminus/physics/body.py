@@ -159,7 +159,8 @@ class Body(Frame):
             self.right_acceleration_global() * delta
         )
 
-        rvel = self.right_velocity() / 2
+        rvel = self.right_velocity()
+        rvel = rvel * delta
         self.set_position(self.position() * Motor2.from_screw(rvel))
         self.position().self_normalize()
 
@@ -177,7 +178,7 @@ class Body(Frame):
 
 
 class Body2(Body):
-    def __init__(self, mass=1, inertia=numpy.diag([1])):
+    def __init__(self, mass=1, inertia=numpy.diag([0.00001])):
         super().__init__(space_dim=2, dof=3, screws=[
             Screw2(m=1),
             Screw2(v=numpy.array([1, 0])),

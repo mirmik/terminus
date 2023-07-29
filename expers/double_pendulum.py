@@ -21,6 +21,7 @@ body2 = Body2()
 world = World()
 world.add_body(body1)
 world.add_body(body2)
+world.set_gravity(Screw2(v=[0, -10]))
 
 body1.set_resistance_coefficient(0)
 body2.set_resistance_coefficient(0)
@@ -46,26 +47,10 @@ planned_time = start_time
 def animate(wdg):
     global planned_time
     current_time = time.time()
-    world.iteration(0.001)
-    world.correction()
-
-    print()
-    #if 1 == 1 or world.iteration_counter() % 10 == 0:
-    #    print()
-        #print("dQd1:", force_link2.B_matrix_list()[1])
-    #print("Position1:", body1.translation())
-    #print("Position2:", body2.translation())
-        #print("Solution:", world.last_solution()[0])
-        #print("Splution:", world.last_solution()[1])
+    world.iteration(0.01)
+    #world.correction()
 
     sph0.relocate(zencad.translate(body1.translation()[0], body1.translation()[1], 0))
     sph1.relocate(zencad.translate(body2.translation()[0], body2.translation()[1], 0))
-
-    planned_time += 0.01
-    sleep_interval = planned_time - time.time()
-    if sleep_interval > 0:
-        time.sleep(sleep_interval)
-
-    # break
 
 zencad.show(animate=animate)

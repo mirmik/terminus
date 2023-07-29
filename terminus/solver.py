@@ -122,10 +122,13 @@ def qpc_solver_indexes_array(
     else:
         B = None
         D = None
-
+        
     if len(Harr) != 0:
         H = indexed_matrix_summation(Harr, lidxs=A.ridxs)
         Ksi = indexed_vector_summation(Ksiarr, idxs=H.ridxs)
+    else:
+        H = None
+        Ksi = None
 
     x, l, ksi = qpc_solver_indexes(A=A, B=B, C=C, D=D, H=H, Ksi=Ksi)
     return x, l, ksi
@@ -204,10 +207,10 @@ def qpc_solver_indexes(
     if A.lidxs != C.idxs:
         raise Exception("indexes is not same in convolution")
 
-    if B.ridxs != D.idxs:
+    if B is not None and B.ridxs != D.idxs:
         raise Exception("indexes is not same in convolution")
 
-    if H.ridxs != Ksi.idxs:
+    if H is not None and H.ridxs != Ksi.idxs:
         raise Exception("indexes is not same in convolution")
 
     Q_torch = torch.tensor(Q, dtype=torch.float64).cuda()
@@ -225,9 +228,9 @@ def qpc_solver_indexes(
     if B is not None and H is not None:
         return IndexedVector(x, idxs=A.ridxs), IndexedVector(l, idxs=B.ridxs), IndexedVector(ksi, idxs=H.ridxs)
     elif B is not None:
-        return IndexedVector(x, idxs=A.ridxs), IndexedVector(l, idxs=B.ridxs)
+        return IndexedVector(x, idxs=A.ridxs), IndexedVector(l, idxs=B.ridxs), IndexedVector([], idxs=[])
     else:
-        return IndexedVector(x, idxs=A.ridxs), None
+        return IndexedVector(x, idxs=A.ridxs), IndexedVector([], idxs=[]), IndexedVector([], idxs=[])
 
 
 if __name__ == "__main__":

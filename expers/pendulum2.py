@@ -21,7 +21,7 @@ world = World()
 world.set_gravity(Screw2(v=[0, -10]))
 world.add_body(body)
 
-body.set_position(Motor2.translation(100, 0))
+body.set_position(Motor2.translation(0.05, -1))
 #body.set_right_velocity_global(Screw2(v=[0,0], m=0.01))
 
 force_link = VariableMultiForce(child=body, parent=None, position=Motor2.translation(0, 0), senses=[
@@ -29,7 +29,7 @@ force_link = VariableMultiForce(child=body, parent=None, position=Motor2.transla
 
 world.add_link_force(force_link)
 
-sph0 = zencad.disp(zencad.sphere(1))
+sph0 = zencad.disp(zencad.sphere(0.1))
 
 start_time = time.time()
 planned_time = start_time
@@ -40,21 +40,9 @@ def animate(wdg):
     world.iteration(0.01)
     world.correction()
 
+    print(body.right_velocity())
+
     sph0.relocate(zencad.translate(body.translation()[0], body.translation()[1], 0))
-
-    if 1 == 1 or world.iteration_counter() % 10 == 0:
-        print()
-        #print("Position:", body.translation())
-        #print("Velocity:", body.right_velocity_global())
-        #print("Last solution:", world.last_solution()[0])
-
-    planned_time += 0.01
-    sleep_interval = planned_time - time.time()
-    if sleep_interval > 0:
-        time.sleep(sleep_interval)
-
-    # exit()
-    # break
 
 
 zencad.show(animate=animate)
