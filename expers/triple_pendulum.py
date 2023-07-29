@@ -75,7 +75,7 @@ def animate(wdg):
     if time.time() - start_time < 1:
         return
 
-    world.iteration(0.01)
+    world.iteration(0.02)
     world.correction()
     
     sph0.relocate(zencad.translate(body1.translation()[0], body1.translation()[1], 0))

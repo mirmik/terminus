@@ -154,7 +154,7 @@ class Body(Frame):
         )
 
     def derivative(self, p, v, a):
-        l = v
+        l = v / 2
         r = a
         return l, r
 
@@ -205,6 +205,23 @@ class Body(Frame):
         self.set_position(self.position() * Motor2.from_screw(drvel))
         self.position().self_unitize()
 
+    def integrate_euler2(self, delta):
+        p = self.position()
+        v = self.right_velocity()
+        a = self.right_acceleration()
+
+        x0 = (Screw2(),v)
+        f1 = self.derivative(*x0, a)
+
+        add = (f1[0], f1[1])
+        p1, v1 = self.summation(x0, add, delta)
+
+        p2 = p * Motor2.from_screw(p1)
+        p2.self_unitize()
+        self.set_right_velocity(v1)
+        self.set_position(p2)
+
+
     def integrate_euler_with_correction(self, delta):
         rvel1 = self.right_velocity()
         rvel2 = rvel1 + self.right_acceleration() * delta
@@ -217,10 +234,38 @@ class Body(Frame):
 
         self.set_position(mot2.average_with(mot1))
 
+    def integrate_method(self, delta):
+        p = self.position()
+        v0 = self.right_velocity()
+        a = self.right_acceleration()
+        v = v0 + a * delta
+
+        dp1 = (p.mul_screw(v)) / 2
+        dp2 = (dp1.mul_screw(v) + p.mul_screw(a)) / 2
+        dp3 = (dp2.mul_screw(v) + dp1.mul_screw(a*2)) / 2
+        dp4 = (dp3.mul_screw(v) + dp2.mul_screw(a*3)) / 2
+        dp5 = (dp4.mul_screw(v) + dp3.mul_screw(a*4)) / 2
+
+        r = (p + dp1.mul_scalar(delta) 
+            + dp2.mul_scalar(delta*delta/2)
+            + dp3.mul_scalar(delta*delta*delta/2/3)
+            + dp4.mul_scalar(delta*delta*delta*delta/2/3/4)
+            + dp5.mul_scalar(delta*delta*delta*delta*delta/2/3/4/5)
+        )
+        r.self_unitize()
+
+        self.set_right_velocity(v)
+        self.set_position(r)
+
+
     def integrate(self, delta):
         #self.integrate_runge_kutta(delta)
+        self.integrate_method(delta)
         #self.integrate_euler(delta)
-        self.integrate_euler_with_correction(delta)
+        #self.integrate_euler(delta/4)
+        #self.integrate_euler(delta/4)
+        #self.integrate_euler(delta/4)
+        #self.integrate_euler_with_correction(delta)
         
     def acceleration_indexes(self):
         return self._screw_commutator.sources()

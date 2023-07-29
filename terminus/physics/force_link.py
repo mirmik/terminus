@@ -173,9 +173,9 @@ class VariableMultiForce(Frame):
         #print("poserror:", poserror)
         #print("velerror:", velerror)
         posdots = numpy.array([poserror.fulldot(s)
-                            for s in self._senses]) * self._stiffness[0] * 30 
+                            for s in self._senses]) * self._stiffness[0] * 10
         veldots = numpy.array([velerror.fulldot(s)
-                            for s in self._senses]) * self._stiffness[1] * 15
+                            for s in self._senses]) * self._stiffness[1] * 10
         correction = - posdots - veldots
         return [IndexedVector(
                 correction,
