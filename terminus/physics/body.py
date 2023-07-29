@@ -260,8 +260,8 @@ class Body(Frame):
 
     def integrate(self, delta):
         #self.integrate_runge_kutta(delta)
-        self.integrate_method(delta)
-        #self.integrate_euler(delta)
+        #self.integrate_method(delta)
+        self.integrate_euler(delta)
         #self.integrate_euler(delta/4)
         #self.integrate_euler(delta/4)
         #self.integrate_euler(delta/4)
