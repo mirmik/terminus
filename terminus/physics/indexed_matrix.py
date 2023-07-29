@@ -1,6 +1,9 @@
 
 import numpy
+import torch
 
+
+torch_type = torch.float64
 
 class IndexedMatrix:
     def __init__(self, matrix, lidxs=None, ridxs=None):

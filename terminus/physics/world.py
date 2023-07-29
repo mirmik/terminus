@@ -62,10 +62,23 @@ class World:
         return arr
 
 
-    def D_matrix_list(self, delta):
+    def D_matrix_list(self):
+        return []
+        #arr = []
+        #for force_link in self._force_links:
+        #    arr.extend(force_link.D_matrix_list())
+        #return arr
+
+    def D_matrix_list_velocity(self):
         arr = []
         for force_link in self._force_links:
-            arr.extend(force_link.D_matrix_list(delta))
+            arr.extend(force_link.D_matrix_list_velocity())
+        return arr
+
+    def D_matrix_list_position(self):
+        arr = []
+        for force_link in self._force_links:
+            arr.extend(force_link.D_matrix_list_position())
         return arr
 
     def Ksi_matrix_list(self, delta):
@@ -88,13 +101,9 @@ class World:
         A_list = self.A_matrix_list()
         B_list = self.B_matrix_list()
         C_list = self.C_matrix_list()
-        D_list = self.D_matrix_list(delta)
+        D_list = self.D_matrix_list()
         H_list = self.H_matrix_list()
         Ksi_list = self.Ksi_matrix_list(delta)
-
-        #x, l = quadratic_problem_solver_indexes_array(
-        #    A_list, C_list, B_list, D_list)
-        #x.upbind_values()
 
         x, l, ksi = qpc_solver_indexes_array(
             A_list, C_list, B_list, D_list, H_list, Ksi_list)
@@ -108,9 +117,36 @@ class World:
 
         self._iteration_counter += 1
 
+        A_list = self.A_matrix_list()
+        B_list = self.B_matrix_list()
+        D_list_vel = self.D_matrix_list_velocity()
+        D_list_pos = self.D_matrix_list_position()
+
+        self.velocity_correction(A_list, B_list, D_list_vel)
+        self.position_correction(A_list, B_list, D_list_pos)
+
+    def velocity_correction(self, A_list, B_list, D_list):
+        x, l, _ = qpc_solver_indexes_array(
+            A_list, [], B_list, D_list)
+        x.upbind_values()
+
+        for body in self.bodies:
+            body.downbind_velocity_solution()
+            body.velocity_correction()
+
+    def position_correction(self, A_list, B_list, D_list):
+        x, l, _ = qpc_solver_indexes_array(
+            A_list, [], B_list, D_list)
+        x.upbind_values()
+
+        for body in self.bodies:
+            body.downbind_position_solution()
+            body.position_correction()
+
+
     def iteration_counter(self):
         return self._iteration_counter
 
-    def correction(self):
-        for force_link in self._force_links:
-            force_link.velocity_correction()
+#    def correction(self):
+#        for force_link in self._force_links:
+#            force_link.velocity_correction()

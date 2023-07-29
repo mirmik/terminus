@@ -167,19 +167,40 @@ class VariableMultiForce(Frame):
         else:
             return [dQdl_child]
 
-    def D_matrix_list(self, delta):
+    def D_matrix_list(self):
         poserror = self.position_error_screw()
         velerror = self.velocity_error_screw()
         #print("poserror:", poserror)
         #print("velerror:", velerror)
         posdots = numpy.array([poserror.fulldot(s)
-                            for s in self._senses]) * self._stiffness[0] * 10
+                            for s in self._senses]) * self._stiffness[0] * 0
         veldots = numpy.array([velerror.fulldot(s)
-                            for s in self._senses]) * self._stiffness[1] * 10
+                            for s in self._senses]) * self._stiffness[1] * 0
         correction = - posdots - veldots
         return [IndexedVector(
                 correction,
                 idxs=self._screw_commutator.indexes())]
+
+    def D_matrix_list_velocity(self):
+        velerror = self.velocity_error_screw()
+        veldots = numpy.array([velerror.fulldot(s)
+                            for s in self._senses])
+
+        correction = - veldots
+        return [IndexedVector(
+                correction,
+                idxs=self._screw_commutator.indexes())]
+
+    def D_matrix_list_position(self):
+        poserror = self.position_error_screw()
+        posdots = numpy.array([poserror.fulldot(s)
+                            for s in self._senses])
+
+        correction = - posdots
+        return [IndexedVector(
+                correction,
+                idxs=self._screw_commutator.indexes())]
+
 
 
 if __name__ == "__main__":

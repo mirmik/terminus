@@ -15,5 +15,5 @@ import numpy
 #     def update_position(self, pose):
 #         self._position = pose
 
-#     def self_normalize(self):
-#         self._position.self_normalize()
+#     def rmalize(self):
+#         self._position.rmalize()

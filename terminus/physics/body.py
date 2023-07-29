@@ -40,6 +40,19 @@ class Body(Frame):
             v=numpy.array(self._screw_commutator.values()[1:])
         )
 
+    def downbind_velocity_solution(self):
+        self._right_velocity_correction = Screw2(
+            m=self._screw_commutator.values()[0],
+            v=numpy.array(self._screw_commutator.values()[1:])
+        )
+
+    def downbind_position_solution(self):
+        self._right_position_correction = Screw2(
+            m=self._screw_commutator.values()[0],
+            v=numpy.array(self._screw_commutator.values()[1:])
+        )
+
+
     def unbind_force(self, force):
         if force.is_right_global() and force.is_linked_to(self):
             self._right_forces_global.remove(force)
@@ -238,7 +251,7 @@ class Body(Frame):
         p = self.position()
         v0 = self.right_velocity()
         a = self.right_acceleration()
-        v = v0 + a * delta
+        v = (v0 + a * delta) / 2 + v0 / 2
 
         dp1 = (p.mul_screw(v)) / 2
         dp2 = (dp1.mul_screw(v) + p.mul_screw(a)) / 2
@@ -254,14 +267,21 @@ class Body(Frame):
         )
         r.self_unitize()
 
-        self.set_right_velocity(v)
+        self.set_right_velocity(v0 + a * delta)
         self.set_position(r)
 
+    def velocity_correction(self):
+        self.set_right_velocity(self.right_velocity() + self._right_velocity_correction)
+        
+    def position_correction(self):
+        self.set_position(self.position() * Motor2.from_screw(
+            self._right_position_correction))
+        self.position().self_unitize()
 
     def integrate(self, delta):
         #self.integrate_runge_kutta(delta)
-        #self.integrate_method(delta)
-        self.integrate_euler(delta)
+        self.integrate_method(delta)
+        #self.integrate_euler(delta)
         #self.integrate_euler(delta/4)
         #self.integrate_euler(delta/4)
         #self.integrate_euler(delta/4)
@@ -278,6 +298,7 @@ class Body(Frame):
 
     def equation_indexer(self) -> ScrewCommutator:
         return self._screw_commutator
+
 
 
 class Body2(Body):
