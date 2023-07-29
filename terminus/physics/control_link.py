@@ -71,9 +71,9 @@ class ControlLink(VariableMultiForce):
 
         k = curtime / 10
 
-        target_pos = numpy.array([10,0]) * (1-k) + (k)* numpy.array([-10,0])
-        target_vel = numpy.array([-2,0])
-        target_acc = numpy.array([0,0])
+        #target_pos = numpy.array([10,0]) * (1-k) + (k)* numpy.array([-10,0])
+        #target_vel = numpy.array([-2,0])
+        #target_acc = numpy.array([0,0])
 
         self.target = target_pos
 
