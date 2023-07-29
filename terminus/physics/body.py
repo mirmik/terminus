@@ -219,8 +219,8 @@ class Body(Frame):
 
     def integrate(self, delta):
         #self.integrate_runge_kutta(delta)
-        self.integrate_euler(delta)
-        #self.integrate_euler_with_correction(delta)
+        #self.integrate_euler(delta)
+        self.integrate_euler_with_correction(delta)
         
     def acceleration_indexes(self):
         return self._screw_commutator.sources()
