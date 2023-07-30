@@ -51,36 +51,33 @@ force_link3 = VariableMultiForce(child=body3, parent=body2, position=Motor2.tran
     Screw2(v=[1, 0]), Screw2(v=[0, 1])], stiffness=[1, 1])
 world.add_link_force(force_link3)
 
-# ctrlink1 = ControlLink(position=Motor2.translation(0, 0), 
-#     child=body1, parent=None, senses=[Screw2(m=1)], 
-#     use_child_frame=False)
+ctrlink1 = ControlLink(position=Motor2.translation(0, 0), 
+    child=body1, parent=None, senses=[Screw2(m=1)])
 
-# ctrlink2 = ControlLink(position=Motor2.translation(0, -10),
-#     child=body2, parent=body1, senses=[Screw2(m=1)], 
-#     use_child_frame=False)
+ctrlink2 = ControlLink(position=Motor2.translation(0, -10),
+    child=body2, parent=body1, senses=[Screw2(m=1)])
 
-# ctrlink3 = ControlLink(position=Motor2.translation(10, -10),
-#     child=body3, parent=body2, senses=[Screw2(m=1)], 
-#     use_child_frame=False)
+ctrlink3 = ControlLink(position=Motor2.translation(10, -10),
+    child=body3, parent=body2, senses=[Screw2(m=1)])
 
-# ctrframe1 = ControlTaskFrame(
-#     linked_body=body1, 
-#     position_in_body=Motor2.translation(0, 0))
+ctrframe1 = ControlTaskFrame(
+    linked_body=body1, 
+    position_in_body=Motor2.translation(0, 0))
 
-# ctrframe2 = ControlTaskFrame(
-#     linked_body=body2, 
-#     position_in_body=Motor2.translation(0, 0))
+ctrframe2 = ControlTaskFrame(
+    linked_body=body2, 
+    position_in_body=Motor2.translation(0, 0))
 
-# ctrframe3 = ControlTaskFrame(
-#     linked_body=body3, 
-#     position_in_body=Motor2.translation(0, 0))
+ctrframe3 = ControlTaskFrame(
+    linked_body=body3, 
+    position_in_body=Motor2.translation(0, 0))
 
-#world.add_control_link(ctrlink1)
-#world.add_control_link(ctrlink2)
-#world.add_control_link(ctrlink3)
-#world.add_control_task_frame(ctrframe1)
-#world.add_control_task_frame(ctrframe2)
-#world.add_control_task_frame(ctrframe3)
+world.add_control_link(ctrlink1)
+world.add_control_link(ctrlink2)
+world.add_control_link(ctrlink3)
+world.add_control_task_frame(ctrframe1)
+world.add_control_task_frame(ctrframe2)
+world.add_control_task_frame(ctrframe3)
 
 
 
