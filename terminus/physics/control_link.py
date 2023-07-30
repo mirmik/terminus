@@ -16,7 +16,7 @@ start_time = 0
 
 class ControlLink(VariableMultiForce):
     def __init__(self, position, child, parent, senses=[], stiffness=[1, 1]):
-        super().__init__(position, child, parent, senses, stiffness, use_child_frame)
+        super().__init__(position, child, parent, senses, stiffness)
         self._control_vector = [0] * len(self._senses)
         self.curtime = 0
 
@@ -36,7 +36,7 @@ class ControlLink(VariableMultiForce):
     def Ksi_matrix_list(self, delta, control_tasks):
         lst = []
         for task in control_tasks:
-            derivative = task.global_derivative_by_frame(self)
+            derivative = task.derivative_by_frame(self)
             pinv_derivative = numpy.linalg.pinv(derivative.matrix)
 
             res = pinv_derivative @ task.control_task(delta)
@@ -64,4 +64,5 @@ class ControlTaskFrame(ReferencedFrame):
         return self._control_screw.vector()
 
     def set_control_screw(self, screw):
-        self._control_screw = screw
+        rotated_to_local = screw.inverse_rotate_by(self.position())
+        self._control_screw = rotated_to_local

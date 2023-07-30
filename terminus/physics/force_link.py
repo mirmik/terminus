@@ -58,7 +58,7 @@ class VariableMultiForce(Frame):
         
         vel = self._parent.right_velocity()
         res = (vel
-            .inverse_kinematic_carry(self._position_in_parent_frame)
+            .inverse_carry(self._position_in_parent_frame)
         )
         return vel
 
@@ -66,25 +66,25 @@ class VariableMultiForce(Frame):
         diff = self.position_error_motor()
         vel = self._child.right_velocity()
         res = (vel
-            .inverse_kinematic_carry(self._position_in_child_frame)
-            .kinematic_carry(diff)
+            .inverse_carry(self._position_in_child_frame)
+            .carry(diff)
         )
         return res
 
     def global_position_by_parent(self):
         if self._parent is None:
             return self._position_in_parent_frame
-        return self._parent.global_position() * self._position_in_parent_frame
+        return self._parent.position() * self._position_in_parent_frame
 
     def global_position_by_child(self):
-        return self._child.global_position() * self._position_in_child_frame
+        return self._child.position() * self._position_in_child_frame
 
     def B_matrix_list(self):
         dQdl_child = self.derivative_by_frame(self._child).transpose()
 
         if self._parent is not None:
             # Минус из-за того, что в родительском фрейме чувствительность обратна чувствительности в дочернем фрейме
-            dQdl_parent = self.derivative_by_frame(self._parent).transpose()
+            dQdl_parent = -self.derivative_by_frame(self._parent).transpose()
             return [dQdl_child, dQdl_parent]
         else:
             return [dQdl_child]

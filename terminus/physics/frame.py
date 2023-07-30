@@ -16,12 +16,12 @@ class Frame:
         return self._screw_commutator
 
     def derivative_by_frame(self, other):
-        return self.screw_commutator().derivative_matrix_from(
+        return self.screw_commutator().derivative(
             other.screw_commutator())
 
-    def global_derivative_by_frame(self, other):
-        return self.screw_commutator().global_derivative_matrix_from(
-            other.screw_commutator())
+    # def global_derivative_by_frame(self, other):
+    #     return self.screw_commutator().derivative(
+    #         other.screw_commutator())
 
     def position(self):
         return self._pose_object.position()

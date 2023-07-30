@@ -113,10 +113,12 @@ class World:
         H_list = self.H_matrix_list()
         Ksi_list = self.Ksi_matrix_list(delta)
 
-        x, l, ksi = qpc_solver_indexes_array(
+        x, l, ksi, Q, b = qpc_solver_indexes_array(
             A_list, C_list, B_list, D_list, H_list, Ksi_list)
         x.upbind_values()
 
+        self.last_Q = Q
+        self.last_b = b
         self._last_solution = (x, l, ksi)
 
         for body in self.bodies:
@@ -134,7 +136,7 @@ class World:
         self.position_correction(A_list, B_list, D_list_pos)
 
     def velocity_correction(self, A_list, B_list, D_list):
-        x, l, _ = qpc_solver_indexes_array(
+        x, l, _, Q, b = qpc_solver_indexes_array(
             A_list, [], B_list, D_list)
         x.upbind_values()
 
@@ -143,7 +145,7 @@ class World:
             body.velocity_correction()
 
     def position_correction(self, A_list, B_list, D_list):
-        x, l, _ = qpc_solver_indexes_array(
+        x, l, _, Q, b = qpc_solver_indexes_array(
             A_list, [], B_list, D_list)
         x.upbind_values()
 

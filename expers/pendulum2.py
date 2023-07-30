@@ -16,17 +16,16 @@ numpy.set_printoptions(precision=3, suppress=True)
 
 body = Body2()
 body.set_resistance_coefficient(0)
-body.set_position(Motor2.rotation(0))
 
 world = World()
-world.set_gravity(Screw2(v=[0, -10]))
+world.set_gravity(Screw2(v=[0, -1]))
 world.add_body(body)
 
-body.set_position(Motor2.translation(-1, 0))
+body.set_position(Motor2.translation(-1, 0) * Motor2.rotation(math.pi/2))
 #body.set_right_velocity_global(Screw2(v=[0,0], m=0.01))
 
 force_link = VariableMultiForce(child=body, parent=None, 
-    position=Motor2.translation(0, 0) * Motor2.rotation(0), senses=[
+    position=Motor2.translation(0, 0) * Motor2.rotation(math.pi/2), senses=[
     Screw2(v=[1, 0]), Screw2(v=[0, 1])])
 
 world.add_link_force(force_link)

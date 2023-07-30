@@ -18,7 +18,7 @@ body.set_resistance_coefficient(0)
 body.set_right_velocity_global(Screw2(v=[0, 0], m=1))
 
 world = World()
-world.set_gravity(Screw2(v=[0, 00]))
+world.set_gravity(Screw2(v=[0, -0.1]))
 world.add_body(body)
 
 body.set_position(Motor2.translation(0, 0) * Motor2.rotation(math.pi/2))

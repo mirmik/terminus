@@ -14,8 +14,8 @@ class Body(Frame):
         super().__init__(pose_object=PoseObject(), screws=screws)
         self.space_dim = space_dim
         self.dof = dof
-        self._right_acceleration = Screw2()
-        self._right_velocity = Screw2()
+        self._right_acceleration_global = Screw2()
+        self._right_velocity_global = Screw2()
         self._resistance_coefficient = 0
         self._right_velocity_correction = Screw2()
         self._right_position_correction = Screw2()
@@ -34,10 +34,10 @@ class Body(Frame):
         return self.position().factorize_rotation_angle()
 
     def downbind_solution(self):
-        self._right_acceleration = Screw2(
+        self._right_acceleration_global = Screw2(
             m=self._screw_commutator.values()[0],
             v=numpy.array(self._screw_commutator.values()[1:])
-        )
+        ).rotate_by(self.position())
 
     def downbind_velocity_solution(self):
         self._right_velocity_correction = Screw2(
@@ -52,43 +52,47 @@ class Body(Frame):
         )
 
 
-    def unbind_force(self, force):
-        if force.is_right_global() and force.is_linked_to(self):
-            self._right_forces_global.remove(force)
-        elif force.is_right() and force.is_linked_to(self):
-            self._right_forces.remove(force)
-        else:
-            raise Exception("Force is not linked to this body")
+    # def unbind_force(self, force):
+    #     if force.is_right_global() and force.is_linked_to(self):
+    #         self._right_forces_global.remove(force)
+    #     elif force.is_right() and force.is_linked_to(self):
+    #         self._right_forces.remove(force)
+    #     else:
+    #         raise Exception("Force is not linked to this body")
 
-        force.clean_bind_information()
+    #     force.clean_bind_information()
 
-    def add_right_force_global(self, force):
-        self._right_forces_global.append(force)
-        force.set_right_global_type()
-        force.set_linked_object(self)
+    # def add_right_force_global(self, force):
+    #     self._right_forces_global.append(force)
+    #     force.set_right_global_type()
+    #     force.set_linked_object(self)
 
-    def add_right_force(self, force):
-        self._right_forces.append(force)
-        force.set_right_type()
-        force.set_linked_object(self)
+    # def add_right_force(self, force):
+    #     self._right_forces.append(force)
+    #     force.set_right_type()
+    #     force.set_linked_object(self)
 
     def right_acceleration(self):
-        return self._right_acceleration
+        return self._right_acceleration_global.inverse_rotate_by(self.position())
 
     def right_acceleration_global(self):
-        return self._right_acceleration.rotate_by(self.position())
+        return self._right_acceleration_global
 
     def right_velocity_global(self):
-        return self._right_velocity.rotate_by(self.position())
+        return self._right_velocity_global
+        #return self._right_velocity.rotate_by(self.position())
 
     def right_velocity(self):
-        return self._right_velocity
+        return self._right_velocity_global.inverse_rotate_by(self.position())
+        #return self._right_velocity
 
     def set_right_velocity_global(self, vel):
-        self._right_velocity = vel.inverse_rotate_by(self.position())
+        self._right_velocity_global = vel
+        #self._right_velocity = vel.inverse_rotate_by(self.position())
 
     def set_right_velocity(self, vel):
-        self._right_velocity = vel
+        self._right_velocity_global = vel.rotate_by(self.position())
+        #self._right_velocity = vel
  
     def position(self):
         return self._pose_object.position()
@@ -102,9 +106,9 @@ class Body(Frame):
     def indexed_right_mass_matrix(self):
         return IndexedMatrix(self.right_mass_matrix(), None, None)
 
-    def right_mass_matrix_global(self):
-        motor_matrix = self.position().rotation_matrix()
-        return motor_matrix.T @ self._mass_matrix @ motor_matrix
+    # def right_mass_matrix_global(self):
+    #     motor_matrix = self.position().rotation_matrix()
+    #     return motor_matrix.T @ self._mass_matrix @ motor_matrix
 
     def indexed_right_mass_matrix_global(self):
         return IndexedMatrix(self.right_mass_matrix(),
@@ -120,9 +124,6 @@ class Body(Frame):
     def set_position(self, pos):
         self._pose_object.update_position(pos)
 
-    def jacobian(self):
-        return numpy.diag([1, 1, 1])
-
     def right_kinetic_screw(self):
         return Screw2.from_array(self._mass_matrix @ self.right_velocity().toarray())
 
@@ -130,8 +131,8 @@ class Body(Frame):
         rscrew = self.right_kinetic_screw()
         return rscrew.rotate_by(self.position())
 
-    def computation_indexes(self):
-        return self._commutator.sources()
+    #def computation_indexes(self):
+    #    return self._commutator.sources()
 
     def right_gravity(self):
         world_gravity = self._world.gravity().inverse_rotate_by(self.position())
@@ -145,18 +146,6 @@ class Body(Frame):
              * self._resistance_coefficient) * 1,
             self.equation_indexes(), self.commutator()
         )
-
-    def right_forces_global_as_indexed_vectors(self):
-        arr = []
-        for f in self._right_forces_global:
-            arr.append(f.to_indexed_vector())
-        return arr
-
-    def right_forces_as_indexed_vectors(self):
-        arr = []
-        for f in self._right_forces:
-            arr.append(f.to_indexed_vector_rotated_by(self.position()))
-        return arr
 
     def forces_in_right_part(self):
         return ([
@@ -209,10 +198,10 @@ class Body(Frame):
     #     self.set_position(p2)
 
     def integrate_euler(self, delta):
-        acc = self.right_acceleration()
-        rvel = self.right_velocity() + acc * delta
-        self.set_right_velocity(rvel)
-        drvel = rvel * delta
+        acc = self.right_acceleration_global()
+        rvel = self.right_velocity_global() + acc * delta
+        self.set_right_velocity_global(rvel)
+        drvel = self.right_velocity() * delta
         self.set_position(self.position() * Motor2.from_screw(drvel))
         self.position().self_unitize()
 

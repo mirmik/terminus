@@ -172,4 +172,4 @@ def qpc_solver_indexes_array(
     l = l.cpu().detach().numpy()
     ksi = ksi.cpu().detach().numpy()
 
-    return IndexedVector(x, idxs=A_idxs), IndexedVector(l, idxs=B_idxs), IndexedVector(ksi, idxs=H_idxs)
+    return IndexedVector(x, idxs=A_idxs), IndexedVector(l, idxs=B_idxs), IndexedVector(ksi, idxs=H_idxs), Q, b

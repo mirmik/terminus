@@ -52,12 +52,10 @@ world.add_link_force(force_link2)
 #world.add_link_force(force_link3)
 
 ctrlink1 = ControlLink(position=Motor2.translation(0, 0), 
-    child=body1, parent=None, senses=[Screw2(m=1)], 
-    use_child_frame=False)
+    child=body1, parent=None, senses=[Screw2(m=1)])
 
 ctrlink2 = ControlLink(position=Motor2.translation(0, -10),
-    child=body2, parent=body1, senses=[Screw2(m=1)], 
-    use_child_frame=False)
+    child=body2, parent=body1, senses=[Screw2(m=1)])
 
 #ctrlink3 = ControlLink(position=Motor2.translation(10, -10),
 #    child=body3, parent=body2, senses=[Screw2(m=1)], 
@@ -104,7 +102,7 @@ def control(delta):
         d2s = -(math.sin((curtime - start_time)/D))/D/D
         d2c = -(math.cos((curtime - start_time)/D))/D/D
         
-        A = 8
+        A = 5
         B = 5
 
         target_pos = (numpy.array([10,0]) 
@@ -120,13 +118,13 @@ def control(delta):
         k = curtime / 10
 
         errorpos = Screw2(v=target_pos - curpos)
-        control_spd = errorpos * 16 + Screw2(v=target_vel)
+        control_spd = errorpos * 10 + Screw2(v=target_vel)
         errorspd = (control_spd - current_vel)
-        erroracc = errorspd * 50 +  Screw2(v=target_acc)
+        erroracc = errorspd * 30 +  Screw2(v=target_acc)
 
         norm = erroracc.norm()
-        if norm > 400:
-            erroracc = erroracc * (400 / norm)
+        if norm > 200:
+            erroracc = erroracc * (200 / norm)
 
         return erroracc, target_pos
 
