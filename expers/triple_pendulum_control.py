@@ -164,10 +164,10 @@ def control2(delta):
         control_spd = errorpos * 2
         errorspd = (control_spd - current_vel)
         if errorpos.norm() < 5:
-            errorspd = errorspd #+ Screw2(v=target_vel)
+            errorspd = errorspd 
         erroracc = errorspd * 320 
         if errorpos.norm() < 5:
-            erroracc = erroracc #+ Screw2(v=target_acc)
+            erroracc = erroracc 
         norm = erroracc.norm()
         if norm > DDD:
             erroracc = erroracc * (DDD / norm)
@@ -207,6 +207,12 @@ def animate(wdg):
     ctrframe3.set_filter(JJ)
     ctrframe2.set_filter(JJJ)
     # ctrframe1.set_filter(JJJ @ JJJ2)
+
+    #ctrlink2.set_filter(JJJ)
+    #ctrlink2.set_control(numpy.array([1]))
+
+    #ctrlink3.set_filter(JJJ)
+    #ctrlink3.set_control(numpy.array([-1]))
 
     ctr3, ctrpos = control3(0.02)
     ctr2 = control2(0.02)

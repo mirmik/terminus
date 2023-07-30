@@ -20,9 +20,13 @@ class ControlLink(VariableMultiForce):
         self._control = None
         self.curtime = 0
         self.target = numpy.array([0,0])
+        self._filter = None
 
-    def set_control_vector(self, control_vector):
-        self._control_vector = control_vector
+    def set_filter(self, filter):
+        self._filter = filter
+
+    def set_control(self, control_vector):
+        self._control = control_vector
 
     def H_matrix_list(self):
         dQdl_child = self.derivative_by_frame(self._child).transpose()
@@ -32,13 +36,35 @@ class ControlLink(VariableMultiForce):
         else:
             return [dQdl_child]
     
-    def Ksi_matrix_list(self, delta, control_tasks):
+    def Ksi_matrix_list(self, delta, allctrlinks):
         if self._control is None:
             return []
 
         ctr = self._control.reshape((len(self._control), 1))
+
+        if self._filter is not None:
+            mat = []
+            counter = 0
+            for link in allctrlinks:
+                if link is not self:
+                    mat.append(numpy.zeros((1, 1)))
+                else:
+                    mat.append(ctr)
+                counter += 1
+            print(mat)
+            ctr = numpy.concatenate(mat, axis=0)
+            ctr = self._filter @ ctr
+
+            counter = 0
+            for link in allctrlinks:
+                if link is not self:
+                    pass
+                else:
+                    ctr = ctr[counter]
+                counter += 1
+
         return [
-            IndexedVector(ctr, self.screw_commutator().indexes())
+            IndexedVector(ctr, self.screw_commutator().indexes(), self.screw_commutator())
         ]
 
 

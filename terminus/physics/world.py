@@ -102,6 +102,8 @@ class World:
         for control_frame in self._control_task_frames:
             arr2.extend(control_frame.Ksi_matrix_list(
                 delta, self._control_links))
+        for force_link in self._control_links:
+            arr2.extend(force_link.Ksi_matrix_list(delta, self._control_links))
         return arr2
 
 
