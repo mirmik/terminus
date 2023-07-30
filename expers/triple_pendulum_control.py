@@ -98,7 +98,7 @@ tsph.set_color(zencad.Color(0,1,0))
 start_time = time.time()
 planned_time = start_time
 
-DDD = 10
+DDD = 200
 
 def control3(delta):
         current_vel = ctrframe3.right_velocity_global()
@@ -120,8 +120,8 @@ def control3(delta):
         d2s = -(math.sin((curtime - start_time)/D))/D/D
         d2c = -(math.cos((curtime - start_time)/D))/D/D
         
-        A = 2
-        B = 2
+        A = 4
+        B = 4
 
         target_pos = (numpy.array([10,5]) 
             + (s) * numpy.array([A,0])
@@ -136,11 +136,15 @@ def control3(delta):
         k = curtime / 10
 
         errorpos = Screw2(v=target_pos - curpos)
-        control_spd = errorpos * 8 + Screw2(v=target_vel)
+        control_spd = errorpos * 8 
         errorspd = (control_spd - current_vel)
+        if errorpos.norm() < 5:
+            errorspd = errorspd + Screw2(v=target_vel)
 
         #errorspd = Screw2(v=[0,5]) - current_vel
-        erroracc = errorspd * 120 +  Screw2(v=target_acc)
+        erroracc = errorspd * 240 
+        if errorpos.norm() < 5:
+            erroracc = erroracc + Screw2(v=target_acc)
        
         norm = erroracc.norm()
         if norm > DDD:
@@ -160,7 +164,7 @@ def control2(delta):
 
         control_spd = Screw2(v=[1,-1])
         errorspd = (control_spd - current_vel)
-        erroracc = errorspd * 1
+        erroracc = errorspd * 5
 
         #print(world.kernel_operator(ctrframe2))
         f1 = ctrframe3.derivative_by_frame(ctrlink1)
@@ -175,7 +179,7 @@ def control2(delta):
         JJJ = numpy.eye(3) - JJ
         print(JJJ)
 
-        ctrframe2.set_filter(JJJ)
+        #ctrframe2.set_filter(JJJ)
 
         norm = erroracc.norm()
         if norm > DDD:
@@ -191,9 +195,9 @@ def control1(delta):
         curtime = ctrframe1.curtime
         ctrframe1.curtime += delta
 
-        control_spd = Screw2(v=[-1,-1])
+        control_spd = Screw2(v=[-1,0])
         errorspd = (control_spd - current_vel)
-        erroracc = errorspd * 2
+        erroracc = errorspd * 4
 
         norm = erroracc.norm()
         
