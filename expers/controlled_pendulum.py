@@ -120,7 +120,9 @@ def control(delta):
         errorpos = Screw2(v=target_pos - curpos)
         control_spd = errorpos * 10 + Screw2(v=target_vel)
         errorspd = (control_spd - current_vel)
-        erroracc = errorspd * 30 +  Screw2(v=target_acc)
+
+        errorspd = Screw2(v=[0,5]) - current_vel
+        erroracc = errorspd * 30 #+  Screw2(v=target_acc)
 
         norm = erroracc.norm()
         if norm > 200:

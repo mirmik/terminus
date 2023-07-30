@@ -15,6 +15,11 @@ class World:
         self._control_task_frames = []
         self._control_multiframe = MultiFrame()
 
+        self._correction_enabled = True
+
+    def set_correction_enabled(self, enabled):
+        self._correction_enabled = enabled
+
     def last_solution(self):
         return self._last_solution
 
@@ -132,8 +137,9 @@ class World:
         D_list_vel = self.D_matrix_list_velocity()
         D_list_pos = self.D_matrix_list_position()
 
-        self.velocity_correction(A_list, B_list, D_list_vel)
-        self.position_correction(A_list, B_list, D_list_pos)
+        if self._correction_enabled:
+            self.velocity_correction(A_list, B_list, D_list_vel)
+            self.position_correction(A_list, B_list, D_list_pos)
 
     def velocity_correction(self, A_list, B_list, D_list):
         x, l, _, Q, b = qpc_solver_indexes_array(

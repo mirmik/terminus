@@ -36,6 +36,9 @@ class ControlLink(VariableMultiForce):
     def Ksi_matrix_list(self, delta, control_tasks):
         lst = []
         for task in control_tasks:
+            if self not in task._control_frames:
+                continue
+
             derivative = task.derivative_by_frame(self)
             pinv_derivative = numpy.linalg.pinv(derivative.matrix)
 
@@ -58,6 +61,10 @@ class ControlTaskFrame(ReferencedFrame):
         super().__init__(linked_body, position_in_body, senses)
         self.curtime = 0
         self._control_screw = Screw2()
+        self._control_frames = []
+
+    def add_control_frame(self, frame):
+        self._control_frames.append(frame)
 
     def control_task(self, delta):
         return self._control_screw.vector()

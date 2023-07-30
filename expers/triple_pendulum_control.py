@@ -27,6 +27,7 @@ body3 = Body2()
 
 world = World()
 world.set_gravity(Screw2(v=[0, -10]))
+#world.set_correction_enabled(False)
 world.add_body(body1)
 world.add_body(body2)
 world.add_body(body3)
@@ -35,7 +36,7 @@ body1.set_resistance_coefficient(0.1)
 body2.set_resistance_coefficient(0.1)
 body3.set_resistance_coefficient(0.1)
 
-body1.set_position(Motor2.translation(0, -10))
+body1.set_position(Motor2.translation(0, -15))
 body2.set_position(Motor2.translation(10, -10) * Motor2.rotation(math.pi/4))
 body3.set_position(Motor2.translation(20, -10) * Motor2.rotation(math.pi/4))
 
@@ -43,7 +44,7 @@ force_link1 = VariableMultiForce(child=body1, parent=None, position=Motor2.trans
     Screw2(v=[1, 0]), Screw2(v=[0, 1])], stiffness=[1, 1])
 world.add_link_force(force_link1)
 
-force_link2 = VariableMultiForce(child=body2, parent=body1, position=Motor2.translation(0, -10), senses=[
+force_link2 = VariableMultiForce(child=body2, parent=body1, position=Motor2.translation(0, -15), senses=[
     Screw2(v=[1, 0]), Screw2(v=[0, 1])], stiffness=[1, 1])
 world.add_link_force(force_link2)
 
@@ -54,7 +55,7 @@ world.add_link_force(force_link3)
 ctrlink1 = ControlLink(position=Motor2.translation(0, 0), 
     child=body1, parent=None, senses=[Screw2(m=1)])
 
-ctrlink2 = ControlLink(position=Motor2.translation(0, -10),
+ctrlink2 = ControlLink(position=Motor2.translation(0, -15),
     child=body2, parent=body1, senses=[Screw2(m=1)])
 
 ctrlink3 = ControlLink(position=Motor2.translation(10, -10),
@@ -63,14 +64,20 @@ ctrlink3 = ControlLink(position=Motor2.translation(10, -10),
 ctrframe1 = ControlTaskFrame(
     linked_body=body1, 
     position_in_body=Motor2.translation(0, 0))
+ctrframe1.add_control_frame(ctrlink1)
 
 ctrframe2 = ControlTaskFrame(
     linked_body=body2, 
     position_in_body=Motor2.translation(0, 0))
+ctrframe2.add_control_frame(ctrlink1)
+ctrframe2.add_control_frame(ctrlink2)
 
 ctrframe3 = ControlTaskFrame(
     linked_body=body3, 
     position_in_body=Motor2.translation(0, 0))
+ctrframe3.add_control_frame(ctrlink1)
+ctrframe3.add_control_frame(ctrlink2)
+ctrframe3.add_control_frame(ctrlink3)
 
 world.add_control_link(ctrlink1)
 world.add_control_link(ctrlink2)
@@ -90,6 +97,8 @@ tsph.set_color(zencad.Color(0,1,0))
 
 start_time = time.time()
 planned_time = start_time
+
+DDD = 10
 
 def control3(delta):
         current_vel = ctrframe3.right_velocity_global()
@@ -114,7 +123,7 @@ def control3(delta):
         A = 2
         B = 2
 
-        target_pos = (numpy.array([10,0]) 
+        target_pos = (numpy.array([10,5]) 
             + (s) * numpy.array([A,0])
             + (c) * numpy.array([0,B])
         )
@@ -127,14 +136,15 @@ def control3(delta):
         k = curtime / 10
 
         errorpos = Screw2(v=target_pos - curpos)
-        control_spd = errorpos * 2 + Screw2(v=target_vel)
+        control_spd = errorpos * 8 + Screw2(v=target_vel)
         errorspd = (control_spd - current_vel)
-        erroracc = errorspd * 20 +  Screw2(v=target_acc)
+
+        #errorspd = Screw2(v=[0,5]) - current_vel
+        erroracc = errorspd * 120 +  Screw2(v=target_acc)
        
         norm = erroracc.norm()
-        if norm > 400:
-            erroracc = erroracc * (400 / norm)
-
+        if norm > DDD:
+            erroracc = erroracc * (DDD / norm)
 
         erroracc = erroracc * 1
         return erroracc, target_pos
@@ -148,15 +158,26 @@ def control2(delta):
         curtime = ctrframe2.curtime
         ctrframe2.curtime += delta
 
-        control_spd = Screw2(v=[0,0])
+        control_spd = Screw2(v=[1,-1])
         errorspd = (control_spd - current_vel)
-        erroracc = errorspd * 0
+        erroracc = errorspd * 1
 
-        #print(world.kernel_operator(ctrframe))
+        #print(world.kernel_operator(ctrframe2))
+        f1 = ctrframe3.derivative_by_frame(ctrlink1)
+        f2 = ctrframe3.derivative_by_frame(ctrlink2)
+        f3 = ctrframe3.derivative_by_frame(ctrlink3)
+        m1 = f1.matrix
+        m2 = f2.matrix
+        m3 = f3.matrix
+        m = numpy.concatenate((m1,m2,m3), axis=1)
+        #print(m)
+        JJ = numpy.linalg.pinv(m) @ m
+        JJJ = numpy.eye(3) - JJ
+        print(JJJ)
 
         norm = erroracc.norm()
-        if norm > 400:
-            erroracc = erroracc * (400 / norm)
+        if norm > DDD:
+            erroracc = erroracc * (DDD / norm)
 
         return erroracc 
 
@@ -168,23 +189,15 @@ def control1(delta):
         curtime = ctrframe1.curtime
         ctrframe1.curtime += delta
 
-        control_spd = Screw2(v=[0,0])
+        control_spd = Screw2(v=[-1,-1])
         errorspd = (control_spd - current_vel)
-        erroracc = errorspd * 0.00000
+        erroracc = errorspd * 2
 
         norm = erroracc.norm()
         
         norm = erroracc.norm()
-        if norm > 400:
-            erroracc = erroracc * (400 / norm)
-
-        operator = world.kernel_operator(ctrframe3)
-        arr = erroracc.toarray()
-
-        arr = operator @ arr
-
-        erroracc = Screw2(m=arr[0], v=arr[1:])
-        print(operator)
+        if norm > DDD:
+            erroracc = erroracc * (DDD / norm)
 
         return erroracc 
 
@@ -197,7 +210,7 @@ def animate(wdg):
     ctr2 = control2(0.02)
     ctr1 = control1(0.02)
     ctrframe1.set_control_screw(ctr1)
-    #ctrframe2.set_control_screw(ctr2)
+    ctrframe2.set_control_screw(ctr2)
     ctrframe3.set_control_screw(ctr3)
     world.iteration(0.02)
 
