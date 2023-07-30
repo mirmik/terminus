@@ -120,15 +120,15 @@ def control(delta):
 
         errorpos = Screw2(v=target_pos - curpos)
         control_spd = errorpos * 3
-        if errorpos.norm() < 5:
-            control_spd = control_spd + Screw2(v=target_vel)
+        #if errorpos.norm() < 6:
+        control_spd = control_spd + Screw2(v=target_vel)
         errorspd = (control_spd - current_vel) 
 
         #errorspd = Screw2(v=[0,5]) - current_vel
         erroracc = errorspd * 60 #+  Screw2(v=target_acc)
 
-        if errorpos.norm() < 5:
-            erroracc = erroracc +  Screw2(v=target_acc)
+        #if errorpos.norm() < 6:
+        erroracc = erroracc +  Screw2(v=target_acc)
 
         f1 = ctrframe.derivative_by_frame(ctrlink1)
         f2 = ctrframe.derivative_by_frame(ctrlink2)

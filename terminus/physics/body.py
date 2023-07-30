@@ -178,24 +178,24 @@ class Body(Frame):
         r = r1 + r2*2 + r3*2 + r4
         return l, r
 
-    # def integrate_runge_kutta(self, delta):
-    #     p = self.position()
-    #     v = self.right_velocity()
-    #     a = self.right_acceleration()
-    #     x0 = (Screw2(),v)
+    def integrate_runge_kutta(self, delta):
+        p = self.position()
+        v = self.right_velocity()
+        a = self.right_acceleration()
+        x0 = (Screw2(),v)
 
-    #     f1 = self.derivative(*x0, a)
-    #     f2 = self.derivative(*self.summation(x0, f1, delta/2), a)
-    #     f3 = self.derivative(*self.summation(x0, f2, delta/2), a)
-    #     f4 = self.derivative(*self.summation(x0, f3, delta), a)
+        f1 = self.derivative(*x0, a)
+        f2 = self.derivative(*self.summation(x0, f1, delta/2), a)
+        f3 = self.derivative(*self.summation(x0, f2, delta/2), a)
+        f4 = self.derivative(*self.summation(x0, f3, delta), a)
 
-    #     add = self.summ_f(f1, f2, f3, f4)
-    #     add = (add[0]*1/6, add[1]*1/6)
-    #     p1, v1 = self.summation(x0, add, delta)
-    #     p2 = p * Motor2.from_screw(p1)
-    #     p2.self_unitize()
-    #     self.set_right_velocity(v1)
-    #     self.set_position(p2)
+        add = self.summ_f(f1, f2, f3, f4)
+        add = (add[0]*1/6, add[1]*1/6)
+        p1, v1 = self.summation(x0, add, delta)
+        p2 = p * Motor2.from_screw(p1)
+        p2.self_unitize()
+        self.set_right_velocity(v1)
+        self.set_position(p2)
 
     def integrate_euler(self, delta):
         acc = self.right_acceleration_global()
@@ -268,8 +268,8 @@ class Body(Frame):
     def integrate(self, delta):
         #self.integrate_runge_kutta(delta)
         
-        #self.integrate_method(delta)
-        self.integrate_euler(delta)
+        self.integrate_method(delta)
+        #self.integrate_euler(delta)
         
         #self.integrate_euler(delta/4)
         #self.integrate_euler(delta/4)

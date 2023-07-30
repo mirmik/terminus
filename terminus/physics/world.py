@@ -14,8 +14,11 @@ class World:
         self._control_links = []
         self._control_task_frames = []
         self._control_multiframe = MultiFrame()
-
+        self._time = 0
         self._correction_enabled = True
+
+    def time(self):
+        return self._time
 
     def set_correction_enabled(self, enabled):
         self._correction_enabled = enabled
@@ -141,6 +144,8 @@ class World:
         if self._correction_enabled:
             self.velocity_correction(A_list, B_list, D_list_vel)
             self.position_correction(A_list, B_list, D_list_pos)
+
+        self._time += delta
 
     def velocity_correction(self, A_list, B_list, D_list):
         x, l, _, Q, b = qpc_solver_indexes_array(

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import time
+#import time
 from terminus.physics.indexed_matrix import IndexedVector
 from terminus.physics.body import Body2
 from terminus.physics.world import World
@@ -95,35 +95,33 @@ sph2 = zencad.disp(zencad.sphere(1))
 tsph = zencad.disp(zencad.sphere(1))
 tsph.set_color(zencad.Color(0,1,0))
 
-start_time = time.time()
-planned_time = start_time
-
-DDD = 600
+#start_time = time.time()
+DDD = 1000
 
 def control3(delta):
         current_vel = ctrframe3.right_velocity_global()
         curpos = ctrframe3.position()
         curpos = curpos.factorize_translation_vector()
 
-        curtime = ctrframe3.curtime
+        curtime = world.time()
         ctrframe3.curtime += delta
 
         #print(world.outkernel_operator(ctrframe))
 
         D = 1
-        s = (math.sin((curtime - start_time)/D))
-        c = (math.cos((curtime - start_time)/D))
+        s = (math.sin((curtime)/D))
+        c = (math.cos((curtime)/D))
 
-        ds = (math.cos((curtime - start_time)/D))/D
-        dc = -(math.sin((curtime - start_time)/D))/D
+        ds = (math.cos((curtime)/D))/D
+        dc = -(math.sin((curtime)/D))/D
 
-        d2s = -(math.sin((curtime - start_time)/D))/D/D
-        d2c = -(math.cos((curtime - start_time)/D))/D/D
+        d2s = -(math.sin((curtime)/D))/D/D
+        d2c = -(math.cos((curtime)/D))/D/D
         
         A = 6
         B = 6
 
-        target_pos = (numpy.array([15,5]) 
+        target_pos = (numpy.array([20,5]) 
             + (s) * numpy.array([A,0])
             + (c) * numpy.array([0,B])
         )
@@ -133,16 +131,19 @@ def control3(delta):
         target_acc =( (d2s) * numpy.array([A,0])
             + (d2c) * numpy.array([0,B]))
 
-        k = curtime / 10
-
         errorpos = Screw2(v=target_pos - curpos)
-        control_spd = errorpos * 8
+        if errorpos.norm() < 5:
+            control_spd = errorpos * 8
+        else:
+            control_spd = errorpos * 1
         errorspd = (control_spd - current_vel)
         if errorpos.norm() < 5:
-            errorspd = errorspd + Screw2(v=target_vel)
-        erroracc = errorspd * 320 
+            #y = 1 - (errorpos.norm() / 4)
+            errorspd = errorspd #+ Screw2(v=target_vel) #* y
+        erroracc = errorspd * 400 
         if errorpos.norm() < 5:
-            erroracc = erroracc + Screw2(v=target_acc)
+            #y = 1 - (errorpos.norm() / 4)
+            erroracc = erroracc #+ Screw2(v=target_acc) #* y
        
         norm = erroracc.norm()
         if norm > DDD:
@@ -184,10 +185,6 @@ def control2(delta):
 
 #while True:
 def animate(wdg):
-    global planned_time
-    current_time = time.time()
-
-
     f1 = ctrframe3.derivative_by_frame(ctrlink1)
     f2 = ctrframe3.derivative_by_frame(ctrlink2)
     f3 = ctrframe3.derivative_by_frame(ctrlink3)
