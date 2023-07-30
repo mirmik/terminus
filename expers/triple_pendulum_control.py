@@ -32,9 +32,9 @@ world.add_body(body1)
 world.add_body(body2)
 world.add_body(body3)
 
-body1.set_resistance_coefficient(0.1)
-body2.set_resistance_coefficient(0.1)
-body3.set_resistance_coefficient(0.1)
+body1.set_resistance_coefficient(0.5)
+body2.set_resistance_coefficient(0.5)
+body3.set_resistance_coefficient(0.5)
 
 body1.set_position(Motor2.translation(0, -15))
 body2.set_position(Motor2.translation(10, -10) * Motor2.rotation(math.pi/4))
@@ -61,10 +61,10 @@ ctrlink2 = ControlLink(position=Motor2.translation(0, -15),
 ctrlink3 = ControlLink(position=Motor2.translation(10, -10),
     child=body3, parent=body2, senses=[Screw2(m=1)])
 
-ctrframe1 = ControlTaskFrame(
-    linked_body=body1, 
-    position_in_body=Motor2.translation(0, 0))
-ctrframe1.add_control_frame(ctrlink1)
+# ctrframe1 = ControlTaskFrame(
+#     linked_body=body1, 
+#     position_in_body=Motor2.translation(0, 0))
+# ctrframe1.add_control_frame(ctrlink1)
 
 ctrframe2 = ControlTaskFrame(
     linked_body=body2, 
@@ -82,7 +82,7 @@ ctrframe3.add_control_frame(ctrlink3)
 world.add_control_link(ctrlink1)
 world.add_control_link(ctrlink2)
 world.add_control_link(ctrlink3)
-world.add_control_task_frame(ctrframe1)
+# world.add_control_task_frame(ctrframe1)
 world.add_control_task_frame(ctrframe2)
 world.add_control_task_frame(ctrframe3)
 
@@ -98,7 +98,7 @@ tsph.set_color(zencad.Color(0,1,0))
 start_time = time.time()
 planned_time = start_time
 
-DDD = 200
+DDD = 600
 
 def control3(delta):
         current_vel = ctrframe3.right_velocity_global()
@@ -120,10 +120,10 @@ def control3(delta):
         d2s = -(math.sin((curtime - start_time)/D))/D/D
         d2c = -(math.cos((curtime - start_time)/D))/D/D
         
-        A = 4
-        B = 4
+        A = 6
+        B = 6
 
-        target_pos = (numpy.array([10,5]) 
+        target_pos = (numpy.array([15,5]) 
             + (s) * numpy.array([A,0])
             + (c) * numpy.array([0,B])
         )
@@ -136,13 +136,11 @@ def control3(delta):
         k = curtime / 10
 
         errorpos = Screw2(v=target_pos - curpos)
-        control_spd = errorpos * 8 
+        control_spd = errorpos * 8
         errorspd = (control_spd - current_vel)
         if errorpos.norm() < 5:
             errorspd = errorspd + Screw2(v=target_vel)
-
-        #errorspd = Screw2(v=[0,5]) - current_vel
-        erroracc = errorspd * 240 
+        erroracc = errorspd * 320 
         if errorpos.norm() < 5:
             erroracc = erroracc + Screw2(v=target_acc)
        
@@ -158,64 +156,65 @@ def control2(delta):
         current_vel = ctrframe2.right_velocity_global()
         curpos = ctrframe2.position()
         curpos = curpos.factorize_translation_vector()
-
-        curtime = ctrframe2.curtime
-        ctrframe2.curtime += delta
-
-        control_spd = Screw2(v=[1,-1])
+        target_pos = numpy.array([15,-10])
+        target_vel = numpy.array([0,0])
+        target_acc = numpy.array([0,0])
+        errorpos = Screw2(v=target_pos - curpos)
+        control_spd = errorpos * 2
         errorspd = (control_spd - current_vel)
-        erroracc = errorspd * 5
-
-        #print(world.kernel_operator(ctrframe2))
-        f1 = ctrframe3.derivative_by_frame(ctrlink1)
-        f2 = ctrframe3.derivative_by_frame(ctrlink2)
-        f3 = ctrframe3.derivative_by_frame(ctrlink3)
-        m1 = f1.matrix
-        m2 = f2.matrix
-        m3 = f3.matrix
-        m = numpy.concatenate((m1,m2,m3), axis=1)
-        #print(m)
-        JJ = numpy.linalg.pinv(m) @ m
-        JJJ = numpy.eye(3) - JJ
-        print(JJJ)
-
-        #ctrframe2.set_filter(JJJ)
-
+        if errorpos.norm() < 5:
+            errorspd = errorspd #+ Screw2(v=target_vel)
+        erroracc = errorspd * 320 
+        if errorpos.norm() < 5:
+            erroracc = erroracc #+ Screw2(v=target_acc)
         norm = erroracc.norm()
         if norm > DDD:
             erroracc = erroracc * (DDD / norm)
-
         return erroracc 
 
-def control1(delta):
-        current_vel = ctrframe1.right_velocity_global()
-        curpos = ctrframe1.position()
-        curpos = curpos.factorize_translation_vector()
-
-        curtime = ctrframe1.curtime
-        ctrframe1.curtime += delta
-
-        control_spd = Screw2(v=[-1,0])
-        errorspd = (control_spd - current_vel)
-        erroracc = errorspd * 4
-
-        norm = erroracc.norm()
-        
-        norm = erroracc.norm()
-        if norm > DDD:
-            erroracc = erroracc * (DDD / norm)
-
-        return erroracc 
+# def control1(delta):
+#         current_vel = ctrframe1.right_velocity_global()
+#         control_spd = Screw2(v=[1,-1])
+#         errorspd = (control_spd - current_vel)
+#         erroracc = errorspd * 100        
+#         norm = erroracc.norm()
+#         if norm > DDD:
+#             erroracc = erroracc * (DDD / norm)
+#         return erroracc 
 
 #while True:
 def animate(wdg):
     global planned_time
     current_time = time.time()
 
+
+    f1 = ctrframe3.derivative_by_frame(ctrlink1)
+    f2 = ctrframe3.derivative_by_frame(ctrlink2)
+    f3 = ctrframe3.derivative_by_frame(ctrlink3)
+    m1 = f1.matrix
+    m2 = f2.matrix
+    m3 = f3.matrix
+    m = numpy.concatenate((m1,m2,m3), axis=1)
+    JJ = numpy.linalg.pinv(m) @ m
+    JJJ = numpy.eye(3) - JJ
+
+    f1 = ctrframe2.derivative_by_frame(ctrlink1)
+    f2 = ctrframe2.derivative_by_frame(ctrlink2)
+    m1 = f1.matrix
+    m2 = f2.matrix
+    m3 = numpy.zeros((2,1))
+    m = numpy.concatenate((m1,m2,m3), axis=1)
+    JJ2 = numpy.linalg.pinv(m) @ m
+    JJJ2 = numpy.eye(3) - JJ2
+
+    ctrframe3.set_filter(JJ)
+    ctrframe2.set_filter(JJJ)
+    # ctrframe1.set_filter(JJJ @ JJJ2)
+
     ctr3, ctrpos = control3(0.02)
     ctr2 = control2(0.02)
-    ctr1 = control1(0.02)
-    ctrframe1.set_control_screw(ctr1)
+    # ctr1 = control1(0.02)
+    # ctrframe1.set_control_screw(ctr1)
     ctrframe2.set_control_screw(ctr2)
     ctrframe3.set_control_screw(ctr3)
     world.iteration(0.02)

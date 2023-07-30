@@ -33,26 +33,26 @@ class ControlLink(VariableMultiForce):
         else:
             return [dQdl_child]
     
-    def Ksi_matrix_list(self, delta, control_tasks):
-        lst = []
-        for task in control_tasks:
-            if self not in task._control_frames:
-                continue
+    # def Ksi_matrix_list(self, delta, control_tasks):
+    #     lst = []
+    #     for task in control_tasks:
+    #         if self not in task._control_frames:
+    #             continue
 
-            derivative = task.derivative_by_frame(self)
-            pinv_derivative = numpy.linalg.pinv(derivative.matrix)
+    #         derivative = task.derivative_by_frame(self)
+    #         pinv_derivative = numpy.linalg.pinv(derivative.matrix)
 
-            res = pinv_derivative @ task.control_task(delta)
+    #         res = pinv_derivative @ task.control_task(delta)
 
-            if task._filter is not None:
-                res = task._filter @ res
+    #         if task._filter is not None:
+    #             res = task._filter @ res
 
-            lst.append(IndexedVector(
-                res[0],
-                idxs=self._screw_commutator.indexes(), 
-                comm=self._screw_commutator)
-            )
-        return lst
+    #         lst.append(IndexedVector(
+    #             res[0],
+    #             idxs=self._screw_commutator.indexes(), 
+    #             comm=self._screw_commutator)
+    #         )
+    #     return lst
 
 class ControlTaskFrame(ReferencedFrame):
     def __init__(self, linked_body, position_in_body):
@@ -79,3 +79,35 @@ class ControlTaskFrame(ReferencedFrame):
     def set_control_screw(self, screw):
         rotated_to_local = screw.inverse_rotate_by(self.position())
         self._control_screw = rotated_to_local
+
+    def Ksi_matrix_list(self, delta, allctrlinks):
+        lst = []
+        derivatives = []
+        for link in allctrlinks:
+            link_dim = len(link.screw_commutator().indexes())
+            frame_dim = len(self.screw_commutator().indexes())
+            if link not in self._control_frames:
+                derivatives.append(numpy.zeros((frame_dim, link_dim)))
+                continue                
+            derivative = self.derivative_by_frame(link)
+            derivatives.append(derivative.matrix)
+            
+        derivative = numpy.concatenate(derivatives, axis=1)
+        pinv_derivative = numpy.linalg.pinv(derivative)
+        res = pinv_derivative @ self.control_task(delta)
+
+        if self._filter is not None:
+            res = self._filter @ res
+        
+        counter = 0
+        for i in range(len(allctrlinks)):
+            link = allctrlinks[i]
+            link_dim = len(link.screw_commutator().indexes())
+            lst.append(IndexedVector(
+                res[counter:counter+link_dim],
+                idxs=link.screw_commutator().indexes(), 
+                comm=link.screw_commutator())
+            )
+            counter += link_dim
+            
+        return lst

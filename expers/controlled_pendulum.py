@@ -116,13 +116,11 @@ def control(delta):
         )
         target_acc =( (d2s) * numpy.array([A,0])
             + (d2c) * numpy.array([0,B]))
-        print(target_acc)
 
 
         errorpos = Screw2(v=target_pos - curpos)
         control_spd = errorpos * 3
         if errorpos.norm() < 5:
-            print("feedfwrd")
             control_spd = control_spd + Screw2(v=target_vel)
         errorspd = (control_spd - current_vel) 
 
@@ -132,10 +130,18 @@ def control(delta):
         if errorpos.norm() < 5:
             erroracc = erroracc +  Screw2(v=target_acc)
 
-        print(erroracc)
+        f1 = ctrframe.derivative_by_frame(ctrlink1)
+        f2 = ctrframe.derivative_by_frame(ctrlink2)
+        m1 = f1.matrix
+        m2 = f2.matrix
+        m = numpy.concatenate((m1,m2), axis=1)
+        JJ = numpy.linalg.pinv(m) @ m
+        JJJ = numpy.eye(2) - JJ
+
+        ctrframe.set_filter(JJ)
+
 
         norm = erroracc.norm()
-        print(norm)
         if norm > 400:
             erroracc = erroracc * (400 / norm)
 

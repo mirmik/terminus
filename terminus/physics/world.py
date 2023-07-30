@@ -95,17 +95,11 @@ class World:
         return arr
 
     def Ksi_matrix_list(self, delta):
-        arr = []
-        for control_link in self._control_links:
-            arr.extend(control_link.Ksi_matrix_list(
-                delta, self._control_task_frames))
-        
         arr2 = []
         for control_frame in self._control_task_frames:
             arr2.extend(control_frame.Ksi_matrix_list(
                 delta, self._control_links))
-        
-        return arr
+        return arr2
 
 
     def A_matrix_list(self):
