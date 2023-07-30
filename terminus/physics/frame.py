@@ -12,6 +12,9 @@ class Frame:
     def screw_commutator(self):
         return self._screw_commutator
 
+    def commutator(self):
+        return self._screw_commutator
+
     def derivative_by_frame(self, other):
         return self.screw_commutator().derivative_matrix_from(
             other.screw_commutator())

@@ -3,7 +3,6 @@
 import time
 from terminus.physics.indexed_matrix import IndexedVector
 from terminus.physics.body import Body2
-from terminus.solver import quadratic_problem_solver_indexes_array
 from terminus.physics.world import World
 from terminus.physics.force import Force
 from terminus.physics.force_link import VariableMultiForce
@@ -48,7 +47,6 @@ def animate(wdg):
     global planned_time
     current_time = time.time()
     world.iteration(0.01)
-    #world.correction()
 
     sph0.relocate(zencad.translate(body1.translation()[0], body1.translation()[1], 0))
     sph1.relocate(zencad.translate(body2.translation()[0], body2.translation()[1], 0))

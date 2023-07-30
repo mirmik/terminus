@@ -75,7 +75,7 @@ def animate(wdg):
     if time.time() - start_time < 1:
         return
 
-    world.iteration(0.01)
+    world.iteration(0.02)
     
     sph0.relocate(zencad.translate(body1.translation()[0], body1.translation()[1], 0))
     sph1.relocate(zencad.translate(body2.translation()[0], body2.translation()[1], 0))
@@ -104,12 +104,4 @@ def main():
         if time.time() - start_time > 10:
             break
 
-#zencad.show(animate=animate, display_only=True)
-    
-import cProfile, pstats
-profiler = cProfile.Profile()
-profiler.enable()
-main()
-profiler.disable()
-stats = pstats.Stats(profiler).sort_stats('tottime')
-stats.print_stats()
+zencad.show(animate=animate, animate_step=0.02)

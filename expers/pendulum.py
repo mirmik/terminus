@@ -3,7 +3,6 @@
 import time
 from terminus.physics.indexed_matrix import IndexedVector
 from terminus.physics.body import Body2
-from terminus.solver import quadratic_problem_solver_indexes_array
 from terminus.physics.world import World
 from terminus.physics.force import Force
 from terminus.physics.force_link import VariableMultiForce
@@ -37,7 +36,7 @@ def animate(wdg):
     global planned_time
     current_time = time.time()
     world.iteration(0.01)
-    world.correction()
+    #world.correction()
 
     if 1 == 1 or world.iteration_counter() % 10 == 0:
         print()

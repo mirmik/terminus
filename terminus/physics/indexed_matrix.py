@@ -2,11 +2,16 @@
 import numpy
 import torch
 
+#import coo
+import scipy.sparse
+
 
 torch_type = torch.float64
 
 class IndexedMatrix:
-    def __init__(self, matrix, lidxs=None, ridxs=None):
+    def __init__(self, matrix, lidxs=None, ridxs=None, lcomm=None, rcomm=None):
+        self.lcomm = lcomm
+        self.rcomm = rcomm
         self.lidxs = lidxs
         self.ridxs = ridxs
         #self.matrix = scipy.sparse.lil_matrix(matrix)
@@ -15,6 +20,12 @@ class IndexedMatrix:
             self.index_of_lidxs = {idx: lidxs.index(idx) for idx in lidxs}
         if self.ridxs:
             self.index_of_ridxs = {idx: ridxs.index(idx) for idx in ridxs}
+
+#    def coo(self):
+#        self.matrix = scipy.sparse.coo_matrix(self.matrix)
+
+#    def dense(self):
+#        return self.matrix.todense()
 
     def matmul(self, oth):
         if self.ridxs != oth.lidxs:
@@ -35,10 +46,10 @@ class IndexedMatrix:
             return self.matmul(oth)
 
     def __neg__(self):
-        return IndexedMatrix(-self.matrix, self.lidxs, self.ridxs)
+        return IndexedMatrix(-self.matrix, self.lidxs, self.ridxs, self.lcomm, self.rcomm)
 
     def inv(self):
-        return IndexedMatrix(scipy.sparse.linalg.inv(self.matrix), self.ridxs, self.lidxs)
+        return IndexedMatrix(scipy.sparse.linalg.inv(self.matrix), self.ridxs, self.lidxs, self.rcomm, self.lcomm)
 
     def solve(self, b):
         return numpy.linalg.solve(self.matrix, b.matrix)
@@ -58,13 +69,13 @@ class IndexedMatrix:
     def __add__(self, oth):
         self.raise_if_lidxs_is_not_same(oth)
         self.raise_if_ridxs_is_not_same(oth)
-        return IndexedMatrix(self.matrix + oth.matrix, self.lidxs, self.ridxs)
+        return IndexedMatrix(self.matrix + oth.matrix, self.lidxs, self.ridxs, self.lcomm, self.rcomm)
 
     def unsparse(self):
         return self.matrix.toarray()
 
     def transpose(self):
-        return IndexedMatrix(self.matrix.T, self.ridxs, self.lidxs)
+        return IndexedMatrix(self.matrix.T, self.ridxs, self.lidxs, self.rcomm, self.lcomm)
 
     def accumulate_from(self, other):
         lidxs = [self.index_of_lidxs[i] for i in other.lidxs]
@@ -79,7 +90,8 @@ class IndexedMatrix:
 
 
 class IndexedVector:
-    def __init__(self, matrix, idxs):
+    def __init__(self, matrix, idxs, comm=None):
+        self.comm = comm
         if isinstance(matrix, numpy.ndarray) and len(matrix.shape) != 1:
             matrix = matrix.reshape(matrix.shape[0], 1)
         self.matrix = matrix

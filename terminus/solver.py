@@ -40,6 +40,13 @@ def symmetric_full_indexes_list_matrix(arr, idxs=None):
     idxs = idxs if idxs is not None else sorted(list(l))
     return idxs
 
+def symmetric_matrix_numbers(Aarr):
+    res = []
+    counter = 0
+    for A in Aarr:
+        res.append((counter, counter + A.matrix.shape[0]))
+        counter += A.matrix.shape[0]
+    return res
 
 def indexed_matrix_summation(arr, lidxs=None, ridxs=None):
     lidxs, ridxs = full_indexes_list_matrix(arr, lidxs=lidxs, ridxs=ridxs)
@@ -52,11 +59,17 @@ def indexed_matrix_summation(arr, lidxs=None, ridxs=None):
 
 
 def symmetric_indexed_matrix_summation(arr, idxs=None):
+    numbers = symmetric_matrix_numbers(arr)
     idxs = symmetric_full_indexes_list_matrix(
         arr, idxs=idxs)
 
     result_matrix = IndexedMatrix(numpy.zeros(
         (len(idxs), len(idxs))), idxs, idxs)
+
+#    for i in range(len(arr)):
+#        A_view = result_matrix.matrix[numbers[i][0]:numbers[i][1], numbers[i][0]:numbers[i][1]]
+#        A_view += arr[i].matrix
+
     for m in arr:
         result_matrix.accumulate_from(m)
     return result_matrix
@@ -78,6 +91,13 @@ def invoke_set_values_for_indexed_vector(self, indexed_vector):
     for idx, val in zip(indexes, values):
         idx.set_value(val)
 
+def commutator_list_indexes(commutator_list):
+    indexes = {}
+    counter = 0
+    for commutator in commutator_list:
+        indexes[commutator] = (counter, counter + commutator.dim())
+        counter += commutator.dim()
+    return indexes, counter
 
 def qpc_solver_indexes_array(
         Aarr: list, 
@@ -86,70 +106,70 @@ def qpc_solver_indexes_array(
         Darr: list = [],
         Harr: list = [],
         Ksiarr: list = []):
-    A = symmetric_indexed_matrix_summation(Aarr)
-    C = indexed_vector_summation(Carr, idxs=A.lidxs)
-    B = indexed_matrix_summation(Barr, lidxs=A.ridxs)
-    D = indexed_vector_summation(Darr, idxs=B.ridxs)
-    H = indexed_matrix_summation(Harr, lidxs=A.ridxs)
-    Ksi = indexed_vector_summation(Ksiarr, idxs=H.ridxs)
+    A_counter = 0
+    B_counter = 0
+    H_counter = 0
+    A_idxs = []
+    B_idxs = []
+    H_idxs = []
+    commutator_list_unique = []
+    for A in Aarr:
+        if A.lcomm in commutator_list_unique:
+            continue
+        commutator_list_unique.append(A.lcomm)
+        A_counter += A.lcomm.dim()
+        A_idxs.extend(A.lidxs)
+    for B in Barr:
+        if B.rcomm in commutator_list_unique:
+            continue
+        commutator_list_unique.append(B.rcomm)
+        B_counter += B.rcomm.dim()
+        B_idxs.extend(B.ridxs)
+    for H in Harr:
+        if H.rcomm in commutator_list_unique:
+            continue
+        commutator_list_unique.append(H.rcomm)
+        H_counter += H.rcomm.dim()
+        H_idxs.extend(H.ridxs)
 
-    x, l, ksi = qpc_solver_indexes(A=A, B=B, C=C, D=D, H=H, Ksi=Ksi)
-    return x, l, ksi
+    #commutator_list_unique = list(set(commutator_list))
+    indexes, fulldim = commutator_list_indexes(commutator_list_unique)
+    
+    Q = numpy.zeros((fulldim, fulldim))
+    b = numpy.zeros((fulldim, 1))
+    for A in Aarr:
+        Q[indexes[A.lcomm][0]:indexes[A.lcomm][1], indexes[A.lcomm][0]:indexes[A.lcomm][1]] += A.matrix
+    for B in Barr:
+        Q[indexes[B.lcomm][0]:indexes[B.lcomm][1], indexes[B.rcomm][0]:indexes[B.rcomm][1]] += B.matrix
+        Q[indexes[B.rcomm][0]:indexes[B.rcomm][1], indexes[B.lcomm][0]:indexes[B.lcomm][1]] += B.matrix.T
+    for H in Harr:
+        Q[indexes[H.lcomm][0]:indexes[H.lcomm][1], indexes[H.rcomm][0]:indexes[H.rcomm][1]] += H.matrix
+        Q[indexes[H.rcomm][0]:indexes[H.rcomm][1], indexes[H.lcomm][0]:indexes[H.lcomm][1]] += H.matrix.T
 
+    for C in Carr:
+        b[indexes[C.comm][0]:indexes[C.comm][1], 0] += C.matrix
+    for D in Darr:
+        b[indexes[D.comm][0]:indexes[D.comm][1], 0] += D.matrix
+    for Ksi in Ksiarr:
+        b[indexes[Ksi.comm][0]:indexes[Ksi.comm][1], 0] += Ksi.matrix
 
-def qpc_solver_indexes(
-        A: IndexedMatrix, 
-        C: IndexedVector, 
-        B: IndexedMatrix, 
-        D: IndexedVector,
-        H: IndexedMatrix,
-        Ksi: IndexedVector):
-    C.matrix = C.matrix.reshape((C.matrix.shape[0], 1))
-    D.matrix = D.matrix.reshape((D.matrix.shape[0], 1))
-    Ksi.matrix = Ksi.matrix.reshape((Ksi.matrix.shape[0], 1))
-    Z1 = numpy.zeros((len(B.ridxs), len(B.ridxs)))
-    Z2 = numpy.zeros((len(H.ridxs), len(H.ridxs)))
-    Z3 = numpy.zeros((len(B.ridxs), len(H.ridxs)))
-    Q = numpy.block([
-        [A.matrix, B.matrix, H.matrix], 
-        [B.matrix.T, Z1, Z3],
-        [H.matrix.T, Z3.T, Z2]
-    ])
-    b = numpy.block([[C.matrix], [D.matrix], [Ksi.matrix]])    
-
-    #Q_torch = torch.tensor(Q, dtype=torch.float64).cuda()
-    #b_torch = torch.tensor(b, dtype=torch.float64).cuda()
+    Q_torch = torch.tensor(Q, dtype=torch.float64).cuda()
+    b_torch = torch.tensor(b, dtype=torch.float64).cuda()
 
     #X = numpy.linalg.inv(Q) @ b
-    #X_torch = torch.linalg.solve(Q_torch, b_torch)
-    #X = X_torch.cpu().detach().numpy()
-    X = numpy.linalg.solve(Q, b)
+    X_torch = torch.linalg.solve(Q_torch, b_torch)
+    X = X_torch.cpu().detach().numpy()
+    #X = numpy.linalg.solve(Q, b)
 
-    #X = X_torch
+    X = X_torch
 
     X = X.reshape((X.shape[0],))
-    x = X[:len(A.lidxs)]
-    l = X[len(A.lidxs):len(A.lidxs) + len(B.ridxs)]
-    ksi = X[len(A.lidxs) + len(B.ridxs):]
+    x = X[:len(A_idxs)]
+    l = X[len(A_idxs):len(A_idxs) + len(B_idxs)]
+    ksi = X[len(A_idxs) + len(B_idxs):]
     
     x = x.cpu().detach().numpy()
     l = l.cpu().detach().numpy()
     ksi = ksi.cpu().detach().numpy()
 
-    return IndexedVector(x, idxs=A.ridxs), IndexedVector(l, idxs=B.ridxs), IndexedVector(ksi, idxs=H.ridxs)
-
-
-if __name__ == "__main__":
-    A = IndexedMatrix(numpy.array([[1, 2, 0], [0, 1, 0], [0, 0, 1]]), [
-        "a", "b", "c"], ["x", "y", "z"])
-    B = IndexedMatrix(numpy.array([[1, 2, 0], [0, 1, 0], [0, 0, 1]]), [
-        "a", "b", "c"], ["x", "y", "z"])
-
-    C = indexed_matrix_summation([A, B])
-
-    V1 = IndexedVector(numpy.array([1, 1, 4]), ["x", "y", "z"])
-    V2 = IndexedVector(numpy.array([1, 1, 3]), ["a", "y", "z"])
-
-    print((((A).solve(V1))))
-    print(A @ V1)
-    print(indexed_vector_summation([V1, V2]))
+    return IndexedVector(x, idxs=A_idxs), IndexedVector(l, idxs=B_idxs), IndexedVector(ksi, idxs=H_idxs)

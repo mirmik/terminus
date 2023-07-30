@@ -179,7 +179,9 @@ class VariableMultiForce(Frame):
         correction = - posdots - veldots
         return [IndexedVector(
                 correction,
-                idxs=self._screw_commutator.indexes())]
+                idxs=self._screw_commutator.indexes(),
+                comm=self._screw_commutator)
+                ]
 
     def D_matrix_list_velocity(self):
         velerror = self.velocity_error_screw()
@@ -189,7 +191,8 @@ class VariableMultiForce(Frame):
         correction = - veldots
         return [IndexedVector(
                 correction,
-                idxs=self._screw_commutator.indexes())]
+                idxs=self._screw_commutator.indexes(),
+                comm=self._screw_commutator)]
 
     def D_matrix_list_position(self):
         poserror = self.position_error_screw()
@@ -199,7 +202,8 @@ class VariableMultiForce(Frame):
         correction = - posdots
         return [IndexedVector(
                 correction,
-                idxs=self._screw_commutator.indexes())]
+                idxs=self._screw_commutator.indexes(),
+                comm=self._screw_commutator)]
 
 
 

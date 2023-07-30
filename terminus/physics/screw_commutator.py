@@ -25,6 +25,9 @@ class VariableValueCommutator:
     def indexes(self):
         return self._sources
 
+    def dim(self):
+        return self._dim
+
 
 class VariableValue:
     def __init__(self, commutator, index):
@@ -77,7 +80,7 @@ class ScrewCommutator(VariableValueCommutator):
                     diff_pose)
                 B[i, j] = self_screw.fulldot(carried)
 
-        return IndexedMatrix(B, self.indexes(), other.indexes())
+        return IndexedMatrix(B, self.indexes(), other.indexes(), lcomm=self, rcomm=other)
 
 
     def global_derivative_matrix_from(self, other):
@@ -96,7 +99,7 @@ class ScrewCommutator(VariableValueCommutator):
                     diff_pose)
                 B[i, j] = self_screw.fulldot(carried)
 
-        return IndexedMatrix(B, self.indexes(), other.indexes())
+        return IndexedMatrix(B, self.indexes(), other.indexes(), lcomm=self, rcomm=other)
 
 
 if __name__ == "__main__":

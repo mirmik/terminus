@@ -42,7 +42,7 @@ class ControlLink(VariableMultiForce):
 
         return [IndexedVector(
                 res[0],
-                idxs=self._screw_commutator.indexes())]
+                idxs=self._screw_commutator.indexes(), comm=self._screw_commutator)]
 
 
 class ControlTaskFrame(ReferencedFrame):
@@ -63,7 +63,7 @@ class ControlTaskFrame(ReferencedFrame):
         curtime = self.curtime
         self.curtime += delta
 
-        D = 1
+        D = 2
 
         s = (math.sin((curtime - start_time)/D))
         c = (math.cos((curtime - start_time)/D))
@@ -75,7 +75,7 @@ class ControlTaskFrame(ReferencedFrame):
         d2c = -(math.cos((curtime - start_time)/D))/D/D
         
         A = 5
-        B = 9
+        B = 5
 
         target_pos = (numpy.array([10,0]) 
             + (s) * numpy.array([A,0])
@@ -91,9 +91,9 @@ class ControlTaskFrame(ReferencedFrame):
         self.target = target_pos
 
         errorpos = Screw2(v=target_pos - curpos)
-        control_spd = errorpos * 5 + Screw2(v=target_vel)
+        control_spd = errorpos * 3 + Screw2(v=target_vel)
         errorspd = (control_spd - current_vel)
-        erroracc = errorspd * 80 +  Screw2(v=target_acc)
+        erroracc = errorspd * 50 +  Screw2(v=target_acc)
 
         task_control = erroracc.as_array()
         return task_control

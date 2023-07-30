@@ -3,7 +3,6 @@
 import time
 from terminus.physics.indexed_matrix import IndexedVector
 from terminus.physics.body import Body2
-from terminus.solver import quadratic_problem_solver_indexes_array
 from terminus.physics.world import World
 from terminus.physics.force import Force
 from terminus.physics.force_link import VariableMultiForce
@@ -86,8 +85,7 @@ planned_time = start_time
 def animate(wdg):
     global planned_time
     current_time = time.time()
-    world.iteration(0.01)
-    world.correction()
+    world.iteration(0.02)
 
     print()
     #print(world.last_solution()[2])
@@ -106,4 +104,4 @@ while True:
     print(body2.right_acceleration())
     print(ctrframe.right_acceleration_global())
     break
-zencad.show(animate=animate)
+zencad.show(animate=animate, animate_step=0.02)

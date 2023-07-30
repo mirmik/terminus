@@ -110,7 +110,9 @@ class Body(Frame):
     def indexed_right_mass_matrix_global(self):
         return IndexedMatrix(self.right_mass_matrix(),
                              self.equation_indexes(),
-                             self.equation_indexes()
+                             self.equation_indexes(),
+                             lcomm = self.equation_indexer(),
+                             rcomm = self.equation_indexer()
                              )
 
     def main_matrix(self):
@@ -136,13 +138,13 @@ class Body(Frame):
         world_gravity = self._world.gravity().inverse_rotate_by(self.position())
         return IndexedVector(
             (world_gravity*self._mass).toarray(),
-            self.equation_indexes())
+            self.equation_indexes(), self.commutator())
 
     def right_resistance(self):
         return IndexedVector(
             (- self.right_velocity().toarray()
              * self._resistance_coefficient) * 1,
-            self.equation_indexes()
+            self.equation_indexes(), self.commutator()
         )
 
     def right_forces_global_as_indexed_vectors(self):
