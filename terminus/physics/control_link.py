@@ -40,7 +40,6 @@ class ControlLink(VariableMultiForce):
             pinv_derivative = numpy.linalg.pinv(derivative.matrix)
 
             res = pinv_derivative @ task.control_task(delta)
-            print(res)
 
             lst.append(IndexedVector(
                 res[0],

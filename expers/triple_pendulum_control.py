@@ -111,8 +111,8 @@ def control3(delta):
         d2s = -(math.sin((curtime - start_time)/D))/D/D
         d2c = -(math.cos((curtime - start_time)/D))/D/D
         
-        A = 1
-        B = 1
+        A = 2
+        B = 2
 
         target_pos = (numpy.array([10,0]) 
             + (s) * numpy.array([A,0])
@@ -127,16 +127,16 @@ def control3(delta):
         k = curtime / 10
 
         errorpos = Screw2(v=target_pos - curpos)
-        control_spd = errorpos * 1 + Screw2(v=target_vel)
+        control_spd = errorpos * 2 + Screw2(v=target_vel)
         errorspd = (control_spd - current_vel)
-        erroracc = errorspd * 10 +  Screw2(v=target_acc)
+        erroracc = errorspd * 20 +  Screw2(v=target_acc)
        
         norm = erroracc.norm()
         if norm > 400:
             erroracc = erroracc * (400 / norm)
 
 
-        erroracc = erroracc * 0
+        erroracc = erroracc * 1
         return erroracc, target_pos
 
 
@@ -170,7 +170,7 @@ def control1(delta):
 
         control_spd = Screw2(v=[0,0])
         errorspd = (control_spd - current_vel)
-        erroracc = errorspd * 0
+        erroracc = errorspd * 0.00000
 
         norm = erroracc.norm()
         
@@ -178,6 +178,13 @@ def control1(delta):
         if norm > 400:
             erroracc = erroracc * (400 / norm)
 
+        operator = world.kernel_operator(ctrframe3)
+        arr = erroracc.toarray()
+
+        arr = operator @ arr
+
+        erroracc = Screw2(m=arr[0], v=arr[1:])
+        print(operator)
 
         return erroracc 
 
@@ -186,12 +193,12 @@ def animate(wdg):
     global planned_time
     current_time = time.time()
 
-    # ctr3, ctrpos = control3(0.02)
-    # ctr2 = control2(0.02)
-    # ctr1 = control1(0.02)
-    # ctrframe1.set_control_screw(ctr1)
-    # ctrframe2.set_control_screw(ctr2)
-    # ctrframe3.set_control_screw(ctr3)
+    ctr3, ctrpos = control3(0.02)
+    ctr2 = control2(0.02)
+    ctr1 = control1(0.02)
+    ctrframe1.set_control_screw(ctr1)
+    #ctrframe2.set_control_screw(ctr2)
+    ctrframe3.set_control_screw(ctr3)
     world.iteration(0.02)
 
     publisher.publish("pendulum/torque", world.last_solution()[2].matrix)
@@ -200,6 +207,6 @@ def animate(wdg):
     sph1.relocate(zencad.translate(body2.translation()[0], body2.translation()[1], 0))
     sph2.relocate(zencad.translate(body3.translation()[0], body3.translation()[1], 0))
 
-    #tsph.relocate(zencad.translate(ctrpos[0], ctrpos[1], 0))
+    tsph.relocate(zencad.translate(ctrpos[0], ctrpos[1], 0))
 
 zencad.show(animate=animate, animate_step=0.02)
