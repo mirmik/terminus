@@ -84,7 +84,7 @@ class VariableMultiForce(Frame):
 
         if self._parent is not None:
             # Минус из-за того, что в родительском фрейме чувствительность обратна чувствительности в дочернем фрейме
-            dQdl_parent = -self.derivative_by_frame(self._parent).transpose()
+            dQdl_parent = self.derivative_by_frame(self._parent).transpose()
             return [dQdl_child, dQdl_parent]
         else:
             return [dQdl_child]

@@ -40,7 +40,6 @@ class TransformationProbe(unittest.TestCase):
         screw = Screw2(m=0, v=[0,1])
         carried = screw.kinematic_carry(motor)
         self.assertEqual(carried.moment(), 0)
-        print(carried.vector())
         self.assertTrue((carried.vector() == numpy.array([0,1])).all())
 
     def test_vectorx_carry(self):
@@ -48,7 +47,6 @@ class TransformationProbe(unittest.TestCase):
         screw = Screw2(m=0, v=[1,0])
         carried = screw.kinematic_carry(motor)
         self.assertEqual(carried.moment(), 0)
-        print(carried.vector())
         self.assertTrue((carried.vector() == numpy.array([1,0])).all())
 
     def test_moment_carry_with_rotation(self):
@@ -67,7 +65,6 @@ class TransformationProbe(unittest.TestCase):
         screw = Screw2(m=0, v=[0,1])
         carried = screw.kinematic_carry(motor)
         self.assertEqual(carried.moment(), 0)
-        print(carried.vector())
         self.assertTrue(screw_equal(carried, Screw2(m=0, v=[-1,0])))
 
     def test_vectorx_carry_with_rotation(self):
@@ -75,5 +72,4 @@ class TransformationProbe(unittest.TestCase):
         screw = Screw2(m=0, v=[1,0])
         carried = screw.kinematic_carry(motor)
         self.assertEqual(carried.moment(), 0)
-        print(carried.vector())
         self.assertTrue(screw_equal(carried, Screw2(m=0, v=[0,1])))
