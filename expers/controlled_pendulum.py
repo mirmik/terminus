@@ -54,6 +54,7 @@ world.add_link_force(force_link2)
 ctrlink1 = ControlLink(position=Motor2.translation(0, 0), 
     child=body1, parent=None, senses=[Screw2(m=1)])
 
+
 ctrlink2 = ControlLink(position=Motor2.translation(0, -10),
     child=body2, parent=body1, senses=[Screw2(m=1)])
 
@@ -64,6 +65,8 @@ ctrlink2 = ControlLink(position=Motor2.translation(0, -10),
 ctrframe = ControlTaskFrame(
     linked_body=body2, 
     position_in_body=Motor2.translation(0, 0))
+ctrframe.add_control_frame(ctrlink1)
+ctrframe.add_control_frame(ctrlink2)
 
 world.add_control_link(ctrlink1)
 world.add_control_link(ctrlink2)
@@ -90,7 +93,6 @@ def control(delta):
         curtime = ctrframe.curtime
         ctrframe.curtime += delta
 
-        print(world.outkernel_operator(ctrframe))
 
         D = 1
         s = (math.sin((curtime - start_time)/D))
@@ -110,23 +112,32 @@ def control(delta):
             + (c) * numpy.array([0,B])
         )
         target_vel =( (ds) * numpy.array([A,0])
-            + (dc) * numpy.array([0,B])
+            + (dc) * numpy.array([0,B]) 
         )
         target_acc =( (d2s) * numpy.array([A,0])
             + (d2c) * numpy.array([0,B]))
+        print(target_acc)
 
-        k = curtime / 10
 
         errorpos = Screw2(v=target_pos - curpos)
-        control_spd = errorpos * 10 + Screw2(v=target_vel)
-        errorspd = (control_spd - current_vel)
+        control_spd = errorpos * 3
+        if errorpos.norm() < 5:
+            print("feedfwrd")
+            control_spd = control_spd + Screw2(v=target_vel)
+        errorspd = (control_spd - current_vel) 
 
-        errorspd = Screw2(v=[0,5]) - current_vel
-        erroracc = errorspd * 30 #+  Screw2(v=target_acc)
+        #errorspd = Screw2(v=[0,5]) - current_vel
+        erroracc = errorspd * 60 #+  Screw2(v=target_acc)
+
+        if errorpos.norm() < 5:
+            erroracc = erroracc +  Screw2(v=target_acc)
+
+        print(erroracc)
 
         norm = erroracc.norm()
-        if norm > 200:
-            erroracc = erroracc * (200 / norm)
+        print(norm)
+        if norm > 400:
+            erroracc = erroracc * (400 / norm)
 
         return erroracc, target_pos
 
@@ -140,7 +151,7 @@ def animate(wdg):
     ctrframe.set_control_screw(ctr)
     world.iteration(0.02)
 
-    print()
+    #print()
     #print(world.last_solution()[2])
 
     publisher.publish("pendulum/torque", world.last_solution()[2].matrix)
@@ -151,10 +162,6 @@ def animate(wdg):
 
     tsph.relocate(zencad.translate(ctrpos[0], ctrpos[1], 0))
 
-while True:
-    animate(None)
-    print(ctrframe.current_position())
-    print(body2.right_acceleration())
-    print(ctrframe.right_acceleration_global())
-    break
+#while True:
+#    animate(None)
 zencad.show(animate=animate, animate_step=0.02)

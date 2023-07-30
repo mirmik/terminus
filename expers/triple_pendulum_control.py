@@ -175,6 +175,8 @@ def control2(delta):
         JJJ = numpy.eye(3) - JJ
         print(JJJ)
 
+        ctrframe2.set_filter(JJJ)
+
         norm = erroracc.norm()
         if norm > DDD:
             erroracc = erroracc * (DDD / norm)

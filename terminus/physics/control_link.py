@@ -44,6 +44,9 @@ class ControlLink(VariableMultiForce):
 
             res = pinv_derivative @ task.control_task(delta)
 
+            if task._filter is not None:
+                res = task._filter @ res
+
             lst.append(IndexedVector(
                 res[0],
                 idxs=self._screw_commutator.indexes(), 
@@ -62,6 +65,10 @@ class ControlTaskFrame(ReferencedFrame):
         self.curtime = 0
         self._control_screw = Screw2()
         self._control_frames = []
+        self._filter = None
+
+    def set_filter(self, filter):
+        self._filter = filter
 
     def add_control_frame(self, frame):
         self._control_frames.append(frame)
