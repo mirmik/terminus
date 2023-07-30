@@ -104,4 +104,13 @@ def main():
         if time.time() - start_time > 10:
             break
 
-zencad.show(animate=animate, animate_step=0.02)
+#zencad.show(animate=animate, animate_step=0.02)
+
+
+import cProfile, pstats
+profiler = cProfile.Profile()
+profiler.enable()
+main()
+profiler.disable()
+stats = pstats.Stats(profiler).sort_stats('tottime')
+stats.print_stats()
