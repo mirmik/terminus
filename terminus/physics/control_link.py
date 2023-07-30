@@ -17,9 +17,8 @@ start_time = 0
 class ControlLink(VariableMultiForce):
     def __init__(self, position, child, parent, senses=[], stiffness=[1, 1]):
         super().__init__(position, child, parent, senses, stiffness)
-        self._control_vector = [0] * len(self._senses)
+        self._control = None
         self.curtime = 0
-
         self.target = numpy.array([0,0])
 
     def set_control_vector(self, control_vector):
@@ -33,26 +32,15 @@ class ControlLink(VariableMultiForce):
         else:
             return [dQdl_child]
     
-    # def Ksi_matrix_list(self, delta, control_tasks):
-    #     lst = []
-    #     for task in control_tasks:
-    #         if self not in task._control_frames:
-    #             continue
+    def Ksi_matrix_list(self, delta, control_tasks):
+        if self._control is None:
+            return []
 
-    #         derivative = task.derivative_by_frame(self)
-    #         pinv_derivative = numpy.linalg.pinv(derivative.matrix)
+        ctr = self._control.reshape((len(self._control), 1))
+        return [
+            IndexedVector(ctr, self.screw_commutator().indexes())
+        ]
 
-    #         res = pinv_derivative @ task.control_task(delta)
-
-    #         if task._filter is not None:
-    #             res = task._filter @ res
-
-    #         lst.append(IndexedVector(
-    #             res[0],
-    #             idxs=self._screw_commutator.indexes(), 
-    #             comm=self._screw_commutator)
-    #         )
-    #     return lst
 
 class ControlTaskFrame(ReferencedFrame):
     def __init__(self, linked_body, position_in_body):
