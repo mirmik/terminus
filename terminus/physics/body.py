@@ -15,11 +15,10 @@ class Body(Frame):
         self.space_dim = space_dim
         self.dof = dof
         self._right_acceleration = Screw2()
-        self._right_velocity_global = Screw2()
+        self._right_velocity = Screw2()
         self._resistance_coefficient = 0
-        self._right_forces_global = []
-        self._right_forces = []
-        self.unknown_force_source = []
+        self._right_velocity_correction = Screw2()
+        self._right_position_correction = Screw2()
         self._world = None
 
     def bind_world(self, w):
@@ -80,16 +79,16 @@ class Body(Frame):
         return self._right_acceleration.rotate_by(self.position())
 
     def right_velocity_global(self):
-        return self._right_velocity_global
+        return self._right_velocity.rotate_by(self.position())
 
     def right_velocity(self):
-        return self._right_velocity_global.inverse_rotate_by(self.position())
- 
+        return self._right_velocity
+
     def set_right_velocity_global(self, vel):
-        self._right_velocity_global = vel
+        self._right_velocity = vel.inverse_rotate_by(self.position())
 
     def set_right_velocity(self, vel):
-        self._right_velocity_global = vel.rotate_by(self.position())
+        self._right_velocity = vel
  
     def position(self):
         return self._pose_object.position()
@@ -163,10 +162,7 @@ class Body(Frame):
         return ([
             self.right_gravity(),
             self.right_resistance()
-        ]
-            #+ self.right_forces_global_as_indexed_vectors()
-            #+ self.right_forces_as_indexed_vectors()
-        )
+        ])
 
     def derivative(self, p, v, a):
         l = v / 2

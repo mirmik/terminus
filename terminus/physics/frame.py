@@ -26,14 +26,37 @@ class Frame:
     def position(self):
         return self._pose_object.position()
 
+class MultiFrame(Frame):
+    def __init__(self):
+        self._frames = []
+
+    def add_frame(self, frame):
+        self._frames.append(frame)
+
+    def derivative_by_frame(self, other):
+        list_of_derivatives = []
+        for frame in self._frames:
+            der = frame.derivative_by_frame(other).matrix
+            list_of_derivatives.append(der)
+            #print(der)
+        return np.concatenate(list_of_derivatives, axis=0)
+
+    def outkernel_operator_by_frame(self, frame):
+        derivative = self.derivative_by_frame(frame)
+        return derivative @ np.linalg.pinv(derivative)
+
+    def kernel_operator_by_frame(self, frame):
+        outkernel = self.outkernel_operator_by_frame(frame)
+        return np.eye(outkernel.shape[0]) - outkernel
+    
+    
+
 class ReferencedFrame(Frame):
     def __init__(self, linked_body, position_in_body, senses):
         self._parent = linked_body
         pose_object = ReferencedPoseObject(
             parent=linked_body._pose_object, pose=position_in_body)
         super().__init__(pose_object=pose_object, screws=senses)
-
-        self.control = Screw2(v=[0,1])
 
     def current_position(self):
         return self.position()
@@ -58,5 +81,5 @@ class ReferencedFrame(Frame):
     def right_acceleration_global(self):
         right_acceleration = self.right_acceleration()
         rotated = right_acceleration.rotate_by(self.position())
-        #return rotated
-        return self._parent.right_acceleration_global()
+        return rotated
+        

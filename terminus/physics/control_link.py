@@ -15,7 +15,7 @@ import time
 start_time = 0
 
 class ControlLink(VariableMultiForce):
-    def __init__(self, position, child, parent, senses=[], stiffness=[1, 1], use_child_frame=False):
+    def __init__(self, position, child, parent, senses=[], stiffness=[1, 1]):
         super().__init__(position, child, parent, senses, stiffness, use_child_frame)
         self._control_vector = [0] * len(self._senses)
         self.curtime = 0
@@ -34,66 +34,34 @@ class ControlLink(VariableMultiForce):
             return [dQdl_child]
     
     def Ksi_matrix_list(self, delta, control_tasks):
-        task = control_tasks[0]
-        derivative = task.global_derivative_by_frame(self)
-        pinv_derivative = numpy.linalg.pinv(derivative.matrix)
+        lst = []
+        for task in control_tasks:
+            derivative = task.global_derivative_by_frame(self)
+            pinv_derivative = numpy.linalg.pinv(derivative.matrix)
 
-        res = pinv_derivative @ task.control_task(delta).reshape(3,1)
+            res = pinv_derivative @ task.control_task(delta)
+            print(res)
 
-        return [IndexedVector(
+            lst.append(IndexedVector(
                 res[0],
-                idxs=self._screw_commutator.indexes(), comm=self._screw_commutator)]
-
+                idxs=self._screw_commutator.indexes(), 
+                comm=self._screw_commutator)
+            )
+        return lst
 
 class ControlTaskFrame(ReferencedFrame):
     def __init__(self, linked_body, position_in_body):
         senses = [
-            Screw2(m=1),
+            #Screw2(m=1),
             Screw2(v=[1,0]),
             Screw2(v=[0,1]),
         ]
         super().__init__(linked_body, position_in_body, senses)
         self.curtime = 0
+        self._control_screw = Screw2()
 
     def control_task(self, delta):
-        current_vel = self.right_velocity_global()
-        curpos = self.position()
-        curpos = curpos.factorize_translation_vector()
+        return self._control_screw.vector()
 
-        curtime = self.curtime
-        self.curtime += delta
-
-        D = 2
-
-        s = (math.sin((curtime - start_time)/D))
-        c = (math.cos((curtime - start_time)/D))
-
-        ds = (math.cos((curtime - start_time)/D))/D
-        dc = -(math.sin((curtime - start_time)/D))/D
-
-        d2s = -(math.sin((curtime - start_time)/D))/D/D
-        d2c = -(math.cos((curtime - start_time)/D))/D/D
-        
-        A = 5
-        B = 5
-
-        target_pos = (numpy.array([10,0]) 
-            + (s) * numpy.array([A,0])
-            + (c) * numpy.array([0,B])
-        )
-        target_vel =( (ds) * numpy.array([A,0])
-            + (dc) * numpy.array([0,B])
-        )
-        target_acc =( (d2s) * numpy.array([A,0])
-            + (d2c) * numpy.array([0,B]))
-
-        k = curtime / 10
-        self.target = target_pos
-
-        errorpos = Screw2(v=target_pos - curpos)
-        control_spd = errorpos * 3 + Screw2(v=target_vel)
-        errorspd = (control_spd - current_vel)
-        erroracc = errorspd * 50 +  Screw2(v=target_acc)
-
-        task_control = erroracc.as_array()
-        return task_control
+    def set_control_screw(self, screw):
+        self._control_screw = screw

@@ -12,9 +12,6 @@ class PoseObject:
     def update_position(self, pose):
         self._position = pose
 
-    def rmalize(self):
-        self._position.rmalize()
-
 
 class ReferencedPoseObject:
     def __init__(self, pose=Motor2(), parent=None):

@@ -2,7 +2,7 @@
 
 from terminus.solver import qpc_solver_indexes_array
 from terminus.ga201 import Screw2
-
+from terminus.physics.frame import MultiFrame
 
 class World:
     def __init__(self):
@@ -13,6 +13,7 @@ class World:
         self._last_solution = None
         self._control_links = []
         self._control_task_frames = []
+        self._control_multiframe = MultiFrame()
 
     def last_solution(self):
         return self._last_solution
@@ -25,6 +26,13 @@ class World:
 
     def add_control_link(self, link):
         self._control_links.append(link)
+        self._control_multiframe.add_frame(link)
+
+    def kernel_operator(self, frame):
+        return self._control_multiframe.kernel_operator_by_frame(frame)
+
+    def outkernel_operator(self, frame):
+        return self._control_multiframe.outkernel_operator_by_frame(frame)
 
     def add_control_task_frame(self, frame):
         self._control_task_frames.append(frame)
@@ -63,11 +71,10 @@ class World:
 
 
     def D_matrix_list(self):
-        return []
-        #arr = []
-        #for force_link in self._force_links:
-        #    arr.extend(force_link.D_matrix_list())
-        #return arr
+        arr = []
+        for force_link in self._force_links:
+            arr.extend(force_link.D_matrix_list())
+        return arr
 
     def D_matrix_list_velocity(self):
         arr = []
@@ -84,7 +91,8 @@ class World:
     def Ksi_matrix_list(self, delta):
         arr = []
         for control_link in self._control_links:
-            arr.extend(control_link.Ksi_matrix_list(delta, self._control_task_frames))
+            arr.extend(control_link.Ksi_matrix_list(
+                delta, self._control_task_frames))
         return arr
 
 

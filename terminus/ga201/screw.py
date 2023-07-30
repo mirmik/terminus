@@ -27,6 +27,9 @@ class Screw2:
     def moment(self):
         return self._m
 
+    def norm(self):
+        return math.sqrt(self._m * self._m + self._v.dot(self._v))
+
     def set_vector(self, v):
         self._v = v
 
@@ -52,6 +55,12 @@ class Screw2:
         # ret = Screw2(m=new_m, v=new_v)
         # return ret
 
+    def inverse_kinematic_carry (self, motor):
+        a = motor.reverse().mul_screw(self)
+        a = a * motor
+        return a.splash_to_screw()
+        
+
     def fulldot(self, other):
         return self._m * other._m + self._v.dot(other._v)
 
@@ -71,8 +80,7 @@ class Screw2:
         return ret
 
     def inverted_kinematic_carry(self, motor):
-        inverted = motor.inverse()
-        return self.kinematic_carry(inverted)
+        return self.inverse_kinematic_carry(motor)
 
     def kinematic_carry_vec(self, translation):
         m = self._m

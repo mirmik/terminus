@@ -27,7 +27,7 @@ body1.set_resistance_coefficient(S)
 body1.set_position(Motor2.translation(0, -10))
 
 force_link1 = VariableMultiForce(child=body1, parent=None, position=Motor2.translation(0, 0), senses=[
-    Screw2(v=[1, 0]), Screw2(v=[0, 1])], stiffness=[1, 1], use_child_frame=False)
+    Screw2(v=[1, 0]), Screw2(v=[0, 1])], stiffness=[1, 1])
 world.add_link_force(force_link1)
 
 
@@ -37,7 +37,7 @@ def add_body(parent, position, mass = 1):
     body.set_position(position)
     body.set_resistance_coefficient(S)
     force_link = VariableMultiForce(child=body, parent=parent, position=parent.position(), senses=[
-        Screw2(v=[1, 0]), Screw2(v=[0, 1])], stiffness=[1, 1], use_child_frame=False)
+        Screw2(v=[1, 0]), Screw2(v=[0, 1])], stiffness=[1, 1])
     world.add_link_force(force_link)
     sph = zencad.disp(zencad.sphere(1))
     return body, sph
@@ -104,13 +104,13 @@ def main():
         if time.time() - start_time > 10:
             break
 
-#zencad.show(animate=animate, animate_step=0.02)
+zencad.show(animate=animate, animate_step=0.02)
 
 
-import cProfile, pstats
-profiler = cProfile.Profile()
-profiler.enable()
-main()
-profiler.disable()
-stats = pstats.Stats(profiler).sort_stats('tottime')
-stats.print_stats()
+# import cProfile, pstats
+# profiler = cProfile.Profile()
+# profiler.enable()
+# main()
+# profiler.disable()
+# stats = pstats.Stats(profiler).sort_stats('tottime')
+# stats.print_stats()

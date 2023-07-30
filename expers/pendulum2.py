@@ -10,21 +10,24 @@ from terminus.ga201 import Screw2
 from terminus.ga201 import Motor2
 import numpy
 import zencad
+import math
 
 numpy.set_printoptions(precision=3, suppress=True)
 
 body = Body2()
 body.set_resistance_coefficient(0)
+body.set_position(Motor2.rotation(0))
 
 world = World()
 world.set_gravity(Screw2(v=[0, -10]))
 world.add_body(body)
 
-body.set_position(Motor2.translation(0.05, -1))
+body.set_position(Motor2.translation(-1, 0))
 #body.set_right_velocity_global(Screw2(v=[0,0], m=0.01))
 
-force_link = VariableMultiForce(child=body, parent=None, position=Motor2.translation(0, 0), senses=[
-    Screw2(v=[1, 0]), Screw2(v=[0, 1])], use_child_frame=False)
+force_link = VariableMultiForce(child=body, parent=None, 
+    position=Motor2.translation(0, 0) * Motor2.rotation(0), senses=[
+    Screw2(v=[1, 0]), Screw2(v=[0, 1])])
 
 world.add_link_force(force_link)
 
