@@ -37,8 +37,8 @@ body2.set_resistance_coefficient(0.5)
 body3.set_resistance_coefficient(0.5)
 
 body1.set_position(Motor2.translation(0, -15))
-body2.set_position(Motor2.translation(10, -10) * Motor2.rotation(math.pi/4))
-body3.set_position(Motor2.translation(20, -10) * Motor2.rotation(math.pi/4))
+body2.set_position(Motor2.translation(10, -15))
+body3.set_position(Motor2.translation(20, -15))
 
 force_link1 = VariableMultiForce(child=body1, parent=None, position=Motor2.translation(0, 0), senses=[
     Screw2(v=[1, 0]), Screw2(v=[0, 1])], stiffness=[1, 1])
@@ -48,7 +48,7 @@ force_link2 = VariableMultiForce(child=body2, parent=body1, position=Motor2.tran
     Screw2(v=[1, 0]), Screw2(v=[0, 1])], stiffness=[1, 1])
 world.add_link_force(force_link2)
 
-force_link3 = VariableMultiForce(child=body3, parent=body2, position=Motor2.translation(10, -10), senses=[
+force_link3 = VariableMultiForce(child=body3, parent=body2, position=Motor2.translation(10, -15), senses=[
     Screw2(v=[1, 0]), Screw2(v=[0, 1])], stiffness=[1, 1])
 world.add_link_force(force_link3)
 
@@ -58,7 +58,7 @@ ctrlink1 = ControlLink(position=Motor2.translation(0, 0),
 ctrlink2 = ControlLink(position=Motor2.translation(0, -15),
     child=body2, parent=body1, senses=[Screw2(m=1)])
 
-ctrlink3 = ControlLink(position=Motor2.translation(10, -10),
+ctrlink3 = ControlLink(position=Motor2.translation(10, -15),
     child=body3, parent=body2, senses=[Screw2(m=1)])
 
 # ctrframe1 = ControlTaskFrame(
@@ -66,11 +66,11 @@ ctrlink3 = ControlLink(position=Motor2.translation(10, -10),
 #     position_in_body=Motor2.translation(0, 0))
 # ctrframe1.add_control_frame(ctrlink1)
 
-ctrframe2 = ControlTaskFrame(
-    linked_body=body2, 
-    position_in_body=Motor2.translation(0, 0))
-ctrframe2.add_control_frame(ctrlink1)
-ctrframe2.add_control_frame(ctrlink2)
+# ctrframe2 = ControlTaskFrame(
+#     linked_body=body2, 
+#     position_in_body=Motor2.translation(0, 0))
+# ctrframe2.add_control_frame(ctrlink1)
+# ctrframe2.add_control_frame(ctrlink2)
 
 ctrframe3 = ControlTaskFrame(
     linked_body=body3, 
@@ -83,7 +83,7 @@ world.add_control_link(ctrlink1)
 world.add_control_link(ctrlink2)
 world.add_control_link(ctrlink3)
 # world.add_control_task_frame(ctrframe1)
-world.add_control_task_frame(ctrframe2)
+#world.add_control_task_frame(ctrframe2)
 world.add_control_task_frame(ctrframe3)
 
 
@@ -133,17 +133,17 @@ def control3(delta):
 
         errorpos = Screw2(v=target_pos - curpos)
         if errorpos.norm() < 5:
-            control_spd = errorpos * 8
+            control_spd = errorpos * 6
         else:
             control_spd = errorpos * 1
         errorspd = (control_spd - current_vel)
         if errorpos.norm() < 5:
             #y = 1 - (errorpos.norm() / 4)
-            errorspd = errorspd #+ Screw2(v=target_vel) #* y
-        erroracc = errorspd * 400 
+            errorspd = errorspd + Screw2(v=target_vel) #* y
+        erroracc = errorspd * 50 
         if errorpos.norm() < 5:
             #y = 1 - (errorpos.norm() / 4)
-            erroracc = erroracc #+ Screw2(v=target_acc) #* y
+            erroracc = erroracc + Screw2(v=target_acc) #* y
        
         norm = erroracc.norm()
         if norm > DDD:
@@ -153,25 +153,25 @@ def control3(delta):
         return erroracc, target_pos
 
 
-def control2(delta):
-        current_vel = ctrframe2.right_velocity_global()
-        curpos = ctrframe2.position()
-        curpos = curpos.factorize_translation_vector()
-        target_pos = numpy.array([15,-10])
-        target_vel = numpy.array([0,0])
-        target_acc = numpy.array([0,0])
-        errorpos = Screw2(v=target_pos - curpos)
-        control_spd = errorpos * 2
-        errorspd = (control_spd - current_vel)
-        if errorpos.norm() < 5:
-            errorspd = errorspd 
-        erroracc = errorspd * 320 
-        if errorpos.norm() < 5:
-            erroracc = erroracc 
-        norm = erroracc.norm()
-        if norm > DDD:
-            erroracc = erroracc * (DDD / norm)
-        return erroracc 
+# def control2(delta):
+#         current_vel = ctrframe2.right_velocity_global()
+#         curpos = ctrframe2.position()
+#         curpos = curpos.factorize_translation_vector()
+#         target_pos = numpy.array([15,-10])
+#         target_vel = numpy.array([0,0])
+#         target_acc = numpy.array([0,0])
+#         errorpos = Screw2(v=target_pos - curpos)
+#         control_spd = errorpos * 2
+#         errorspd = (control_spd - current_vel)
+#         if errorpos.norm() < 5:
+#             errorspd = errorspd 
+#         erroracc = errorspd * 320 
+#         if errorpos.norm() < 5:
+#             erroracc = erroracc 
+#         norm = erroracc.norm()
+#         if norm > DDD:
+#             erroracc = erroracc * (DDD / norm)
+#         return erroracc 
 
 # def control1(delta):
 #         current_vel = ctrframe1.right_velocity_global()
@@ -195,30 +195,34 @@ def animate(wdg):
     JJ = numpy.linalg.pinv(m) @ m
     JJJ = numpy.eye(3) - JJ
 
-    f1 = ctrframe2.derivative_by_frame(ctrlink1)
-    f2 = ctrframe2.derivative_by_frame(ctrlink2)
-    m1 = f1.matrix
-    m2 = f2.matrix
-    m3 = numpy.zeros((2,1))
-    m = numpy.concatenate((m1,m2,m3), axis=1)
-    JJ2 = numpy.linalg.pinv(m) @ m
-    JJJ2 = numpy.eye(3) - JJ2
-
     ctrframe3.set_filter(JJ)
-    ctrframe2.set_filter(JJJ)
-    # ctrframe1.set_filter(JJJ @ JJJ2)
+    ctrlink1.set_filter(JJJ)
+    ctrlink2.set_filter(JJJ)
+    ctrlink3.set_filter(JJJ)
 
-    #ctrlink2.set_filter(JJJ)
-    #ctrlink2.set_control(numpy.array([1]))
+    vel1 = ctrlink1.velocity_error_screw()
+    ctrlink1.set_control(numpy.array([-vel1.moment()]))
 
-    #ctrlink3.set_filter(JJJ)
-    #ctrlink3.set_control(numpy.array([-1]))
+    pos3 = ctrlink3.position_error_screw()
+    pos2 = ctrlink2.position_error_screw()
+    posdiff = pos3 - pos2
+    mpos = posdiff.moment()
+    print(mpos, pos3.moment(), pos2.moment())
+
+    vel2 = ctrlink2.velocity_error_screw()
+    ctrlink2.set_control(numpy.array([-vel2.moment() 
+        + mpos
+        #- pos2.moment()
+    ]))
+
+    vel3 = ctrlink3.velocity_error_screw()
+    ctrlink3.set_control(numpy.array([-vel3.moment() 
+        - mpos
+        #- pos3.moment() 
+        + math.pi/4
+    ]))
 
     ctr3, ctrpos = control3(0.02)
-    ctr2 = control2(0.02)
-    # ctr1 = control1(0.02)
-    # ctrframe1.set_control_screw(ctr1)
-    ctrframe2.set_control_screw(ctr2)
     ctrframe3.set_control_screw(ctr3)
     world.iteration(0.02)
 

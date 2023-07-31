@@ -90,6 +90,7 @@ class VariableMultiForce(Frame):
             return [dQdl_child]
 
     def D_matrix_list(self):
+        return []
         poserror = self.position_error_screw()
         velerror = self.velocity_error_screw()
         posdots = numpy.array([poserror.fulldot(s)

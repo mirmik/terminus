@@ -51,7 +51,6 @@ class ControlLink(VariableMultiForce):
                 else:
                     mat.append(ctr)
                 counter += 1
-            print(mat)
             ctr = numpy.concatenate(mat, axis=0)
             ctr = self._filter @ ctr
 
@@ -60,9 +59,11 @@ class ControlLink(VariableMultiForce):
                 if link is not self:
                     pass
                 else:
-                    ctr = ctr[counter]
+                    ctr = numpy.array([ctr[counter]])
+                    ctr = ctr.reshape((len(self._control), 1))
                 counter += 1
 
+        ctr = ctr.reshape((len(self._control),))
         return [
             IndexedVector(ctr, self.screw_commutator().indexes(), self.screw_commutator())
         ]
@@ -123,5 +124,5 @@ class ControlTaskFrame(ReferencedFrame):
                 comm=link.screw_commutator())
             )
             counter += link_dim
-            
+        
         return lst
