@@ -17,8 +17,7 @@ import zencad
 
 import rxsignal.rxmqtt 
 
-publisher = rxsignal.rxmqtt.mqtt_rxclient()
-
+#publisher = rxsignal.rxmqtt.mqtt_rxclient()
 #numpy.set_printoptions(precision=1, suppress=True)
 
 body1 = Body2(mass=1)
@@ -160,7 +159,7 @@ def animate(wdg):
     #print()
     #print(world.last_solution()[2])
 
-    publisher.publish("pendulum/torque", world.last_solution()[2].matrix)
+    #publisher.publish("pendulum/torque", world.last_solution()[2].matrix)
 
     sph0.relocate(zencad.translate(body1.translation()[0], body1.translation()[1], 0))
     sph1.relocate(zencad.translate(body2.translation()[0], body2.translation()[1], 0))
