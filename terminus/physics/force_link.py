@@ -14,7 +14,8 @@ POSITION_STIFFNESS = 10
 VELOCITY_STIFFNESS = 20
 
 class VariableMultiForce(Frame):
-    def __init__(self, position, child, parent, senses=[], stiffness=[1, 1]):
+    def __init__(self, position, child, parent, senses=[], stiffness=[POSITION_STIFFNESS, VELOCITY_STIFFNESS], flexible=False):
+        self._flexible = flexible
         self._position_in_child_frame = child.position().inverse() * position
         if parent is not None:
             self._position_in_parent_frame = parent.position().inverse() * position
@@ -80,6 +81,9 @@ class VariableMultiForce(Frame):
         return self._child.position() * self._position_in_child_frame
 
     def B_matrix_list(self):
+        if self._flexible:
+            return []
+
         dQdl_child = self.derivative_by_frame(self._child).transpose()
 
         if self._parent is not None:
@@ -89,22 +93,63 @@ class VariableMultiForce(Frame):
         else:
             return [dQdl_child]
 
+    def C_matrix_list(self):
+        if not self._flexible:
+            return []
+
+        ret = []
+
+        poserror_scr = self.position_error_screw()
+        velerror_scr = self.velocity_error_screw()
+        poserror_mot = self.position_error_motor()
+        force = (
+            - poserror_scr * self._stiffness[0] 
+            - velerror_scr * self._stiffness[1]
+        )
+
+        force_child = (force
+            .inverse_carry(poserror_mot) 
+            .carry(self._position_in_child_frame)
+        )
+        ret.append(IndexedVector(
+            force_child.toarray(),
+            idxs=self._child.screw_commutator().indexes(),
+            comm=self._child.screw_commutator()))
+
+        if self._parent is not None:
+            force_parent = ((-force)
+                .carry(self._position_in_parent_frame)
+            )
+
+            ret.append(IndexedVector(
+                force_parent.toarray(),
+                idxs=self._parent.screw_commutator().indexes(),
+                comm=self._parent.screw_commutator())
+            )
+        
+        return ret
+
     def D_matrix_list(self):
         return []
-        poserror = self.position_error_screw()
-        velerror = self.velocity_error_screw()
-        posdots = numpy.array([poserror.fulldot(s)
-                            for s in self._senses]) * self._stiffness[0] * POSITION_STIFFNESS
-        veldots = numpy.array([velerror.fulldot(s)
-                            for s in self._senses]) * self._stiffness[1] * VELOCITY_STIFFNESS
-        correction = - posdots - veldots
-        return [IndexedVector(
-                correction,
-                idxs=self._screw_commutator.indexes(),
-                comm=self._screw_commutator)
-                ]
+
+        # poserror = self.position_error_screw()
+        # velerror = self.velocity_error_screw()
+        # posdots = numpy.array([poserror.fulldot(s)
+        #                     for s in self._senses]) * self._stiffness[0]
+        # veldots = numpy.array([velerror.fulldot(s)
+        #                     for s in self._senses]) * self._stiffness[1]
+        # correction = - posdots - veldots
+        # print("correction", correction)
+        # return [IndexedVector(
+        #         correction,
+        #         idxs=self._screw_commutator.indexes(),
+        #         comm=self._screw_commutator)
+        #         ]
+        
 
     def D_matrix_list_velocity(self):
+        if self._flexible:
+            return []
         velerror = self.velocity_error_screw()
         veldots = numpy.array([velerror.fulldot(s)
                             for s in self._senses])
@@ -116,6 +161,9 @@ class VariableMultiForce(Frame):
                 comm=self._screw_commutator)]
 
     def D_matrix_list_position(self):
+        if self._flexible:
+            return []
+        
         poserror = self.position_error_screw()
         posdots = numpy.array([poserror.fulldot(s)
                             for s in self._senses])

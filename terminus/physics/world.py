@@ -64,6 +64,9 @@ class World:
         arr = []
         for body in self.bodies:
             arr.extend(body.forces_in_right_part())
+
+        for force_link in self._force_links:
+            arr.extend(force_link.C_matrix_list())
         return arr
 
     def B_matrix_list(self):
@@ -131,6 +134,17 @@ class World:
         self.last_Q = Q
         self.last_b = b
         self._last_solution = (x, l, ksi)
+
+        if self._iteration_counter == 0:
+            print("Equation shape is:")
+            print("Q:", self.last_Q.shape)
+            print("Count of equation parts:")
+            print("A:", len(A_list))
+            print("B:", len(B_list))
+            print("C:", len(C_list))
+            print("D:", len(D_list))
+            print("H:", len(H_list))
+            print("Ksi:", len(Ksi_list))
 
         for body in self.bodies:
             body.downbind_solution()

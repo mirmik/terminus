@@ -71,6 +71,9 @@ class IndexedMatrix:
         self.raise_if_ridxs_is_not_same(oth)
         return IndexedMatrix(self.matrix + oth.matrix, self.lidxs, self.ridxs, self.lcomm, self.rcomm)
 
+    def __mul__(self, s):
+        return IndexedMatrix(self.matrix * s, self.lidxs, self.ridxs, self.lcomm, self.rcomm)
+
     def unsparse(self):
         return self.matrix.toarray()
 
