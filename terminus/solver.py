@@ -5,6 +5,8 @@ import scipy
 from terminus.physics.indexed_matrix import IndexedMatrix, IndexedVector
 import torch
 
+TORCH_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
 def full_indexes_list_vector(arr):
     s = set()
     for a in arr:
@@ -153,8 +155,8 @@ def qpc_solver_indexes_array(
     for Ksi in Ksiarr:
         b[indexes[Ksi.comm][0]:indexes[Ksi.comm][1], 0] += Ksi.matrix
 
-    Q_torch = torch.tensor(Q, dtype=torch.float64).cuda()
-    b_torch = torch.tensor(b, dtype=torch.float64).cuda()
+    Q_torch = torch.tensor(Q, dtype=torch.float64).to(device=TORCH_DEVICE)
+    b_torch = torch.tensor(b, dtype=torch.float64).to(device=TORCH_DEVICE)
 
     #X = numpy.linalg.inv(Q) @ b
     X_torch = torch.linalg.solve(Q_torch, b_torch)
