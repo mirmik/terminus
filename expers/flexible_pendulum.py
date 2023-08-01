@@ -131,7 +131,7 @@ def control4(delta):
         d2c = -(math.cos((curtime)/D))/D/D
         
         A = 4
-        B = 4
+        B = 6
 
         target_pos = (numpy.array([20,5]) 
             + (s) * numpy.array([A,0])
