@@ -21,7 +21,7 @@ publisher = rxsignal.rxmqtt.mqtt_rxclient()
 
 #numpy.set_printoptions(precision=1, suppress=True)
 
-body1 = Body2(mass=40)
+body1 = Body2(mass=20)
 body2 = Body2()
 body3 = Body2()
 body4 = Body2(mass=10)
@@ -34,10 +34,10 @@ world.add_body(body2)
 world.add_body(body3)
 world.add_body(body4)
 
-body1.set_resistance_coefficient(1)
-body2.set_resistance_coefficient(1)
-body3.set_resistance_coefficient(1)
-body4.set_resistance_coefficient(1)
+body1.set_resistance_coefficient(0.1)
+body2.set_resistance_coefficient(0.1)
+body3.set_resistance_coefficient(0.1)
+body4.set_resistance_coefficient(0.1)
 
 body1.set_position(Motor2.translation(0, -15))
 body2.set_position(Motor2.translation(10, -15))
@@ -61,7 +61,7 @@ force_link4 = VariableMultiForce(child=body4, parent=body3, position=Motor2.tran
 world.add_link_force(force_link4) 
 
 force_link_S = VariableMultiForce(child=body4, parent=body3, position=Motor2.translation(20, -15), senses=[  
-    Screw2(m=1)], stiffness=[5, 100], flexible=True)
+    Screw2(m=1)], stiffness=[10, 100], flexible=True)
 world.add_link_force(force_link_S)
 
 ctrlink1 = ControlLink(position=Motor2.translation(0, 0), 
@@ -120,7 +120,7 @@ def control4(delta):
 
         curtime = world.time()
         
-        D = 1
+        D = 0.5
         s = (math.sin((curtime)/D))
         c = (math.cos((curtime)/D))
 
@@ -145,13 +145,13 @@ def control4(delta):
 
         errorpos = Screw2(v=target_pos - curpos)
         if errorpos.norm() < 5:
-            control_spd = errorpos * 6
+            control_spd = errorpos * 5
         else:
             control_spd = errorpos * 1
         errorspd = (control_spd - current_vel)
         if errorpos.norm() < 5:
             #y = 1 - (errorpos.norm() / 4)
-            errorspd = errorspd  + Screw2(v=target_vel) * 0.8 #* y
+            errorspd = errorspd  + Screw2(v=target_vel) * 0.9 #* y
         erroracc = errorspd * 10
         if errorpos.norm() < 5:
             #y = 1 - (errorpos.norm() / 4)
@@ -162,45 +162,40 @@ def control4(delta):
             erroracc = erroracc * (DDD / norm)
 
         erroracc = erroracc * 1
+        print(erroracc)
         return erroracc, target_pos
 
 def animate(wdg):
     f1 = ctrframe4.derivative_by_frame(ctrlink1)
     f2 = ctrframe4.derivative_by_frame(ctrlink2)
     f3 = ctrframe4.derivative_by_frame(ctrlink3)
-    #f4 = ctrframe4.derivative_by_frame(ctrlink4)
     m1 = f1.matrix
     m2 = f2.matrix
     m3 = f3.matrix
-    #m4 = f4.matrix
     m = numpy.concatenate((m1,m2,m3), axis=1)
     JJ = numpy.linalg.pinv(m) @ m
     JJJ = numpy.eye(3) - JJ
 
-    ctrframe4.set_filter(JJ)
-    ctrlink1.set_filter(JJJ)
-    ctrlink2.set_filter(JJJ)
-    ctrlink3.set_filter(JJJ)
-
-    vel1 = ctrlink1.velocity_error_screw()
     pos1 = ctrlink1.position_error_screw()
-    ctrlink1.set_control(numpy.array([-vel1.moment()
-        - pos1.moment()]))
-
+    vel1 = ctrlink1.velocity_error_screw()
     pos2 = ctrlink2.position_error_screw()
     vel2 = ctrlink2.velocity_error_screw()
-    ctrlink2.set_control(numpy.array([-vel2.moment()
-        - pos2.moment()
-        #- math.pi/4
-    ]))
-
     pos3 = ctrlink3.position_error_screw()
     vel3 = ctrlink3.velocity_error_screw()
-    ctrlink3.set_control(numpy.array([-vel3.moment()
-        - pos3.moment() 
-        #+ math.pi/4
-    ]))
 
+    arr = numpy.array([
+        -vel1.moment()-pos1.moment(),
+        -vel2.moment()-pos2.moment(),
+        -vel3.moment()-pos3.moment()]).reshape(3,1)
+
+    arr = JJJ @ arr
+
+    ctrlink1.set_control(numpy.array([arr[0]]))
+    ctrlink2.set_control(numpy.array([arr[1]]))
+    ctrlink3.set_control(numpy.array([arr[2]]))
+
+
+    ctrframe4.set_filter(JJ)
     ctr4, ctrpos = control4(0.02)
     ctrframe4.set_control_screw(ctr4)
     world.iteration(0.02)

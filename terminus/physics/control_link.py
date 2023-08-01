@@ -40,30 +40,28 @@ class ControlLink(VariableMultiForce):
         if self._control is None:
             return []
 
+        myposition = allctrlinks.index(self)
         ctr = self._control.reshape((len(self._control), 1))
+        #print("C1:", ctr)
 
-        if self._filter is not None:
-            mat = []
-            counter = 0
-            for link in allctrlinks:
-                if link is not self:
-                    mat.append(numpy.zeros((1, 1)))
-                else:
-                    mat.append(ctr)
-                counter += 1
-            ctr = numpy.concatenate(mat, axis=0)
-            ctr = self._filter @ ctr
+        # if self._filter is not None:
+        #     mat = []
+        #     counter = 0
+        #     for link in allctrlinks:
+        #         if link is not self:
+        #             mat.append(numpy.zeros((1, 1)))
+        #         else:
+        #             mat.append(ctr)
+        #         counter += 1
+        #     ctr = numpy.concatenate(mat, axis=0)
+        #     ctr = self._filter @ ctr
+        #     print(ctr)
 
-            counter = 0
-            for link in allctrlinks:
-                if link is not self:
-                    pass
-                else:
-                    ctr = numpy.array([ctr[counter]])
-                    ctr = ctr.reshape((len(self._control), 1))
-                counter += 1
-
+        #     ctr = numpy.array([ctr[myposition]])
+            
         ctr = ctr.reshape((len(self._control),))
+        #print("C2:", ctr)
+        #print("C3:", self.screw_commutator().indexes())
         return [
             IndexedVector(ctr, self.screw_commutator().indexes(), self.screw_commutator())
         ]
