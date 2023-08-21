@@ -174,34 +174,28 @@ def animate(wdg):
     JJJ = numpy.eye(4) - JJ
 
     ctrframe4.set_filter(JJ)
-    ctrlink1.set_filter(JJJ)
-    ctrlink2.set_filter(JJJ)
-    ctrlink3.set_filter(JJJ)
-    ctrlink4.set_filter(JJJ)
 
+    pos1 = ctrlink1.position_error_screw()
     vel1 = ctrlink1.velocity_error_screw()
-    ctrlink1.set_control(numpy.array([-vel1.moment()]))
-
     pos2 = ctrlink2.position_error_screw()
     vel2 = ctrlink2.velocity_error_screw()
-    ctrlink2.set_control(numpy.array([-vel2.moment()
-        - pos2.moment()
-        - math.pi/4
-    ]))
-
     pos3 = ctrlink3.position_error_screw()
     vel3 = ctrlink3.velocity_error_screw()
-    ctrlink3.set_control(numpy.array([-vel3.moment()
-        - pos3.moment() 
-        + math.pi/4
-    ]))
-
     pos4 = ctrlink4.position_error_screw()
     vel4 = ctrlink4.velocity_error_screw()
-    ctrlink4.set_control(numpy.array([-vel4.moment()
-        - pos4.moment()
-        + math.pi/4
-    ]))
+
+    arr = numpy.array([
+        -vel1.moment()-pos1.moment(),
+        -vel2.moment()-pos2.moment(),
+        -vel3.moment()-pos3.moment(),
+        -vel4.moment()-pos4.moment()]).reshape(4,1)
+
+    arr = JJJ @ arr
+
+    ctrlink1.set_control(numpy.array([arr[0]]))
+    ctrlink2.set_control(numpy.array([arr[1]]))
+    ctrlink3.set_control(numpy.array([arr[2]]))
+    ctrlink4.set_control(numpy.array([arr[3]]))
 
     ctr4, ctrpos = control4(0.02)
     ctrframe4.set_control_screw(ctr4)
