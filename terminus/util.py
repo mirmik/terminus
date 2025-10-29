@@ -50,3 +50,4 @@ def qslerp(q1: numpy.ndarray, q2: numpy.ndarray, t: float) -> numpy.ndarray:
     s2 = sin_theta / sin_theta_0
 
     return (s1 * q1) + (s2 * q2)
+
