@@ -84,18 +84,18 @@ class Screw3(Screw):
     def transform_as_twist_by(self, trans):
         return Screw3(
             ang = trans.transform_vector(self.ang),
-            lin = trans.transform_vector(self.lin + numpy.cross(trans.global_pose().lin, self.ang))
+            lin = trans.transform_vector(self.lin + numpy.cross(trans.lin, self.ang))
         )
 
     def inverse_transform_as_twist_by(self, trans):
         return Screw3(
             ang = trans.inverse_transform_vector(self.ang),
-            lin = trans.inverse_transform_vector(self.lin - numpy.cross(trans.global_pose().lin, self.ang))
+            lin = trans.inverse_transform_vector(self.lin - numpy.cross(trans.lin, self.ang))
         )
 
     def transform_as_wrench_by(self, trans):
         """Transform wrench (moment + force) under SE(3) transform."""
-        p = trans.global_pose().lin
+        p = trans.lin
         return Screw3(
             ang = trans.transform_vector(self.ang + numpy.cross(p, self.lin)),
             lin = trans.transform_vector(self.lin)
@@ -103,7 +103,7 @@ class Screw3(Screw):
 
     def inverse_transform_as_wrench_by(self, trans):
         """Inverse transform of a wrench under SE(3) transform."""
-        p = trans.global_pose().lin
+        p = trans.lin
         return Screw3(
             ang = trans.inverse_transform_vector(self.ang - numpy.cross(p, self.lin)),
             lin = trans.inverse_transform_vector(self.lin)

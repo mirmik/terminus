@@ -7,12 +7,12 @@ class Transform:
 
     def __init__(self, local_pose, parent: 'Transform' = None):
         self._local_pose = local_pose
-        self.parent = parent
+        self.parent = None
         self.children = []
         self._global_pose = None
         self._dirty = True
         if parent:
-            parent.children.append(self)
+            parent.add_child(self)
 
     def _unparent(self):
         if self.parent:
