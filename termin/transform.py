@@ -5,8 +5,9 @@ from termin.pose3 import Pose3
 class Transform:
     """A class for 3D transformations tree using Pose3."""
 
-    def __init__(self, local_pose, parent: 'Transform' = None):
+    def __init__(self, local_pose, parent: 'Transform' = None, name: str = ""):
         self._local_pose = local_pose
+        self.name = name
         self.parent = None
         self.children = []
         self._global_pose = None
@@ -84,11 +85,24 @@ class Transform:
         inv_global_pose = global_pose.inverse()
         return inv_global_pose.transform_vector(vector)
 
+    def __repr__(self):
+        return f"Transform({self.name}, local_pose={self._local_pose})"
+
+
+def inspect_tree(transform: 'Transform', level: int = 0, name_only: bool = False):
+    indent = "  " * level
+    if name_only:
+        print(f"{indent}{transform.name}")
+    else:
+        print(f"{indent}{transform}")
+    for child in transform.children:
+        inspect_tree(child, level + 1, name_only=name_only)
+
 
 class Transform3(Transform):
     """A 3D Transform with directional helpers."""
-    def __init__(self, local_pose: Pose3 = Pose3.identity(), parent: 'Transform3' = None):
-        super().__init__(local_pose, parent)
+    def __init__(self, local_pose: Pose3 = Pose3.identity(), parent: 'Transform3' = None, name: str = ""):
+        super().__init__(local_pose, parent, name)
 
     def forward(self, distance: float) -> numpy.ndarray:
         """Get the forward direction vector in global coordinates."""
@@ -117,6 +131,4 @@ class Transform3(Transform):
         """Get the left direction vector in global coordinates."""
         return -self.right(distance)
 
-    def __repr__(self):
-        return f"Transform(local_pose={self._local_pose}, global_pose={self.global_pose()})"
 

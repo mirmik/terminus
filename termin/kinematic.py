@@ -5,14 +5,26 @@ import numpy
 
 class KinematicTransform3(Transform3):
     """A Transform3 specialized for kinematic chains."""
-    def __init__(self, parent: Transform3 = None):
+    def __init__(self, parent: Transform3 = None, manual_output: bool = False):
         super().__init__(parent=None)
-        self.output = Transform3(parent=self)
+
+        if not manual_output:
+            self.output = Transform3(parent=self)
+        else:
+            self.output = None
+
         self.kinematic_parent = None
         if parent:
             parent.link(self)
-    
-    def senses() -> [Screw3]:
+
+    def init_output(self, output: Transform3):
+        """Initialize the output Transform3 if manual_output was set to True."""
+        if self.output is not None:
+            raise RuntimeError("Output Transform3 is already initialized.")
+        self.output = output
+        self.link(self.output)
+
+    def senses(self) -> [Screw3]:
         """Return the list of screws representing the sensitivities of this kinematic transform.
         Для совместимости с KinematicChain3 чувствительности возвращаются в порядке от дистального к проксимальному."""
         raise NotImplementedError("senses method must be implemented by subclasses.")
@@ -45,8 +57,8 @@ class KinematicTransform3(Transform3):
 
 class KinematicTransform3OneScrew(KinematicTransform3):
     """A Transform3 specialized for 1-DOF kinematic chains."""
-    def __init__(self, parent: Transform3 = None):
-        super().__init__(parent=parent)
+    def __init__(self, parent: Transform3 = None, manual_output: bool = False):
+        super().__init__(parent=parent, manual_output=manual_output)
         self._sens = None  # To be defined in subclasses
         self._coord = 0.0  # Current coordinate value
 
@@ -77,14 +89,14 @@ class KinematicTransform3OneScrew(KinematicTransform3):
     
 
 class Rotator3(KinematicTransform3OneScrew):
-    def __init__(self, axis: numpy.ndarray, parent: Transform3 = None):
+    def __init__(self, axis: numpy.ndarray, parent: Transform3 = None, manual_output: bool = False):
         """Initialize a Rotator that rotates around a given axis by angle_rad."""
-        super().__init__(parent=parent)
+        super().__init__(parent=parent, manual_output=manual_output)
         self._sens = Screw3(ang=axis, lin=numpy.array([0.0, 0.0, 0.0]))
 
 class Actuator3(KinematicTransform3OneScrew):
-    def __init__(self, axis: numpy.ndarray, parent: Transform3 = None):
+    def __init__(self, axis: numpy.ndarray, parent: Transform3 = None, manual_output: bool = False):
         """Initialize an Actuator that moves along a given screw."""
-        super().__init__(parent=parent)
+        super().__init__(parent=parent, manual_output=manual_output)
         self._sens = Screw3(lin=axis, ang=numpy.array([0.0, 0.0, 0.0]))
 
