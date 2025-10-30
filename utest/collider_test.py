@@ -1,6 +1,6 @@
-from terminus.colliders.capsule import CapsuleCollider
-from terminus.colliders.sphere import SphereCollider
-from terminus.colliders.union_collider import UnionCollider
+from termin.colliders.capsule import CapsuleCollider
+from termin.colliders.sphere import SphereCollider
+from termin.colliders.union_collider import UnionCollider
 import unittest
 import numpy
 

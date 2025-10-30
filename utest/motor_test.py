@@ -1,5 +1,5 @@
 import unittest
-from terminus.ga201.motor import Motor2
+from termin.ga201.motor import Motor2
 import math
 
 

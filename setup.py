@@ -12,22 +12,22 @@ directory = os.path.dirname(os.path.realpath(__file__))
 
 
 setup(
-    name="terminus",
-    packages=["terminus"],
+    name="termin",
+    packages=["termin"],
     python_requires='>3.10.0',
     version="0.0.0",
     license="MIT",
     description="Projective geometry library",
     author="mirmik",
     author_email="mirmikns@yandex.ru",
-    url="https://github.com/mirmik/terminus",
+    url="https://github.com/mirmik/termin",
     long_description=open(os.path.join(
         directory, "README.md"), "r", encoding="utf8").read(),
     long_description_content_type="text/markdown",
     keywords=["testing", "cad"],
     classifiers=[],
     package_data={
-        "terminus": [
+        "termin": [
             "ga201/*",
             "physics/*",
         ]

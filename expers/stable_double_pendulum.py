@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 
 import time
-from terminus.physics.indexed_matrix import IndexedVector
-from terminus.physics.body import Body2
-from terminus.solver import quadratic_problem_solver_indexes_array
-from terminus.physics.world import World
-from terminus.physics.force import Force
-from terminus.physics.force_link import VariableMultiForce
-from terminus.ga201 import Screw2
-from terminus.ga201 import Motor2
+from termin.physics.indexed_matrix import IndexedVector
+from termin.physics.body import Body2
+from termin.solver import quadratic_problem_solver_indexes_array
+from termin.physics.world import World
+from termin.physics.force import Force
+from termin.physics.force_link import VariableMultiForce
+from termin.ga201 import Screw2
+from termin.ga201 import Motor2
 import numpy
 
 #numpy.set_printoptions(precision=1, suppress=True)

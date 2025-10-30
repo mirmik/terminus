@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 
 #import time
-from terminus.physics.indexed_matrix import IndexedVector
-from terminus.physics.body import Body2
-from terminus.physics.world import World
-from terminus.physics.force import Force
-from terminus.physics.force_link import VariableMultiForce
-from terminus.ga201 import Screw2
-from terminus.ga201 import Motor2
+from termin.physics.indexed_matrix import IndexedVector
+from termin.physics.body import Body2
+from termin.physics.world import World
+from termin.physics.force import Force
+from termin.physics.force_link import VariableMultiForce
+from termin.ga201 import Screw2
+from termin.ga201 import Motor2
 import numpy
 import math
-from terminus.physics.control_link import ControlLink
-from terminus.physics.control_link import ControlTaskFrame
+from termin.physics.control_link import ControlLink
+from termin.physics.control_link import ControlTaskFrame
 
 import zencad
 

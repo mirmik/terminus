@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 import time
 
-from terminus.zencad_adapter import *
-from terminus.barrier import *
-from terminus.ga201.line import Line2
-from terminus.ga201.point import Point2
-from terminus.ga201.motor import Motor2
-from terminus.ga201.join import join_point_point, oriented_distance
-from terminus.ga201.convex_body import ConvexBody2, ConvexWorld2
+from termin.zencad_adapter import *
+from termin.barrier import *
+from termin.ga201.line import Line2
+from termin.ga201.point import Point2
+from termin.ga201.motor import Motor2
+from termin.ga201.join import join_point_point, oriented_distance
+from termin.ga201.convex_body import ConvexBody2, ConvexWorld2
 import math
 import zencad
 import pickle

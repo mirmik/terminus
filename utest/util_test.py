@@ -1,5 +1,5 @@
 import unittest
-from terminus.util import *
+from termin.util import *
 import numpy
 import math
 

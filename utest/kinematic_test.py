@@ -1,6 +1,6 @@
 import unittest
-from terminus.kinematic import *
-from terminus.transform import Transform3
+from termin.kinematic import *
+from termin.transform import Transform3
 import numpy
 import math
 

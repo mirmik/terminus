@@ -1,4 +1,4 @@
-from terminus.aabb import AABB
+from termin.aabb import AABB
 import unittest
 import numpy
 

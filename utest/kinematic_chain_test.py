@@ -1,9 +1,9 @@
 import unittest
-from terminus.kinchain import KinematicChain3
-from terminus.kinematic import KinematicTransform3, Rotator3, Actuator3
-from terminus.pose3 import Pose3
-from terminus.screw import Screw2, Screw3
-from terminus.transform import Transform, Transform3
+from termin.kinchain import KinematicChain3
+from termin.kinematic import KinematicTransform3, Rotator3, Actuator3
+from termin.pose3 import Pose3
+from termin.screw import Screw2, Screw3
+from termin.transform import Transform, Transform3
 import numpy
 
 class TestKinematicChain3(unittest.TestCase):
