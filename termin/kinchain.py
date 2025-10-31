@@ -55,6 +55,7 @@ class KinematicChain3:
         """Return the sensitivity twists for all kinematic transforms in the chain.
         
         Если basis не задан, то используется локальная система отсчета topbody*local_pose.
+        Базис должен совпадать с системой, в которой формируется управление.
         """
 
         if topbody == None:
@@ -106,6 +107,10 @@ class KinematicChain3:
             btrsf = basis
             trsf = btrsf.inverse() * outtrans
             senses = [s.transform_by(trsf) for s in senses]
+        else:
+            # переносим в глобальный фрейм
+            trsf = outtrans
+            senses = [s.transform_by(trsf) for s in senses]    
 
         return senses
 
