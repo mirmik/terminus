@@ -9,6 +9,9 @@ class Pose3:
     def __init__(self, ang: numpy.ndarray = numpy.array([0.0, 0.0, 0.0, 1.0]), lin: numpy.ndarray = numpy.array([0.0, 0.0, 0.0])):
         self.ang = ang
         self.lin = lin
+        self._rot_matrix = None  # Lazy computation
+        self._mat = None  # Lazy computation
+        self._mat34 = None  # Lazy computation
 
     @staticmethod
     def identity():
@@ -17,24 +20,36 @@ class Pose3:
             lin=numpy.array([0.0, 0.0, 0.0])
         )
 
+    def as_rotation_matrix(self):
+        """Get the 3x3 rotation matrix corresponding to the pose's orientation."""
+        if self._rot_matrix is None:
+            x, y, z, w = self.ang
+            self._rot_matrix = numpy.array([
+                [1 - 2*(y**2 + z**2), 2*(x*y - z*w), 2*(x*z + y*w)],
+                [2*(x*y + z*w), 1 - 2*(x**2 + z**2), 2*(y*z - x*w)],
+                [2*(x*z - y*w), 2*(y*z + x*w), 1 - 2*(x**2 + y**2)]
+            ])
+        return self._rot_matrix
+
     def as_matrix(self):
-        """Convert the pose to a 4x4 transformation matrix."""
-        x, y, z, w = self.ang
-        tx, ty, tz = self.lin
+        """Get the 4x4 transformation matrix corresponding to the pose."""
+        if self._mat is None:
+            R = self.as_rotation_matrix()
+            t = self.lin
+            self._mat = numpy.eye(4)
+            self._mat[:3, :3] = R
+            self._mat[:3, 3] = t
+        return self._mat
 
-        # Rotation matrix from quaternion
-        rot = numpy.array([
-            [1 - 2*(y**2 + z**2), 2*(x*y - z*w), 2*(x*z + y*w)],
-            [2*(x*y + z*w), 1 - 2*(x**2 + z**2), 2*(y*z - x*w)],
-            [2*(x*z - y*w), 2*(y*z + x*w), 1 - 2*(x**2 + y**2)]
-        ])
-
-        # Combine rotation and translation into a single matrix
-        mat = numpy.eye(4)
-        mat[:3, :3] = rot
-        mat[:3, 3] = [tx, ty, tz]
-
-        return mat
+    def as_matrix34(self):
+        """Get the 3x4 transformation matrix corresponding to the pose."""
+        if self._mat34 is None:
+            R = self.as_rotation_matrix()
+            t = self.lin
+            self._mat34 = numpy.zeros((3, 4))
+            self._mat34[:, :3] = R
+            self._mat34[:, 3] = t
+        return self._mat34
 
     def inverse(self):
         """Compute the inverse of the pose."""

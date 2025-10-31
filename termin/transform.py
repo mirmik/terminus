@@ -12,6 +12,11 @@ class Transform:
         self.children = []
         self._global_pose = None
         self._dirty = True
+
+        self._version_for_walking_to_proximal = 0
+        self._version_for_walking_to_distal = 0
+        self._version_only_my = 0
+
         if parent:
             parent.add_child(self)
 
@@ -32,7 +37,7 @@ class Transform:
 
     def relocate(self, pose: Pose3):
         self._local_pose = pose
-        self._dirty = True
+        self._mark_dirty()
 
     def relocate_global(self, global_pose):
         if self.parent:
@@ -41,12 +46,26 @@ class Transform:
             self._local_pose = inv_parent_global * global_pose
         else:
             self._local_pose = global_pose
-        self._dirty = True
+        self._mark_dirty()
 
-    def _mark_dirty(self):
+    def increment_version(self, version):
+        return (version + 1) % (2**16)
+
+    def _spread_changes_to_distal(self):
+        self._version_for_walking_to_proximal = self.increment_version(self._version_for_walking_to_proximal)
         self._dirty = True
         for child in self.children:
-            child._mark_dirty()
+            child._spread_changes_to_distal()
+
+    def _spread_changes_to_proximal(self):
+        self._version_for_walking_to_distal = self.increment_version(self._version_for_walking_to_distal)
+        if self.parent:
+            self.parent._spread_changes_to_proximal()
+
+    def _mark_dirty(self):
+        self._version_only_my = self.increment_version(self._version_only_my)
+        self._spread_changes_to_proximal()
+        self._spread_changes_to_distal()
 
     def local_pose(self) -> Pose3:
         return self._local_pose
