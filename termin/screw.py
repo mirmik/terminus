@@ -8,6 +8,12 @@ class Screw:
         self.ang = ang  # Bivector part
         self.lin = lin  # Vector part
 
+        if not isinstance(self.ang, numpy.ndarray):
+            raise Exception("ang must be ndarray")
+
+        if not isinstance(self.lin, numpy.ndarray):
+            raise Exception("lin must be ndarray")
+
     def __repr__(self):
         return f"Screw(ang={self.ang}, lin={self.lin})"
 
@@ -38,7 +44,7 @@ class Screw2(Screw):
 
 class Screw3(Screw):
     """A 3D Screw specialized for spatial motions."""
-    def __init__(self, ang: numpy.ndarray, lin: numpy.ndarray):
+    def __init__(self, ang: numpy.ndarray = numpy.array([0,0,0]), lin: numpy.ndarray = numpy.array([0,0,0])):
         super().__init__(ang=ang, lin=lin)
 
     def moment(self) -> numpy.ndarray:
@@ -52,13 +58,13 @@ class Screw3(Screw):
     def kinematic_carry(self, arm: "Vector3") -> "Screw3":
         """Twist transform. Carry the screw by arm. For pair of angular and linear speeds."""
         return Screw3(
-            lin=self.lin + self.ang.cross(arm),
+            lin=self.lin + numpy.cross(self.ang, arm),
             ang=self.ang)
 
     def force_carry(self, arm: "Vector3") -> "Screw3":
         """Wrench transform. Carry the screw by arm. For pair of torques and forces."""
         return Screw3(
-            ang=self.ang - arm.cross(self.lin),
+            ang=self.ang - numpy.cross(arm, self.lin),
             lin=self.lin)
 
     def twist_carry(self, arm: "Vector3") -> "Screw3":

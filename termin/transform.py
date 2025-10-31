@@ -48,6 +48,9 @@ class Transform:
         for child in self.children:
             child._mark_dirty()
 
+    def local_pose(self) -> Pose3:
+        return self._local_pose
+
     def global_pose(self) -> Pose3:
         if self._dirty:
             if self.parent:

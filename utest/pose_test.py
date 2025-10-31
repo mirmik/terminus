@@ -1,5 +1,6 @@
 import unittest
 from termin.pose3 import Pose3
+from termin.util import deg2rad
 import numpy
 import math
 
@@ -21,6 +22,34 @@ class TestPose3(unittest.TestCase):
         recovered_point = inv_pose.transform_point(transformed_point)
         numpy.testing.assert_array_almost_equal(recovered_point, point)
 
+    def test_inverse2(self):
+        pose = Pose3(
+            ang=numpy.array([0.0, 0.0, math.sin(math.pi/4), math.cos(math.pi/4)]),
+            lin=numpy.array([1.0, 2.0, 3.0])
+        )
+        inv_pose = pose.inverse()
+    
+        m = pose * inv_pose
+        numpy.testing.assert_array_almost_equal(m.lin, [0,0,0])
+        numpy.testing.assert_array_almost_equal(m.ang, [0,0,0,1])
+
+        m = inv_pose*pose
+        numpy.testing.assert_array_almost_equal(m.lin, [0,0,0])
+        numpy.testing.assert_array_almost_equal(m.ang, [0,0,0,1])
+
+
+    def test_inverse_3(self):
+        pose = Pose3.translation(1,0,0) * Pose3.rotation(
+            numpy.array([1,0,0]), deg2rad(10))
+        inv_pose = pose.inverse()
+        point = numpy.array([4.0, 5.0, 6.0])
+        transformed_point = pose.transform_point(point)
+        recovered_point = inv_pose.transform_point(transformed_point)
+        numpy.testing.assert_array_almost_equal(recovered_point, point)
+
+
+
+
     def test_rotation(self):
         angle = math.pi / 2  # 90 degrees
         pose = Pose3(
@@ -30,6 +59,17 @@ class TestPose3(unittest.TestCase):
         point = numpy.array([1.0, 0.0, 0.0])
         transformed_point = pose.transform_point(point)
         expected_point = numpy.array([0.0, 1.0, 0.0])
+        numpy.testing.assert_array_almost_equal(transformed_point, expected_point)
+
+    def test_rotation_x(self):
+        angle = math.pi / 2  # 90 degrees
+        pose = Pose3(
+            ang=numpy.array([math.sin(angle/2), 0.0, 0.0, math.cos(angle/2)]),
+            lin=numpy.array([0.0, 0.0, 0.0])
+        )
+        point = numpy.array([0.0, 0.0, 1.0])
+        transformed_point = pose.transform_point(point)
+        expected_point = numpy.array([0.0, -1.0, 0.0])
         numpy.testing.assert_array_almost_equal(transformed_point, expected_point)
 
     def test_translation(self):

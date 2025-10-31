@@ -16,10 +16,10 @@ def qmul_vector(q: numpy.ndarray, v: numpy.ndarray) -> numpy.ndarray:
     x1, y1, z1, w1 = q
     x2, y2, z2 = v
     return numpy.array([
-        w1*x2 + y1*z2 - z1*y2,
-        w1*y2 - x1*z2 + z1*x2,
+        w1*x2         + y1*z2 - z1*y2,
+        w1*y2 - x1*z2         + z1*x2,
         w1*z2 + x1*y2 - y1*x2,
-        x1*x2 - y1*y2 - z1*z2
+              - x1*x2 - y1*y2 - z1*z2
     ])
 
 
@@ -51,3 +51,5 @@ def qslerp(q1: numpy.ndarray, q2: numpy.ndarray, t: float) -> numpy.ndarray:
 
     return (s1 * q1) + (s2 * q2)
 
+def deg2rad(deg):
+    return deg / 180.0 * math.pi

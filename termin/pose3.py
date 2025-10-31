@@ -55,6 +55,12 @@ class Pose3:
         """Transform a 3D vector using the pose (ignoring translation)."""
         return qrot(self.ang, vector)
 
+    def inverse_transform_point(self, pnt):
+        return self.inverse().transform_point(pnt)
+    
+    def inverse_transform_vector(self, vec):
+        return self.inverse().transform_vector(vec)
+
     def __mul__(self, other):
         """Compose this pose with another pose."""
         if not isinstance(other, Pose3):
@@ -108,6 +114,19 @@ class Pose3:
     @staticmethod
     def moveZ(distance: float):
         return Pose3.move(0.0, 0.0, distance)
+
+    @staticmethod
+    def right(distance: float):
+        return Pose3.move(distance, 0.0, 0.0)
+
+    @staticmethod
+    def forward(distance: float):
+        return Pose3.move(0.0, distance, 0.0)
+
+    @staticmethod
+    def up(distance: float):
+        return Pose3.move(0.0, 0.0, distance)
+
 
     @staticmethod
     def lerp(pose1: 'Pose3', pose2: 'Pose3', t: float) -> 'Pose3':

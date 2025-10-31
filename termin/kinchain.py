@@ -18,6 +18,9 @@ class KinematicChain3:
         self._kinematics = [t for t in self._chain if isinstance(t, KinematicTransform3)]
         self._kinematics[0].update_kinematic_parent_recursively()
 
+    def __getitem__(self, key):
+        return self._kinematics[key]
+
     def kinunits(self) -> [KinematicTransform3]:
         """Return the list of kinematic units in the chain."""
         return self._kinematics
@@ -48,11 +51,14 @@ class KinematicChain3:
             current_coord = kinunit.get_coord()
             kinunit.set_coord(current_coord + delta)
 
-    def sensitivity_twists(self, topbody:Transform3, local_pose:Pose3, basis:Pose3=None) -> [Screw3]:
+    def sensitivity_twists(self, topbody:Transform3=None, local_pose:Pose3=Pose3.identity(), basis:Pose3=None) -> [Screw3]:
         """Return the sensitivity twists for all kinematic transforms in the chain.
         
         Если basis не задан, то используется локальная система отсчета topbody*local_pose.
         """
+
+        if topbody == None:
+            topbody = self.distal
 
         top_kinunit = KinematicTransform3.found_first_kinematic_unit_in_parent_tree(topbody, ignore_self=True)
         if top_kinunit is None:
@@ -68,7 +74,7 @@ class KinematicChain3:
 
             # Получаем собственные чувствительности текущего звена в его собственной системе координат
             lsenses = link.senses()
-            print(lsenses)
+            #print(lsenses)
 
             if top_unit_founded == False:
                 for _ in lsenses:
@@ -77,23 +83,23 @@ class KinematicChain3:
  
             # Получаем трансформацию выхода текущей пары
             linktrans = link.output.global_pose()
-
+            
             # Получаем трансформацию цели в системе текущего звена
             trsf = linktrans.inverse() * outtrans
-
+            
             # Получаем радиус-вектор в системе текущего звена
-            #radius = trsf.translation()
-
+            radius = trsf.lin
+            
             for sens in lsenses:
                 # Получаем линейную и угловую составляющие чувствительности
                 # в системе текущего звена
-                #scr = sens.kinematic_carry(radius)
+                scr = sens.kinematic_carry(radius)
 
                 # Трансформируем их в систему цели и добавляем в список
-                #senses.append((
-                #    scr.inverse_transform_by(trsf)
-                #))
-                senses.append(sens.transform_as_twist_by(trsf))
+                senses.append((
+                    scr.inverse_transform_by(trsf)
+                ))
+                #senses.append(sens.transform_as_twist_by(trsf))
             
         # Перегоняем в систему basis, если она задана
         if basis is not None:
@@ -103,29 +109,29 @@ class KinematicChain3:
 
         return senses
 
-    def sensitivity_jacobian(self, body, local, basis=None):
+    def sensitivity_jacobian(self, body=None, local=Pose3.identity(), basis=None):
         """Вернуть матрицу Якоби выхода по координатам в виде numpy массива 6xN"""
 
         sens = self.sensitivity_twists(body, local, basis)
         jacobian = numpy.zeros((6, len(sens)))
 
         for i in range(len(sens)):
-            wsens = sens[i].ang.to_array()
-            vsens = sens[i].lin.to_array()
+            wsens = sens[i].ang
+            vsens = sens[i].lin
 
             jacobian[0:3, i] = wsens
             jacobian[3:6, i] = vsens
 
         return jacobian
 
-    def translation_sensitivity_jacobian(self, body, local, basis=None):
+    def translation_sensitivity_jacobian(self, body=None, local=Pose3.identity(), basis=None):
         """Вернуть матрицу Якоби трансляции выхода по координатам в виде numpy массива 3xN"""
 
         sens = self.sensitivity_twists(body, local, basis)
         jacobian = numpy.zeros((3, len(sens)))
 
         for i in range(len(sens)):
-            vsens = sens[i].lin.to_array()
+            vsens = sens[i].lin
             jacobian[0:3, i] = vsens
 
         return jacobian
