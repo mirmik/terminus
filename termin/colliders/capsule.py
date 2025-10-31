@@ -49,3 +49,8 @@ class CapsuleCollider(Collider):
             return self.closest_to_union_collider(other)
         else:
             raise NotImplementedError(f"closest_to_collider not implemented for {type(other)}")
+
+    def distance(self, other: "Collider") -> float:
+        """Return the distance between this collider and another collider."""
+        _, _, dist = self.closest_to_collider(other)
+        return dist

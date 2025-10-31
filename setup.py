@@ -30,6 +30,7 @@ setup(
         "termin": [
             "ga201/*",
             "physics/*",
+            "colliders/*",
         ]
     },
     include_package_data=True,
