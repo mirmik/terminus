@@ -49,7 +49,7 @@ class Transform:
         self._mark_dirty()
 
     def increment_version(self, version):
-        return (version + 1) % (2**16)
+        return (version + 1) % (2**31 - 1)
 
     def _spread_changes_to_distal(self):
         self._version_for_walking_to_proximal = self.increment_version(self._version_for_walking_to_proximal)
@@ -79,7 +79,17 @@ class Transform:
             self._dirty = False
         return self._global_pose
 
+    def _has_ancestor(self, possible_ancestor):
+        current = self.parent
+        while current:
+            if current == possible_ancestor:
+                return True
+            current = current.parent
+        return False
+
     def set_parent(self, parent: 'Transform'):
+        if self._has_ancestor(parent):
+            raise ValueError("Cycle detected in Transform hierarchy")
         self._unparent()
         parent.children.append(self)
         self.parent = parent
