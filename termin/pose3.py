@@ -1,7 +1,7 @@
 import math
 import numpy
 
-from termin.util import qmul, qrot, qslerp
+from termin.util import qmul, qrot, qslerp, qinv
 
 class Pose3:
     """A 3D Pose represented by rotation quaternion and translation vector."""
@@ -71,10 +71,10 @@ class Pose3:
         return qrot(self.ang, vector)
 
     def inverse_transform_point(self, pnt):
-        return self.inverse().transform_point(pnt)
+        return qrot(qinv(self.ang), pnt - self.lin)
     
     def inverse_transform_vector(self, vec):
-        return self.inverse().transform_vector(vec)
+        return qrot(qinv(self.ang), vec)
 
     def __mul__(self, other):
         """Compose this pose with another pose."""

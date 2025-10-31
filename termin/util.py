@@ -53,3 +53,7 @@ def qslerp(q1: numpy.ndarray, q2: numpy.ndarray, t: float) -> numpy.ndarray:
 
 def deg2rad(deg):
     return deg / 180.0 * math.pi
+
+def qinv(q: numpy.ndarray) -> numpy.ndarray:
+    """Compute the inverse of a quaternion."""
+    return numpy.array([-q[0], -q[1], -q[2], q[3]])
