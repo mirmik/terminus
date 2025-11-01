@@ -10,8 +10,8 @@ class CapsuleCollider(Collider):
         self.b = b
         self.radius = radius
 
-    def transform_by(self, transform: 'Transform3'):
-        """Return a new CapsuleCollider transformed by the given Transform3."""
+    def transform_by(self, transform: 'Pose3'):
+        """Return a new CapsuleCollider transformed by the given Pose3."""
         new_a = transform.transform_point(self.a)
         new_b = transform.transform_point(self.b)
         return CapsuleCollider(new_a, new_b, self.radius)

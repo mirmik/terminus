@@ -1,7 +1,7 @@
 
 import numpy 
 from weakref import WeakKeyDictionary
-
+from termin.geomalgo.project import project_point_on_aabb, project_segment_on_aabb
 
 class AABB:
     """Axis-Aligned Bounding Box in 3D space."""
@@ -47,6 +47,16 @@ class AABB:
             [self.max_point[0], self.max_point[1], self.max_point[2], 1.0],
         ])
         return corners
+    
+    def project_point(self, point: numpy.ndarray) -> numpy.ndarray:
+        """Project a point onto the AABB is performed with clamping."""
+        return numpy.minimum(numpy.maximum(point, self.min_point), self.max_point)
+    
+    def project_segment_on_aabb(self, seg_start: numpy.ndarray, seg_end: numpy.ndarray):
+        """Project a segment onto the AABB and return the closest points and distance."""
+        return project_segment_on_aabb(seg_start, seg_end, self.min_point, self.max_point)
+        
+                                
 
 class TransformAABB:
     """AABB associated with a Transform."""

@@ -2,6 +2,7 @@
 from termin.clossest import closest_points_between_segments, closest_points_between_capsules, closest_points_between_capsule_and_sphere
 import numpy
 from termin.colliders.collider import Collider
+from termin.pose3 import Pose3
 
 
 
@@ -10,8 +11,11 @@ class SphereCollider(Collider):
         self.center = center
         self.radius = radius
 
-    def transform_by(self, transform: 'Transform3'):
-        """Return a new SphereCollider transformed by the given Transform3."""
+    def __repr__(self):
+        return f"SphereCollider(center={self.center}, radius={self.radius})"
+
+    def transform_by(self, transform: 'Pose3'):
+        """Return a new SphereCollider transformed by the given Pose3."""
         new_center = transform.transform_point(self.center)
         return SphereCollider(new_center, self.radius)
 

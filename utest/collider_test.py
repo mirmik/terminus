@@ -1,7 +1,10 @@
 from termin.colliders.capsule import CapsuleCollider
 from termin.colliders.sphere import SphereCollider
 from termin.colliders.union_collider import UnionCollider
+from termin.colliders.box import BoxCollider
 import unittest
+from termin.transform import Transform3
+from termin.colliders.attached import AttachedCollider
 import numpy
 
 class TestCollider(unittest.TestCase):
@@ -111,4 +114,77 @@ class TestCollider(unittest.TestCase):
 
         numpy.testing.assert_array_almost_equal(p_near, expected_p_near)
         numpy.testing.assert_array_almost_equal(q_near, expected_q_near)
-        
+
+    def test_closest_of_box_and_capsule(self):
+        box = BoxCollider(
+            center = numpy.array([0.0, 0.0, 0.0]),
+            size = numpy.array([2.0, 1.0, 0.5])
+        )
+        capsule = CapsuleCollider(
+            a = numpy.array([3.0, 0.0, 0.0]),
+            b = numpy.array([4.0, 0.0, 0.0]),
+            radius = 0.2
+        )
+
+        closest_box_point, closest_capsule_point, distance = box.closest_point_to_capsule(capsule)
+
+        expected_distance = 1.8
+        self.assertAlmostEqual(distance, expected_distance)
+
+        expected_closest_box_point = numpy.array([1.0, 0.0, 0.0])
+        expected_closest_capsule_point = numpy.array([2.8, 0.0, 0.0])
+
+        numpy.testing.assert_array_almost_equal(closest_box_point, expected_closest_box_point)
+        numpy.testing.assert_array_almost_equal(closest_capsule_point, expected_closest_capsule_point)
+
+class TestColliderAvoidance(unittest.TestCase):
+    def test_avoidance_vector(self):
+        sphere1 = SphereCollider(
+            center = numpy.array([0.0, 0.0, 0.0]),
+            radius = 0.5
+        )
+        sphere2 = SphereCollider(
+            center = numpy.array([6.0, 0.0, 0.0]),
+            radius = 0.5
+        )
+
+        direction, dist, closest_point = sphere1.avoidance(sphere2)
+
+        expected_direction = numpy.array([-1.0, 0.0, 0.0])
+        expected_dist = 5.0  # Distance between surfaces
+        expected_closest_point = numpy.array([0.5, 0.0, 0.0])
+
+        numpy.testing.assert_array_almost_equal(direction, expected_direction)
+        numpy.testing.assert_array_almost_equal(closest_point, expected_closest_point)
+        self.assertAlmostEqual(dist, expected_dist)
+
+class AttachedColliderTest(unittest.TestCase):
+    def test_attached_collider_distance(self):
+        box = BoxCollider(
+            center = numpy.array([0.0, 0.0, 0.0]),
+            size = numpy.array([2.0, 1.0, 0.5])
+        )
+        numpy.testing.assert_array_almost_equal(box.local_aabb().min_point, numpy.array([-1.0, -0.5, -0.25]))
+        numpy.testing.assert_array_almost_equal(box.local_aabb().max_point, numpy.array([1.0, 0.5, 0.25]))
+
+        trans = Transform3()
+        attached_box = AttachedCollider(box, trans)
+
+        sphere = SphereCollider(
+            center = numpy.array([3.0, 0.0, 0.0]),
+            radius = 0.5
+        )
+        attached_sphere = AttachedCollider(sphere, Transform3())
+        p_near, q_near, dist = attached_box.closest_to_collider(attached_sphere)
+
+        print(p_near)
+        print(q_near)
+        print(dist)
+
+        expected_distance = 1.5  # Distance between surfaces
+        expected_p_near = numpy.array([1.0, 0.0, 0.0])
+        expected_q_near = numpy.array([2.5, 0.0, 0.0])
+
+        self.assertAlmostEqual(dist, expected_distance)
+        numpy.testing.assert_array_almost_equal(p_near, expected_p_near)
+        numpy.testing.assert_array_almost_equal(q_near, expected_q_near)

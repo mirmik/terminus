@@ -83,6 +83,10 @@ class Pose3:
         q = qmul(self.ang, other.ang)
         t = self.lin + qrot(self.ang, other.lin)
         return Pose3(ang=q, lin=t)
+    
+    def compose(self, other: 'Pose3') -> 'Pose3':
+        """Compose this pose with another pose."""
+        return self * other
 
     @staticmethod
     def rotation(axis: numpy.ndarray, angle: float):
