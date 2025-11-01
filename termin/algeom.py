@@ -1,5 +1,6 @@
 """Алгебраическая геометрия: квадратичные формы, эллипсоиды, коники."""
 import numpy
+import math
 
 
 def fit_quadric(points, center=None):
@@ -529,7 +530,7 @@ def _gamma_half_integer(n):
     if n % 2 == 0:
         # n чётное: Γ(k+1) = k! для k = n/2
         k = n // 2
-        return float(numpy.math.factorial(k))
+        return float(math.factorial(k))
     else:
         # n нечётное: n = 2m + 1, n/2 + 1 = m + 1.5
         # Γ(m + 1.5) = Γ(0.5) * ∏(k + 0.5) для k = 0..m

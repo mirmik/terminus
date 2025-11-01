@@ -825,11 +825,15 @@ def is_projector(P, tol=None):
     # 3. Дополнительная проверка: сингулярные числа должны быть 0 или 1
     s = numpy.linalg.svd(P, compute_uv=False)
     
+    # Более мягкий tolerance для сингулярных чисел
+    # (SVD может давать разную точность на разных версиях NumPy/Python)
+    svd_tol = max(tol, 10 * numpy.finfo(P.dtype).eps * P_norm)
+    
     # Проверяем, что каждое сингулярное число близко либо к 0, либо к 1
     for sigma in s:
         # Расстояние до ближайшего из {0, 1}
         distance_to_binary = min(abs(sigma - 0.0), abs(sigma - 1.0))
-        if distance_to_binary > tol:
+        if distance_to_binary > svd_tol:
             return False
     
     return True
