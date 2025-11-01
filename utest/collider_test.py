@@ -177,10 +177,6 @@ class AttachedColliderTest(unittest.TestCase):
         attached_sphere = AttachedCollider(sphere, Transform3())
         p_near, q_near, dist = attached_box.closest_to_collider(attached_sphere)
 
-        print(p_near)
-        print(q_near)
-        print(dist)
-
         expected_distance = 1.5  # Distance between surfaces
         expected_p_near = numpy.array([1.0, 0.0, 0.0])
         expected_q_near = numpy.array([2.5, 0.0, 0.0])

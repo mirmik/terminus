@@ -1,5 +1,5 @@
 import numpy
-import termin.algo
+import termin.subspaces
 
 
 class SymCondition:
@@ -14,8 +14,8 @@ class SymCondition:
     def b(self):
         return self.Ah.T.dot(self.bh) * self.weight
 
-    def Nullspace(self):
-        return termin.algo.nullspace(self.Ah)
+    def NullProj(self):
+        return termin.subspaces.nullspace_projector(self.Ah)
 
 
 class ConditionCollection:

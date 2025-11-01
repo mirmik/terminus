@@ -11,12 +11,10 @@ class AttachedCollider:
         self._local_pose = local_pose
         self._collider = collider
 
-    def world_collider(self) -> Collider:
+    def transformed_collider(self) -> Collider:
         """Get the collider in world coordinates."""
         world_transform = self._transform.global_pose() * self._local_pose
-        print(self._transform.global_pose(), self._local_pose, world_transform)
         wcol = self._collider.transform_by(world_transform)
-        print("World collider:", wcol)
         return wcol
 
     def local_pose(self) -> Pose3:
@@ -29,12 +27,12 @@ class AttachedCollider:
 
     def distance(self, other: "AttachedCollider") -> float:
         """Return the distance between this attached collider and another attached collider."""
-        return self.world_collider().distance(other.world_collider())
+        return self.transformed_collider().distance(other.transformed_collider())
  
     def closest_to_collider(self, other: "AttachedCollider"):
         """Return the closest points and distance between this attached collider and another attached collider."""
-        return self.world_collider().closest_to_collider(other.world_collider())
+        return self.transformed_collider().closest_to_collider(other.transformed_collider())
 
     def avoidance(self, other: "AttachedCollider") -> numpy.ndarray:
         """Compute an avoidance vector to maintain a minimum distance from another attached collider."""
-        return self.world_collider().avoidance(other.world_collider())
+        return self.transformed_collider().avoidance(other.transformed_collider())
