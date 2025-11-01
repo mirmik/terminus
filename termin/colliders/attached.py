@@ -1,7 +1,7 @@
 
-from termin.pose3 import Pose3
+from termin.geombase import Pose3
 from termin.colliders.collider import Collider
-from termin.transform import Transform3
+from termin.kinematics import Transform3
 import numpy
 
 class AttachedCollider:

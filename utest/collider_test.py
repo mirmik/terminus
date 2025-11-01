@@ -3,9 +3,10 @@ from termin.colliders.sphere import SphereCollider
 from termin.colliders.union_collider import UnionCollider
 from termin.colliders.box import BoxCollider
 import unittest
-from termin.transform import Transform3
+from termin.kinematics import Transform3
 from termin.colliders.attached import AttachedCollider
 import numpy
+from termin.geombase import AABB
 
 class TestCollider(unittest.TestCase):
     def test_closest_to_capsule(self):

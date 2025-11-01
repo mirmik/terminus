@@ -5,7 +5,7 @@ from termin.geomalgo.project import (
     project_point_on_line
 )
 import unittest
-from termin.aabb import AABB
+from termin.geombase import AABB
 from termin.geomalgo.project import closest_of_aabb_and_capsule
 import numpy as np
 import numpy

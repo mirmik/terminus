@@ -1,6 +1,6 @@
 import math
 import numpy
-from termin.pose3 import Pose3
+from termin.geombase import Pose3
 
 class Transform:
     """A class for 3D transformations tree using Pose3."""

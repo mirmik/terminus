@@ -1,6 +1,6 @@
 import numpy
 import math
-from termin.pose3 import Pose3
+from .pose3 import Pose3
 
 class Screw:
     """A class representing a pair of vector and bivector"""

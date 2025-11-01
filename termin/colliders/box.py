@@ -1,5 +1,4 @@
-from termin.aabb import AABB 
-from termin.pose3 import Pose3
+from termin.geombase import Pose3, AABB
 import numpy
 from termin.colliders.collider import Collider
 from termin.geomalgo.project import closest_of_aabb_and_capsule, closest_of_aabb_and_sphere

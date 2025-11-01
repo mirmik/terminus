@@ -1,6 +1,5 @@
-from termin.transform import Transform3
-from termin.pose3 import Pose3
-from termin.screw import Screw3
+from .transform import Transform3
+from termin.geombase import Pose3, Screw3
 import numpy
 
 class KinematicTransform3(Transform3):

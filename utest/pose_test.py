@@ -1,5 +1,5 @@
 import unittest
-from termin.pose3 import Pose3
+from termin.geombase import Pose3
 from termin.util import deg2rad
 import numpy
 import math

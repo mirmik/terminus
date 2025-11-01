@@ -1,6 +1,5 @@
-from termin.aabb import AABB, TransformAABB
-from termin.transform import Transform
-from termin.pose3 import Pose3
+from termin.kinematics import Transform
+from termin.geombase import Pose3, AABB, TransformAABB
 import unittest
 import numpy
 

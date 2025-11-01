@@ -2,7 +2,7 @@
 from termin.clossest import closest_points_between_segments, closest_points_between_capsules, closest_points_between_capsule_and_sphere
 import numpy
 from termin.colliders.collider import Collider
-from termin.pose3 import Pose3
+from termin.geombase import Pose3
 
 
 
