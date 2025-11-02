@@ -153,3 +153,174 @@ class Pose3:
         lerped_ang = qslerp(pose1.ang, pose2.ang, t)
         lerped_lin = (1 - t) * pose1.lin + t * pose2.lin
         return Pose3(ang=lerped_ang, lin=lerped_lin)
+
+    def normalize(self):
+        """Normalize the quaternion to unit length."""
+        norm = numpy.linalg.norm(self.ang)
+        if norm > 0:
+            self.ang = self.ang / norm
+            self._rot_matrix = None
+            self._mat = None
+            self._mat34 = None
+
+    def distance(self, other: 'Pose3') -> float:
+        """Calculate Euclidean distance between the translation parts of two poses."""
+        return numpy.linalg.norm(self.lin - other.lin)
+
+    def to_axis_angle(self):
+        """Convert quaternion to axis-angle representation.
+        Returns: (axis, angle) where axis is a 3D unit vector and angle is in radians.
+        """
+        x, y, z, w = self.ang
+        angle = 2 * math.acos(numpy.clip(w, -1.0, 1.0))
+        s = math.sqrt(1 - w*w)
+        if s < 0.001:  # If angle is close to 0
+            axis = numpy.array([1.0, 0.0, 0.0])
+        else:
+            axis = numpy.array([x / s, y / s, z / s])
+        return axis, angle
+
+    @staticmethod
+    def from_axis_angle(axis: numpy.ndarray, angle: float):
+        """Create a Pose3 from axis-angle representation."""
+        return Pose3.rotation(axis, angle)
+
+    def to_euler(self, order: str = 'xyz'):
+        """Convert quaternion to Euler angles.
+        Args:
+            order: String specifying rotation order (e.g., 'xyz', 'zyx')
+        Returns:
+            numpy array of three angles in radians
+        """
+        x, y, z, w = self.ang
+        
+        if order == 'xyz':
+            # Roll (x-axis rotation)
+            sinr_cosp = 2 * (w * x + y * z)
+            cosr_cosp = 1 - 2 * (x * x + y * y)
+            roll = math.atan2(sinr_cosp, cosr_cosp)
+            
+            # Pitch (y-axis rotation)
+            sinp = 2 * (w * y - z * x)
+            sinp = numpy.clip(sinp, -1.0, 1.0)
+            pitch = math.asin(sinp)
+            
+            # Yaw (z-axis rotation)
+            siny_cosp = 2 * (w * z + x * y)
+            cosy_cosp = 1 - 2 * (y * y + z * z)
+            yaw = math.atan2(siny_cosp, cosy_cosp)
+            
+            return numpy.array([roll, pitch, yaw])
+        else:
+            raise NotImplementedError(f"Euler order '{order}' not implemented")
+
+    @staticmethod
+    def from_euler(roll: float, pitch: float, yaw: float, order: str = 'xyz'):
+        """Create a Pose3 from Euler angles.
+        Args:
+            roll, pitch, yaw: Rotation angles in radians
+            order: String specifying rotation order (default: 'xyz')
+        """
+        if order == 'xyz':
+            # Compute half angles
+            cr = math.cos(roll * 0.5)
+            sr = math.sin(roll * 0.5)
+            cp = math.cos(pitch * 0.5)
+            sp = math.sin(pitch * 0.5)
+            cy = math.cos(yaw * 0.5)
+            sy = math.sin(yaw * 0.5)
+            
+            # Compute quaternion
+            qx = sr * cp * cy - cr * sp * sy
+            qy = cr * sp * cy + sr * cp * sy
+            qz = cr * cp * sy - sr * sp * cy
+            qw = cr * cp * cy + sr * sp * sy
+            
+            return Pose3(ang=numpy.array([qx, qy, qz, qw]), lin=numpy.array([0.0, 0.0, 0.0]))
+        else:
+            raise NotImplementedError(f"Euler order '{order}' not implemented")
+
+    @staticmethod
+    def looking_at(eye: numpy.ndarray, target: numpy.ndarray, up: numpy.ndarray = numpy.array([0.0, 0.0, 1.0])):
+        """Create a pose at 'eye' position looking towards 'target'.
+        Args:
+            eye: Position of the pose
+            target: Point to look at
+            up: Up vector (default: z-axis)
+        """
+        forward = target - eye
+        forward = forward / numpy.linalg.norm(forward)
+        
+        right = numpy.cross(forward, up)
+        right = right / numpy.linalg.norm(right)
+        
+        up_corrected = numpy.cross(right, forward)
+        
+        # Build rotation matrix
+        rot_mat = numpy.column_stack([right, up_corrected, -forward])
+        
+        # Convert rotation matrix to quaternion
+        trace = numpy.trace(rot_mat)
+        if trace > 0:
+            s = 0.5 / math.sqrt(trace + 1.0)
+            qw = 0.25 / s
+            qx = (rot_mat[2, 1] - rot_mat[1, 2]) * s
+            qy = (rot_mat[0, 2] - rot_mat[2, 0]) * s
+            qz = (rot_mat[1, 0] - rot_mat[0, 1]) * s
+        else:
+            if rot_mat[0, 0] > rot_mat[1, 1] and rot_mat[0, 0] > rot_mat[2, 2]:
+                s = 2.0 * math.sqrt(1.0 + rot_mat[0, 0] - rot_mat[1, 1] - rot_mat[2, 2])
+                qw = (rot_mat[2, 1] - rot_mat[1, 2]) / s
+                qx = 0.25 * s
+                qy = (rot_mat[0, 1] + rot_mat[1, 0]) / s
+                qz = (rot_mat[0, 2] + rot_mat[2, 0]) / s
+            elif rot_mat[1, 1] > rot_mat[2, 2]:
+                s = 2.0 * math.sqrt(1.0 + rot_mat[1, 1] - rot_mat[0, 0] - rot_mat[2, 2])
+                qw = (rot_mat[0, 2] - rot_mat[2, 0]) / s
+                qx = (rot_mat[0, 1] + rot_mat[1, 0]) / s
+                qy = 0.25 * s
+                qz = (rot_mat[1, 2] + rot_mat[2, 1]) / s
+            else:
+                s = 2.0 * math.sqrt(1.0 + rot_mat[2, 2] - rot_mat[0, 0] - rot_mat[1, 1])
+                qw = (rot_mat[1, 0] - rot_mat[0, 1]) / s
+                qx = (rot_mat[0, 2] + rot_mat[2, 0]) / s
+                qy = (rot_mat[1, 2] + rot_mat[2, 1]) / s
+                qz = 0.25 * s
+        
+        return Pose3(ang=numpy.array([qx, qy, qz, qw]), lin=eye)
+
+    @property
+    def x(self):
+        """Get X coordinate of translation."""
+        return self.lin[0]
+
+    @property
+    def y(self):
+        """Get Y coordinate of translation."""
+        return self.lin[1]
+
+    @property
+    def z(self):
+        """Get Z coordinate of translation."""
+        return self.lin[2]
+
+    @x.setter
+    def x(self, value: float):
+        """Set X coordinate of translation."""
+        self.lin[0] = value
+        self._mat = None
+        self._mat34 = None
+
+    @y.setter
+    def y(self, value: float):
+        """Set Y coordinate of translation."""
+        self.lin[1] = value
+        self._mat = None
+        self._mat34 = None
+
+    @z.setter
+    def z(self, value: float):
+        """Set Z coordinate of translation."""
+        self.lin[2] = value
+        self._mat = None
+        self._mat34 = None

@@ -2,6 +2,18 @@ import numpy
 import math
 from .pose3 import Pose3
 
+def cross2d(scalar, vec):
+    """2D cross product: scalar × vector = [vy, -vx] * scalar"""
+    return scalar * numpy.array([vec[1], -vec[0]])
+
+def cross2d_scalar(vec1, vec2):
+    """2D cross product returning scalar: vec1 × vec2 = v1x*v2y - v1y*v2x"""
+    return vec1[0]*vec2[1] - vec1[1]*vec2[0]
+
+def cross2d_xz(vec, scalar):
+    """2D cross product for twist transformation: vector × scalar = [-sy, sx]"""
+    return numpy.array([-scalar * vec[1], scalar * vec[0]])
+
 class Screw:
     """A class representing a pair of vector and bivector"""
     def __init__(self, ang, lin):
@@ -19,28 +31,78 @@ class Screw:
 
 class Screw2(Screw):
     """A 2D Screw specialized for planar motions."""
-    def __init__(self, ang:float, lin: numpy.ndarray):
+    def __init__(self, ang: numpy.ndarray, lin: numpy.ndarray):
         super().__init__(ang=ang, lin=lin)
 
     def moment(self) -> float:
         """Return the moment (bivector part) of the screw."""
-        return self.ang
+        return self.ang.item() if self.ang.shape == () or self.ang.shape == (1,) else self.ang[0]
 
     def vector(self) -> numpy.ndarray:
         """Return the vector part of the screw."""
         return self.lin
 
     def kinematic_carry(self, arm: "Vector2") -> "Screw2":
-        """Carry the screw by arm. For pair of angular and linear speeds."""
+        """Twist transform. Carry the screw by arm. For pair of angular and linear speeds."""
         return Screw2(
-            lin=self.lin + self.ang * numpy.array([-arm[1], arm[0]]),
+            lin=self.lin + cross2d(self.moment(), arm),
             ang=self.ang)
 
     def force_carry(self, arm: "Vector2") -> "Screw2":
-        """Carry the screw by arm. For pair of torques and forces."""
+        """Wrench transform. Carry the screw by arm. For pair of torques and forces."""
         return Screw2(
-            ang=self.ang - (arm[0]*self.lin[1] - arm[1]*self.lin[0]),
+            ang=self.ang - numpy.array([cross2d_scalar(arm, self.lin)]),
             lin=self.lin)
+
+    def twist_carry(self, arm: "Vector2") -> "Screw2":
+        """Alias for kinematic_carry."""
+        return self.kinematic_carry(arm)
+
+    def wrench_carry(self, arm: "Vector2") -> "Screw2":
+        """Alias for force_carry."""
+        return self.force_carry(arm)
+
+    def transform_by(self, trans):
+        return Screw2(ang=self.ang, lin=trans.transform_vector(self.lin))
+
+    def inverse_transform_by(self, trans):
+        return Screw2(ang=self.ang, lin=trans.inverse_transform_vector(self.lin))
+
+    def transform_as_twist_by(self, trans):
+        rlin = trans.transform_vector(self.lin)
+        return Screw2(
+            lin=rlin + cross2d_xz(trans.lin, self.moment()),
+            ang=self.ang,
+        )
+
+    def inverse_transform_as_twist_by(self, trans):
+        return Screw2(
+            ang=self.ang,
+            lin=trans.inverse_transform_vector(self.lin - cross2d_xz(trans.lin, self.moment()))
+        )
+
+    def transform_as_wrench_by(self, trans):
+        """Transform wrench (moment + force) under SE(2) transform."""
+        return Screw2(
+            ang=self.ang + numpy.array([cross2d_scalar(trans.lin, self.lin)]),
+            lin=trans.transform_vector(self.lin)
+        )
+
+    def inverse_transform_as_wrench_by(self, trans):
+        """Inverse transform of a wrench under SE(2) transform."""
+        return Screw2(
+            ang=self.ang - numpy.array([cross2d_scalar(trans.lin, self.lin)]),
+            lin=trans.inverse_transform_vector(self.lin)
+        )
+
+    def __mul__(self, oth):
+        return Screw2(self.ang * oth, self.lin * oth)
+
+    def __add__(self, oth):
+        return Screw2(self.ang + oth.ang, self.lin + oth.lin)
+
+    def __sub__(self, oth):
+        return Screw2(self.ang - oth.ang, self.lin - oth.lin)
 
 class Screw3(Screw):
     """A 3D Screw specialized for spatial motions."""
@@ -88,9 +150,10 @@ class Screw3(Screw):
         )
 
     def transform_as_twist_by(self, trans):
+        rang = trans.transform_vector(self.ang)
         return Screw3(
-            ang = trans.transform_vector(self.ang),
-            lin = trans.transform_vector(self.lin + numpy.cross(trans.lin, self.ang))
+            ang = rang,
+            lin = trans.transform_vector(self.lin) + numpy.cross(trans.lin, rang)
         )
 
     def inverse_transform_as_twist_by(self, trans):
