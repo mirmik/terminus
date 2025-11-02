@@ -54,17 +54,21 @@ class Doll2D(Contribution):
         if base_link:
             self._collect_joints(base_link)
             variables = [var for joint in self.joints for var in joint.get_variables()]
-        
+
+        print("HERE!!!!")
+        print(variables)
+
         super().__init__(variables, assembler)
     
     def _collect_joints(self, link: 'DollLink2D'):
         """Рекурсивно собрать все звенья и шарниры из дерева."""
         if link not in self.links:
             self.links.append(link)
-        
+
+        if link.joint and link.joint not in self.joints:
+            self.joints.append(link.joint)
+
         for child in link.children:
-            if child.joint and child.joint not in self.joints:
-                self.joints.append(child.joint)
             self._collect_joints(child)
     
     def add_link(self, link: 'DollLink2D'):
@@ -228,7 +232,7 @@ class DollLink2D:
         twist: Твист точки привязки (Screw2 - винт скоростей)
     """
     
-    def __init__(self, name: str = "link", inertia: Optional['SpatialInertia2D'] = None):
+    def __init__(self, name: str = "link", inertia: 'SpatialInertia2D' = SpatialInertia2D()):
         self.name = name
         self.children: List['DollLink2D'] = []
         self.parent: Optional['DollLink2D'] = None
@@ -271,20 +275,51 @@ class DollLink2D:
     def local_wrench(self, gravity: np.ndarray) -> Screw2:
         """
         Вычислить суммарный вренч всех сил, действующих на звено.
-        
         Включает:
-        - Гравитацию
-        - Внешние приложенные силы (TODO)
-        
-        Args:
-            gravity: Вектор гравитации [м/с²]
-            
-        Returns:
-            Суммарный вренч сил на звене в точке привязки
+        - гравитацию
+        - кориолисовы и центробежные силы
+        - (в будущем) внешние силы
         """
         wrench = self.gravity_wrench(gravity)
-        # TODO: Добавить внешние силы
+
+        coriolis_wrench = self.coriolis_wrench()
+        if coriolis_wrench is not None:
+            wrench += coriolis_wrench
+
+        # TODO: добавить внешние силы
         return wrench
+
+
+    def coriolis_wrench(self) -> Optional[Screw2]:
+        """
+        Вычислить вренч кориолисовых и центробежных сил для звена.
+
+        Returns:
+            Screw2: (момент, сила) в мировой СК, либо None, если звено неподвижно
+        """
+        if not self.inertia or self.twist is None:
+            return None
+
+        ω = float(self.twist.ang.flatten()[0])
+        v = self.twist.lin
+
+        # если скорости нулевые — можно не считать
+        if abs(ω) < 1e-12 and np.linalg.norm(v) < 1e-12:
+            return None
+
+        # Центр масс в мировой СК
+        r_c = self.pose.rotation_matrix() @ self.inertia.com  # com — в локальной СК
+
+        # Скорость центра масс
+        v_c = v + ω * np.array([-r_c[1], r_c[0]])
+
+        # Кориолисовая сила
+        F_c = self.inertia.mass * ω * np.array([-v_c[1], v_c[0]])
+
+        # Момент относительно точки привязки
+        M_c = r_c[0] * F_c[1] - r_c[1] * F_c[0]
+
+        return Screw2(ang=np.array([M_c]), lin=F_c)
     
     def contribute_subtree_forces(self, gravity: np.ndarray, 
                                   b: np.ndarray, 
@@ -332,29 +367,29 @@ class DollLink2D:
     
     def contribute_subtree_inertia(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
-        Рекурсивно добавить вклад в матрицу масс от поддерева.
-        
-        Для каждого звена вычисляем якобиан относительно всех переменных
-        и добавляем J^T · M_body · J в глобальную матрицу.
-        
-        Args:
-            A: Матрица масс
-            index_map: Отображение переменных на индексы
+        Рекурсивно собрать spatial inertia от поддерева, проецировать на переменные.
+        Алгоритм:
+        1. Собрать spatial inertia от детей, трансформировать к текущему звену
+        2. Суммировать с собственной инерцией
+        3. Проецировать итоговую spatial inertia на переменные звена (через якобиан)
+        4. Рекурсивно пройти по дереву
         """
-        # TODO: Вычислить якобиан звена относительно всех переменных
-        # TODO: Добавить J^T · M_body · J в матрицу A
-        
-        # Пока упрощённо - только для вращательных шарниров
-        if self.joint and self.inertia:
-            variables = self.joint.get_variables()
-            if len(variables) > 0:
-                idx = index_map[variables[0]][0]
-                # Упрощённо: момент инерции как диагональный элемент
-                A[idx, idx] += self.inertia.inertia
-        
-        # Рекурсивно обрабатываем детей
+        # 1. Собираем spatial inertia от детей
+        subtree_inertia = SpatialInertia2D(0.0, 0.0, np.zeros(2))
         for child in self.children:
-            child.contribute_subtree_inertia(A, index_map)
+            child_inertia = child.contribute_subtree_inertia(A, index_map)
+            child_inertia = child_inertia.transform_by(child.joint.child_pose_in_joint)
+            subtree_inertia = subtree_inertia + child_inertia
+
+        # 2. Суммируем с собственной инерцией
+        total_inertia = subtree_inertia + self.inertia
+
+        # 3. Проецируем через шарнир (если есть)
+        if self.joint:
+            self.joint.project_inertia(total_inertia, A, index_map)
+
+        # 4. Возвращаем spatial inertia поддерева для родителя
+        return total_inertia
     
     def __repr__(self):
         return f"DollLink2D({self.name})"
@@ -413,6 +448,35 @@ class DollRotatorJoint2D(DollJoint2D):
         idx = index_map[self.omega][0]
         # Обобщенная сила для вращательного шарнира = момент
         b[idx] += wrench.moment()
+
+    def project_inertia(self, inertia: 'SpatialInertia2D',
+                    A: np.ndarray,
+                    index_map: Dict[Variable, List[int]]):
+        """
+        Проецировать spatial inertia на матрицу масс через вращательный DOF.
+        Эквивалентно вычислению M_ii = Sᵀ I S, где S — ось вращения.
+        """
+        vars = self.get_variables()
+        if not vars:
+            return
+        
+        idx = index_map[vars[0]][0]
+
+        # Вращения в локальной СК шарнира в плоскости xy
+        S = np.array([1.0, 0.0, 0.0])  # [ω, vx, vy]
+
+        # Преобразуем ось в систему родителя
+        R = self.joint_pose_in_parent.rotation_matrix()
+        S_world = np.array([S[0], *(R @ S[1:])])  # [ω, vx, vy]
+
+        # Spatial inertia в матричном виде
+        I = inertia.to_matrix()  # 3x3
+
+        # M_ii = Sᵀ I S
+        Mjj = float(S_world @ (I @ S_world))
+
+        # Записываем в глобальную матрицу масс
+        A[idx, idx] += Mjj
     
     def inverse_transform_wrench(self, wrench: Screw2) -> Screw2:
         """

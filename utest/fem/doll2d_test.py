@@ -289,6 +289,64 @@ class TestDoll2DRepr(unittest.TestCase):
         self.assertIn("1.5", repr_str)  # angle
         self.assertIn("2.5", repr_str)  # omega
 
+class TestDoll2DDPendulum(unittest.TestCase):
+    """Тесты для двойного маятника Doll2D"""
+    def test_doll2d_dpendulum_test(self):
+        assembler = MatrixAssembler()
+
+        # === Параметры звеньев ===
+        m1, m2 = 1.0, 1.0       # массы звеньев
+        I1, I2 = 0.05, 0.05     # моменты инерции
+        L1, L2 = 1.0, 1.0       # длины звеньев
+
+        # === Инерции звеньев (ЦМ в середине звена) ===
+        link1_inertia = SpatialInertia2D(m1, I1, np.array([0.0, -L1/2]))
+        link2_inertia = SpatialInertia2D(m2, I2, np.array([0.0, -L2/2]))
+
+        # === Создаём звенья ===
+        link1 = DollLink2D("link1", inertia=link1_inertia)
+        link2 = DollLink2D("link2", inertia=link2_inertia)
+
+        # === Создаём шарниры ===
+        # Первый — крепит звено 1 к земле
+        joint1 = DollRotatorJoint2D(
+            name="joint1",
+            joint_pose_in_parent=Pose2.identity(),  # на оси вращения в начале координат
+            child_pose_in_joint=Pose2.translation(0.0, L1/2),
+            assembler=assembler
+        )
+
+        # Второй — соединяет звенья 1 и 2
+        joint2 = DollRotatorJoint2D(
+            name="joint2",
+            joint_pose_in_parent=Pose2.translation(0.0, -L1/2),
+            child_pose_in_joint=Pose2.translation(0.0, L2/2),
+            assembler=assembler
+        )
+
+        # === Соединяем звенья ===
+        link1.joint = joint1  # фиктивная связь к земле
+        joint1.child_link = link1
+        link1.add_child(link2, joint2)
+
+        # Базовое звено маятника — первое, прикреплено к "земле"
+        system = Doll2D(base_link=link1, assembler=assembler)
+
+        # === Начальные углы ===
+        joint1.angle = np.deg2rad(30)
+        joint2.angle = np.deg2rad(-20)
+
+        # === Угловые скорости ===
+        joint1.omega.set_value([0.0])
+        joint2.omega.set_value([0.0])
+
+        # === Обновляем кинематику ===
+        system.update_kinematics()
+
+        # === Собираем матрицу масс и вектор сил ===
+        A, b = assembler.assemble()
+
+
 
 if __name__ == '__main__':
     unittest.main()

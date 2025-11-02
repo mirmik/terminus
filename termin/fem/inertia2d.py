@@ -23,12 +23,9 @@ class SpatialInertia2D:
     inertia_com: момент инерции относительно центра масс
     com: 2-вектор центра масс в локальной системе
     """
-    def __init__(self, mass: float, inertia: float, com: np.ndarray = None):
+    def __init__(self, mass: float= 0.0, inertia: float= 0.0, com: np.ndarray = np.zeros(2)):
         self.m = float(mass)
-        if com is None:
-            self.c = np.zeros(2)
-        else:
-            self.c = np.asarray(com).reshape(2)
+        self.c = np.asarray(com).reshape(2)
         self.I_com = float(inertia)
         
         self.inertia = self.I_com
