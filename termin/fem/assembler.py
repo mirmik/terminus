@@ -10,6 +10,7 @@
 
 import numpy as np
 from typing import List, Dict, Tuple, Optional
+import numpy
 
 
 class Variable:
@@ -32,8 +33,13 @@ class Variable:
         self.name = name
         self.size = size
         self.global_indices = []  # будет заполнено при сборке
-        self.value = None  # будет заполнено после решения системы
+        self.value = numpy.zeros(size) # текущее значение переменной (обновляется после решения)
+        self._assembler = None  # ссылка на assembler, в котором зарегистрирована переменная
         
+    def set_value(self, value: np.ndarray):
+        """Установить текущее значение переменной"""
+        self.value = np.array(value)
+
     def __repr__(self):
         return f"Variable({self.name}, size={self.size})"
 
@@ -50,9 +56,15 @@ class Contribution:
     - Уравнение связи между переменными
     """
     
+    def __init__(self, variables: List[Variable], assembler=None):
+        self.variables = variables
+        self._assembler = assembler  # ссылка на assembler, в котором зарегистрирован вклад
+        if assembler is not None:
+            assembler.add_contribution(self)
+
     def get_variables(self) -> List[Variable]:
         """Возвращает список переменных, которые затрагивает этот вклад"""
-        raise NotImplementedError
+        return self.variables
     
     def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
@@ -92,10 +104,16 @@ class Constraint:
     - Кинематические ограничения
     """
     
+    def __init__(self, variables: List[Variable], assembler=None):
+        self.variables = variables
+        self._assembler = assembler  # ссылка на assembler, в котором зарегистрирована связь
+        if assembler is not None:
+            assembler.add_constraint(self)
+
     def get_variables(self) -> List[Variable]:
         """Возвращает список переменных, участвующих в связи"""
-        raise NotImplementedError
-    
+        return self.variables
+
     def get_n_constraints(self) -> int:
         """Возвращает количество уравнений связи"""
         raise NotImplementedError
@@ -150,8 +168,22 @@ class MatrixAssembler:
             Созданная переменная
         """
         var = Variable(name, size)
+        var._assembler = self  # регистрируем assembler
         self.variables.append(var)
         return var
+    
+    def _register_variable(self, var: Variable):
+        """
+        Зарегистрировать переменную в assembler, если она еще не зарегистрирована
+        
+        Args:
+            var: Переменная для регистрации
+        """
+        if var._assembler is None:
+            var._assembler = self
+            self.variables.append(var)
+        elif var._assembler is not self:
+            raise ValueError(f"Переменная {var.name} уже зарегистрирована в другом assembler")
     
     def add_contribution(self, contribution: Contribution):
         """
@@ -160,7 +192,26 @@ class MatrixAssembler:
         Args:
             contribution: Вклад (уравнение, граничное условие, и т.д.)
         """
+        # Проверяем и регистрируем все переменные, используемые вкладом
+        for var in contribution.get_variables():
+            self._register_variable(var)
+        
+        contribution._assembler = self  # регистрируем assembler
         self.contributions.append(contribution)
+    
+    def add_constraint(self, constraint: Constraint):
+        """
+        Добавить связь в систему
+        
+        Args:
+            constraint: Связь (кинематическое ограничение, и т.д.)
+        """
+        # Проверяем и регистрируем все переменные, используемые связью
+        for var in constraint.get_variables():
+            self._register_variable(var)
+        
+        constraint._assembler = self  # регистрируем assembler
+        self.constraints.append(constraint)
     
     def _build_index_map(self) -> Dict[Variable, List[int]]:
         """

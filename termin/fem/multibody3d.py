@@ -49,21 +49,20 @@ class RotationalInertia3D(Contribution):
                  J: np.ndarray,                        # тензор инерции [кг·м²]
                  B: Union[float, np.ndarray] = 0.0,    # демпфирование [Н·м·с]
                  dt: float = None,                     # шаг по времени [с]
-                 omega_old: np.ndarray = None,         # скорость на предыдущем шаге
-                 include_gyroscopic: bool = False):    # учитывать гироскопический момент
+                 include_gyroscopic: bool = False,     # учитывать гироскопический момент
+                 assembler=None):                      # ассемблер для автоматической регистрации
         """
         Args:
             omega: Переменная угловой скорости (размер 3)
             J: Тензор инерции (3×3 матрица) [кг·м²]
             B: Коэффициент демпфирования (скаляр или 3×3 матрица) [Н·м·с]
             dt: Шаг по времени [с]
-            omega_old: Угловая скорость на предыдущем шаге [рад/с]
             include_gyroscopic: Учитывать гироскопический момент ω × (J*ω)
+            assembler: MatrixAssembler для автоматической регистрации переменных
         """
         if omega.size != 3:
             raise ValueError("omega должна быть вектором размера 3")
         
-        self.omega = omega
         self.J = np.asarray(J)
         if self.J.shape != (3, 3):
             raise ValueError("J должен быть матрицей 3×3")
@@ -80,20 +79,17 @@ class RotationalInertia3D(Contribution):
             if self.B.shape != (3, 3):
                 raise ValueError("B должен быть скаляром или матрицей 3×3")
         
+        if dt is not None and dt <= 0:
+            raise ValueError("Шаг по времени должен быть положительным")
+        
+        super().__init__([omega], assembler)
+        
+        self.omega = omega
         self.dt = dt
         self.include_gyroscopic = include_gyroscopic
         
-        if omega_old is None:
-            self.omega_old = np.zeros(3)
-        else:
-            self.omega_old = np.asarray(omega_old)
-            if self.omega_old.shape != (3,):
-                raise ValueError("omega_old должен быть вектором размера 3")
-        
         # Эффективная матрица для неявной схемы
         if dt is not None:
-            if dt <= 0:
-                raise ValueError("Шаг по времени должен быть положительным")
             # (J/dt + B)*ω_new = J/dt*ω_old + τ
             self.M_eff = self.J / dt + self.B
         else:
@@ -101,9 +97,6 @@ class RotationalInertia3D(Contribution):
             self.M_eff = self.B.copy()
             if np.allclose(self.M_eff, 0):
                 self.M_eff = np.eye(3) * 1e-10  # малое число для стабильности
-    
-    def get_variables(self) -> List[Variable]:
-        return [self.omega]
     
     def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
@@ -123,7 +116,7 @@ class RotationalInertia3D(Contribution):
         
         indices = index_map[self.omega]
         # Инерционный член: J/dt * ω_old
-        inertia_term = (self.J / self.dt) @ self.omega_old
+        inertia_term = (self.J / self.dt) @ self.omega.value
         
         for i in range(3):
             b[indices[i]] += inertia_term[i]
@@ -131,15 +124,9 @@ class RotationalInertia3D(Contribution):
         # Гироскопический момент: -ω × (J*ω)
         # Примечание: это нелинейный член, здесь используется линеаризация
         if self.include_gyroscopic:
-            gyro_term = -np.cross(self.omega_old, self.J @ self.omega_old)
+            gyro_term = -np.cross(self.omega.value, self.J @ self.omega.value)
             for i in range(3):
                 b[indices[i]] += gyro_term[i]
-    
-    def update_state(self, omega_new: np.ndarray):
-        """
-        Обновить состояние после шага по времени
-        """
-        self.omega_old = np.asarray(omega_new).copy()
     
     def get_kinetic_energy(self, omega: np.ndarray = None) -> float:
         """
@@ -149,7 +136,7 @@ class RotationalInertia3D(Contribution):
             E_rot = (1/2) * ω^T * J * ω [Дж]
         """
         if omega is None:
-            omega = self.omega_old
+            omega = self.omega.value
         omega = np.asarray(omega)
         return 0.5 * omega @ self.J @ omega
     
@@ -161,7 +148,7 @@ class RotationalInertia3D(Contribution):
             L = J * ω [кг·м²/с]
         """
         if omega is None:
-            omega = self.omega_old
+            omega = self.omega.value
         return self.J @ omega
 
 
@@ -170,22 +157,23 @@ class TorqueVector3D(Contribution):
     Векторный момент, приложенный к вращающемуся телу (3D).
     """
     
-    def __init__(self, omega: Variable, torque: np.ndarray):
+    def __init__(self, omega: Variable, torque: np.ndarray, assembler=None):
         """
         Args:
             omega: Переменная угловой скорости (размер 3)
             torque: Приложенный момент [τx, τy, τz] [Н·м]
+            assembler: MatrixAssembler для автоматической регистрации переменных
         """
         if omega.size != 3:
             raise ValueError("omega должна быть вектором размера 3")
         
-        self.omega = omega
         self.torque = np.asarray(torque)
         if self.torque.shape != (3,):
             raise ValueError("torque должен быть вектором размера 3")
-    
-    def get_variables(self) -> List[Variable]:
-        return [self.omega]
+        
+        super().__init__([omega], assembler)
+        
+        self.omega = omega
     
     def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         pass
@@ -223,23 +211,20 @@ class LinearMass3D(Contribution):
                  m: float,                     # масса [кг]
                  C: Union[float, np.ndarray] = 0.0,  # демпфирование [Н·с/м]
                  dt: float = None,             # шаг по времени [с]
-                 v_old: np.ndarray = None):    # скорость на предыдущем шаге
+                 assembler=None):              # ассемблер для автоматической регистрации
         """
         Args:
             velocity: Переменная скорости (размер 3)
             m: Масса [кг]
             C: Коэффициент демпфирования (скаляр или 3×3 матрица) [Н·с/м]
             dt: Шаг по времени [с]
-            v_old: Скорость на предыдущем шаге [м/с]
+            assembler: MatrixAssembler для автоматической регистрации переменных
         """
         if velocity.size != 3:
             raise ValueError("velocity должна быть вектором размера 3")
         
         if m <= 0:
             raise ValueError("Масса должна быть положительной")
-        
-        self.velocity = velocity
-        self.m = m
         
         # Демпфирование
         if np.isscalar(C):
@@ -249,27 +234,22 @@ class LinearMass3D(Contribution):
             if self.C.shape != (3, 3):
                 raise ValueError("C должен быть скаляром или матрицей 3×3")
         
-        self.dt = dt
+        if dt is not None and dt <= 0:
+            raise ValueError("Шаг по времени должен быть положительным")
         
-        if v_old is None:
-            self.v_old = np.zeros(3)
-        else:
-            self.v_old = np.asarray(v_old)
-            if self.v_old.shape != (3,):
-                raise ValueError("v_old должен быть вектором размера 3")
+        super().__init__([velocity], assembler)
+        
+        self.velocity = velocity
+        self.m = m
+        self.dt = dt
         
         # Эффективная матрица
         if dt is not None:
-            if dt <= 0:
-                raise ValueError("Шаг по времени должен быть положительным")
             self.M_eff = (m / dt) * np.eye(3) + self.C
         else:
             self.M_eff = self.C.copy()
             if np.allclose(self.M_eff, 0):
                 self.M_eff = np.eye(3) * 1e-10
-    
-    def get_variables(self) -> List[Variable]:
-        return [self.velocity]
     
     def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         indices = index_map[self.velocity]
@@ -282,16 +262,10 @@ class LinearMass3D(Contribution):
             return
         
         indices = index_map[self.velocity]
-        inertia_term = (self.m / self.dt) * self.v_old
+        inertia_term = (self.m / self.dt) * self.velocity.value
         
         for i in range(3):
             b[indices[i]] += inertia_term[i]
-    
-    def update_state(self, v_new: np.ndarray):
-        """
-        Обновить состояние после шага по времени
-        """
-        self.v_old = np.asarray(v_new).copy()
     
     def get_kinetic_energy(self, v: np.ndarray = None) -> float:
         """
@@ -301,7 +275,7 @@ class LinearMass3D(Contribution):
             E = (1/2) * m * v² [Дж]
         """
         if v is None:
-            v = self.v_old
+            v = self.velocity.value
         v = np.asarray(v)
         return 0.5 * self.m * np.dot(v, v)
     
@@ -313,7 +287,7 @@ class LinearMass3D(Contribution):
             p = m * v [кг·м/с]
         """
         if v is None:
-            v = self.v_old
+            v = self.velocity.value
         return self.m * np.asarray(v)
 
 
@@ -334,9 +308,8 @@ class RigidBody3D(Contribution):
                  C: Union[float, np.ndarray] = 0.0,    # линейное демпфирование [Н·с/м]
                  B: Union[float, np.ndarray] = 0.0,    # угловое демпфирование [Н·м·с]
                  dt: float = None,                     # шаг по времени [с]
-                 v_old: np.ndarray = None,             # [vx, vy, vz] старая
-                 omega_old: np.ndarray = None,         # [ωx, ωy, ωz] старая
-                 include_gyroscopic: bool = False):    # учитывать гироскопический момент
+                 include_gyroscopic: bool = False,     # учитывать гироскопический момент
+                 assembler=None):                      # ассемблер для автоматической регистрации
         """
         Args:
             velocity: Переменная линейной скорости (размер 3)
@@ -346,9 +319,8 @@ class RigidBody3D(Contribution):
             C: Коэффициент линейного демпфирования [Н·с/м]
             B: Коэффициент углового демпфирования [Н·м·с]
             dt: Шаг по времени [с]
-            v_old: Скорость на предыдущем шаге
-            omega_old: Угловая скорость на предыдущем шаге
             include_gyroscopic: Учитывать гироскопический момент
+            assembler: MatrixAssembler для автоматической регистрации переменных
         """
         if velocity.size != 3:
             raise ValueError("velocity должна быть вектором размера 3")
@@ -359,16 +331,15 @@ class RigidBody3D(Contribution):
         if m <= 0:
             raise ValueError("Масса должна быть положительной")
         
+        super().__init__([velocity, omega], assembler)
+        
         self.velocity = velocity
         self.omega = omega
         self.m = m
         
         # Создаем внутренние элементы
-        self.mass = LinearMass3D(velocity, m, C, dt, v_old)
-        self.inertia = RotationalInertia3D(omega, J, B, dt, omega_old, include_gyroscopic)
-    
-    def get_variables(self) -> List[Variable]:
-        return [self.velocity, self.omega]
+        self.mass = LinearMass3D(velocity, m, C, dt)
+        self.inertia = RotationalInertia3D(omega, J, B, dt, include_gyroscopic)
     
     def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         self.mass.contribute_to_A(A, index_map)
@@ -377,13 +348,6 @@ class RigidBody3D(Contribution):
     def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
         self.mass.contribute_to_b(b, index_map)
         self.inertia.contribute_to_b(b, index_map)
-    
-    def update_state(self, v_new: np.ndarray, omega_new: np.ndarray):
-        """
-        Обновить состояние после шага по времени
-        """
-        self.mass.update_state(v_new)
-        self.inertia.update_state(omega_new)
     
     def get_kinetic_energy(self, v: np.ndarray = None, omega: np.ndarray = None) -> float:
         """
@@ -414,22 +378,23 @@ class ForceVector3D(Contribution):
     Векторная сила, приложенная к телу (3D).
     """
     
-    def __init__(self, velocity: Variable, force: np.ndarray):
+    def __init__(self, velocity: Variable, force: np.ndarray, assembler=None):
         """
         Args:
             velocity: Переменная скорости (размер 3)
             force: Приложенная сила [Fx, Fy, Fz] [Н]
+            assembler: MatrixAssembler для автоматической регистрации переменных
         """
         if velocity.size != 3:
             raise ValueError("velocity должна быть вектором размера 3")
         
-        self.velocity = velocity
         self.force = np.asarray(force)
         if self.force.shape != (3,):
             raise ValueError("force должна быть вектором размера 3")
-    
-    def get_variables(self) -> List[Variable]:
-        return [self.velocity]
+        
+        super().__init__([velocity], assembler)
+        
+        self.velocity = velocity
     
     def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         pass
@@ -472,12 +437,14 @@ class SphericalJoint3D(Constraint):
     def __init__(self,
                  velocity: Variable,
                  omega: Variable,
-                 r: np.ndarray):
+                 r: np.ndarray,
+                 assembler=None):
         """
         Args:
             velocity: Переменная скорости центра масс (размер 3)
             omega: Переменная угловой скорости (размер 3)
             r: Вектор от ЦМ к точке шарнира [rx, ry, rz] [м]
+            assembler: MatrixAssembler для автоматической регистрации переменных
         """
         if velocity.size != 3:
             raise ValueError("velocity должна быть вектором размера 3")
@@ -485,12 +452,15 @@ class SphericalJoint3D(Constraint):
         if omega.size != 3:
             raise ValueError("omega должна быть вектором размера 3")
         
-        self.velocity = velocity
-        self.omega = omega
         self.r = np.asarray(r)
         
         if self.r.shape != (3,):
             raise ValueError("r должен быть вектором размера 3")
+        
+        super().__init__([velocity, omega], assembler)
+        
+        self.velocity = velocity
+        self.omega = omega
         
         # Матрица кососимметрическая для векторного произведения: ω × r
         # ω × r = -r × ω = -[r]_× * ω
@@ -506,9 +476,6 @@ class SphericalJoint3D(Constraint):
         ])
         # Берем с обратным знаком: ω × r = -[r]_× * ω
         self.r_skew = -r_skew_standard
-    
-    def get_variables(self) -> List[Variable]:
-        return [self.velocity, self.omega]
     
     def get_n_constraints(self) -> int:
         """Три уравнения связи (vx, vy, vz)"""
@@ -553,16 +520,15 @@ class FixedPoint3D(Constraint):
     Фиксация точки в пространстве (v = target).
     """
     
-    def __init__(self, velocity: Variable, target: np.ndarray = None):
+    def __init__(self, velocity: Variable, target: np.ndarray = None, assembler=None):
         """
         Args:
             velocity: Переменная скорости (размер 3)
             target: Целевая скорость [vx, vy, vz] (по умолчанию [0, 0, 0])
+            assembler: MatrixAssembler для автоматической регистрации переменных
         """
         if velocity.size != 3:
             raise ValueError("velocity должна быть вектором размера 3")
-        
-        self.velocity = velocity
         
         if target is None:
             self.target = np.zeros(3)
@@ -570,9 +536,10 @@ class FixedPoint3D(Constraint):
             self.target = np.asarray(target)
             if self.target.shape != (3,):
                 raise ValueError("target должен быть вектором размера 3")
-    
-    def get_variables(self) -> List[Variable]:
-        return [self.velocity]
+        
+        super().__init__([velocity], assembler)
+        
+        self.velocity = velocity
     
     def get_n_constraints(self) -> int:
         """Три уравнения связи"""
@@ -600,16 +567,15 @@ class FixedRotation3D(Constraint):
     Фиксация вращения (ω = target).
     """
     
-    def __init__(self, omega: Variable, target: np.ndarray = None):
+    def __init__(self, omega: Variable, target: np.ndarray = None, assembler=None):
         """
         Args:
             omega: Переменная угловой скорости (размер 3)
             target: Целевая угловая скорость [ωx, ωy, ωz] (по умолчанию [0, 0, 0])
+            assembler: MatrixAssembler для автоматической регистрации переменных
         """
         if omega.size != 3:
             raise ValueError("omega должна быть вектором размера 3")
-        
-        self.omega = omega
         
         if target is None:
             self.target = np.zeros(3)
@@ -617,9 +583,10 @@ class FixedRotation3D(Constraint):
             self.target = np.asarray(target)
             if self.target.shape != (3,):
                 raise ValueError("target должен быть вектором размера 3")
-    
-    def get_variables(self) -> List[Variable]:
-        return [self.omega]
+        
+        super().__init__([omega], assembler)
+        
+        self.omega = omega
     
     def get_n_constraints(self) -> int:
         """Три уравнения связи"""

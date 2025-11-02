@@ -38,18 +38,22 @@ class Resistor(Contribution):
     def __init__(self, 
                  node1: Variable,  # потенциал узла 1
                  node2: Variable,  # потенциал узла 2
-                 R: float):        # сопротивление [Ом]
+                 R: float,         # сопротивление [Ом]
+                 assembler=None):  # ассемблер для автоматической регистрации
         """
         Args:
             node1: Переменная потенциала первого узла (скаляр)
             node2: Переменная потенциала второго узла (скаляр)
             R: Сопротивление [Ом]
+            assembler: MatrixAssembler для автоматической регистрации переменных
         """
         if node1.size != 1 or node2.size != 1:
             raise ValueError("Узлы должны быть скалярами (потенциалы)")
         
         if R <= 0:
             raise ValueError("Сопротивление должно быть положительным")
+        
+        super().__init__([node1, node2], assembler)
         
         self.node1 = node1
         self.node2 = node2
@@ -65,9 +69,6 @@ class Resistor(Contribution):
             [ 1, -1],
             [-1,  1]
         ])
-    
-    def get_variables(self) -> List[Variable]:
-        return [self.node1, self.node2]
     
     def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
@@ -139,7 +140,8 @@ class Capacitor(Contribution):
                  node2: Variable,
                  C: float,           # емкость [Ф]
                  dt: float = None,   # шаг по времени [с]
-                 V_old: float = 0.0): # напряжение на предыдущем шаге
+                 V_old: float = 0.0, # напряжение на предыдущем шаге
+                 assembler=None):    # ассемблер для автоматической регистрации
         """
         Args:
             node1: Переменная потенциала первого узла
@@ -147,12 +149,15 @@ class Capacitor(Contribution):
             C: Емкость [Ф]
             dt: Шаг по времени для динамического анализа [с] (None для статики)
             V_old: Напряжение на конденсаторе на предыдущем шаге [В]
+            assembler: MatrixAssembler для автоматической регистрации переменных
         """
         if node1.size != 1 or node2.size != 1:
             raise ValueError("Узлы должны быть скалярами")
         
         if C <= 0:
             raise ValueError("Емкость должна быть положительной")
+        
+        super().__init__([node1, node2], assembler)
         
         self.node1 = node1
         self.node2 = node2
@@ -167,9 +172,6 @@ class Capacitor(Contribution):
             self.G_eff = C / dt
         else:
             self.G_eff = 0  # В статике конденсатор = разрыв
-    
-    def get_variables(self) -> List[Variable]:
-        return [self.node1, self.node2]
     
     def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
@@ -254,7 +256,8 @@ class Inductor(Contribution):
                  node2: Variable,
                  L: float,           # индуктивность [Гн]
                  dt: float = None,   # шаг по времени [с]
-                 I_old: float = 0.0): # ток на предыдущем шаге
+                 I_old: float = 0.0, # ток на предыдущем шаге
+                 assembler=None):    # ассемблер для автоматической регистрации
         """
         Args:
             node1: Переменная потенциала первого узла
@@ -262,12 +265,15 @@ class Inductor(Contribution):
             L: Индуктивность [Гн]
             dt: Шаг по времени для динамического анализа [с]
             I_old: Ток через катушку на предыдущем шаге [А]
+            assembler: MatrixAssembler для автоматической регистрации переменных
         """
         if node1.size != 1 or node2.size != 1:
             raise ValueError("Узлы должны быть скалярами")
         
         if L <= 0:
             raise ValueError("Индуктивность должна быть положительной")
+        
+        super().__init__([node1, node2], assembler)
         
         self.node1 = node1
         self.node2 = node2
@@ -282,9 +288,6 @@ class Inductor(Contribution):
             self.G_eff = dt / L  # эффективная проводимость
         else:
             self.G_eff = float('inf')  # В статике катушка = короткое замыкание
-    
-    def get_variables(self) -> List[Variable]:
-        return [self.node1, self.node2]
     
     def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
@@ -367,15 +370,19 @@ class VoltageSource(Contribution):
     def __init__(self,
                  node1: Variable,  # положительный полюс
                  node2: Variable,  # отрицательный полюс (может быть земля)
-                 V: float):        # напряжение [В]
+                 V: float,         # напряжение [В]
+                 assembler=None):  # ассемблер для автоматической регистрации
         """
         Args:
             node1: Переменная потенциала положительного узла
             node2: Переменная потенциала отрицательного узла
             V: Напряжение источника [В] (V1 - V2 = V)
+            assembler: MatrixAssembler для автоматической регистрации переменных
         """
         if node1.size != 1 or node2.size != 1:
             raise ValueError("Узлы должны быть скалярами")
+        
+        super().__init__([node1, node2], assembler)
         
         self.node1 = node1
         self.node2 = node2
@@ -383,9 +390,6 @@ class VoltageSource(Contribution):
         
         # Большое число для численной реализации ограничения
         self.G_big = 1e10
-    
-    def get_variables(self) -> List[Variable]:
-        return [self.node1, self.node2]
     
     def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
@@ -439,22 +443,23 @@ class CurrentSource(Contribution):
     def __init__(self,
                  node1: Variable,  # узел, куда втекает ток
                  node2: Variable,  # узел, откуда вытекает ток
-                 I: float):        # ток [А]
+                 I: float,         # ток [А]
+                 assembler=None):  # ассемблер для автоматической регистрации
         """
         Args:
             node1: Переменная потенциала узла, в который втекает ток
             node2: Переменная потенциала узла, из которого вытекает ток
             I: Ток источника [А] (положительный = от node2 к node1)
+            assembler: MatrixAssembler для автоматической регистрации переменных
         """
         if node1.size != 1 or node2.size != 1:
             raise ValueError("Узлы должны быть скалярами")
         
+        super().__init__([node1, node2], assembler)
+        
         self.node1 = node1
         self.node2 = node2
         self.I = I
-    
-    def get_variables(self) -> List[Variable]:
-        return [self.node1, self.node2]
     
     def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
@@ -500,19 +505,19 @@ class Ground(Contribution):
     Это граничное условие, аналогичное закреплению в механике.
     """
     
-    def __init__(self, node: Variable):
+    def __init__(self, node: Variable, assembler=None):
         """
         Args:
             node: Переменная потенциала узла, который заземляется
+            assembler: MatrixAssembler для автоматической регистрации переменных
         """
         if node.size != 1:
             raise ValueError("Узел должен быть скаляром")
         
+        super().__init__([node], assembler)
+        
         self.node = node
         self.G_big = 1e10  # Большое число для реализации ограничения
-    
-    def get_variables(self) -> List[Variable]:
-        return [self.node]
     
     def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """

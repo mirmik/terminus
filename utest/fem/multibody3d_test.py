@@ -57,8 +57,9 @@ class TestRotationalInertia3D(unittest.TestCase):
         # Сборка системы
         assembler = MatrixAssembler()
         omega = assembler.add_variable("omega", size=3)
+        omega.set_value(omega_old)
         
-        inertia = RotationalInertia3D(omega, J, B=B, dt=dt, omega_old=omega_old)
+        inertia = RotationalInertia3D(omega, J, B=B, dt=dt)
         assembler.add_contribution(inertia)
         
         # Решение
@@ -79,7 +80,8 @@ class TestRotationalInertia3D(unittest.TestCase):
         
         assembler = MatrixAssembler()
         omega = assembler.add_variable("omega", size=3)
-        inertia = RotationalInertia3D(omega, J, dt=0.01, omega_old=omega_vec)
+        omega.set_value(omega_vec)
+        inertia = RotationalInertia3D(omega, J, dt=0.01)
         
         # E = (1/2) * ω^T * J * ω
         expected_energy = 0.5 * omega_vec @ J @ omega_vec
@@ -140,8 +142,9 @@ class TestLinearMass3D(unittest.TestCase):
         # Сборка системы
         assembler = MatrixAssembler()
         v = assembler.add_variable("v", size=3)
+        v.set_value(v_old)
         
-        mass = LinearMass3D(v, m, C=C, dt=dt, v_old=v_old)
+        mass = LinearMass3D(v, m, C=C, dt=dt)
         assembler.add_contribution(mass)
         
         # Решение
@@ -164,7 +167,8 @@ class TestLinearMass3D(unittest.TestCase):
         
         assembler = MatrixAssembler()
         v = assembler.add_variable("v", size=3)
-        mass = LinearMass3D(v, m, dt=0.01, v_old=v_vec)
+        v.set_value(v_vec)
+        mass = LinearMass3D(v, m, dt=0.01)
         
         # E = (1/2) * m * v²
         expected_energy = 0.5 * m * np.dot(v_vec, v_vec)
@@ -215,9 +219,10 @@ class TestRigidBody3D(unittest.TestCase):
         assembler = MatrixAssembler()
         v = assembler.add_variable("v", size=3)
         omega = assembler.add_variable("omega", size=3)
+        v.set_value(v_vec)
+        omega.set_value(omega_vec)
         
-        body = RigidBody3D(v, omega, m, J, dt=0.01,
-                          v_old=v_vec, omega_old=omega_vec)
+        body = RigidBody3D(v, omega, m, J, dt=0.01)
         
         # E = (1/2)*m*v² + (1/2)*ω^T*J*ω
         E_trans = 0.5 * m * np.dot(v_vec, v_vec)
@@ -420,9 +425,9 @@ class TestIntegrationMultibody3D(unittest.TestCase):
         
         assembler = MatrixAssembler()
         omega = assembler.add_variable("omega", size=3)
+        omega.set_value(omega_initial)
         
         inertia = RotationalInertia3D(omega, J, B=B, dt=dt, 
-                                      omega_old=omega_initial,
                                       include_gyroscopic=False)  # без гироскопа для простоты
         assembler.add_contribution(inertia)
         

@@ -8,7 +8,8 @@ Contributions (физические элементы):
 - RotationalInertia2D: вращательная инерция с демпфированием
 - TorqueSource2D: источник момента
 - RigidBody2D: твердое тело (3 DOF: vx, vy, ω)
-- ForceVector2D: векторная сила на тело
+- ForceOnBody2D: обобщенная нагрузка (сила и/или момент) на тело
+- ForceVector2D: векторная сила на тело (устаревший)
 
 Constraints (кинематические связи):
 - RevoluteJoint2D: вращательный шарнир (точка фиксирована)
@@ -45,14 +46,14 @@ class RotationalInertia2D(Contribution):
                  J: float,                # момент инерции [кг·м²]
                  B: float = 0.0,          # коэффициент демпфирования [Н·м·с]
                  dt: float = None,        # шаг по времени [с]
-                 omega_old: float = 0.0): # скорость на предыдущем шаге
+                 assembler=None):
         """
         Args:
             omega: Переменная угловой скорости
             J: Момент инерции [кг·м²]
             B: Коэффициент вязкого трения [Н·м·с]
             dt: Шаг по времени [с]
-            omega_old: Угловая скорость на предыдущем шаге [рад/с]
+            assembler: MatrixAssembler для автоматической регистрации
         """
         if omega.size != 1:
             raise ValueError("omega должна быть скаляром")
@@ -63,11 +64,12 @@ class RotationalInertia2D(Contribution):
         if B < 0:
             raise ValueError("Коэффициент демпфирования не может быть отрицательным")
         
+        super().__init__([omega], assembler)
+        
         self.omega = omega
         self.J = J
         self.B = B
         self.dt = dt
-        self.omega_old = omega_old
         
         if dt is not None:
             if dt <= 0:
@@ -79,9 +81,6 @@ class RotationalInertia2D(Contribution):
         else:
             # Статический анализ: просто демпфирование
             self.C_eff = B if B > 0 else 1e-10  # малое число для численной стабильности
-    
-    def get_variables(self) -> List[Variable]:
-        return [self.omega]
     
     def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
@@ -99,13 +98,7 @@ class RotationalInertia2D(Contribution):
         
         idx = index_map[self.omega][0]
         # Инерционный член от предыдущего шага
-        b[idx] += (self.J / self.dt) * self.omega_old
-    
-    def update_state(self, omega_new: float):
-        """
-        Обновить состояние после шага по времени
-        """
-        self.omega_old = omega_new
+        b[idx] += (self.J / self.dt) * self.omega.value
     
     def get_kinetic_energy(self, omega: float = None) -> float:
         """
@@ -118,31 +111,30 @@ class RotationalInertia2D(Contribution):
             Кинетическая энергия E_k = (1/2)*J*ω² [Дж]
         """
         if omega is None:
-            omega = self.omega_old
+            omega = self.omega.value
         return 0.5 * self.J * omega**2
 
 
 class TorqueSource2D(Contribution):
     """
     Источник момента (внешний момент, приложенный к вращающемуся телу).
-    
     Аналог источника тока для механической системы.
     """
     
-    def __init__(self, omega: Variable, torque: float):
+    def __init__(self, omega: Variable, torque: float, assembler=None):
         """
         Args:
             omega: Переменная угловой скорости
             torque: Приложенный момент [Н·м] (положительный = ускорение)
+            assembler: MatrixAssembler для автоматической регистрации
         """
         if omega.size != 1:
             raise ValueError("omega должна быть скаляром")
         
+        super().__init__([omega], assembler)
+        
         self.omega = omega
         self.torque = torque
-    
-    def get_variables(self) -> List[Variable]:
-        return [self.omega]
     
     def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
@@ -188,27 +180,31 @@ class RigidBody2D(Contribution):
     """
     
     def __init__(self,
-                 velocity: Variable,      # линейная скорость [vx, vy] (размер 2)
-                 omega: Variable,         # угловая скорость ω (размер 1)
                  m: float,                # масса [кг]
                  J: float,                # момент инерции [кг·м²]
                  C: float = 0.0,          # коэффициент линейного демпфирования [Н·с/м]
                  B: float = 0.0,          # коэффициент углового демпфирования [Н·м·с]
                  dt: float = None,        # шаг по времени [с]
-                 v_old: np.ndarray = None,  # [vx_old, vy_old]
-                 omega_old: float = 0.0):   # ω_old
+                 velocity: Variable = None,  # переменная линейной скорости [vx, vy]
+                 omega: Variable = None,      # переменная угловой скорости ω
+                 assembler=None):             # ассемблер для автоматической регистрации
         """
         Args:
-            velocity: Переменная линейной скорости (размер 2)
-            omega: Переменная угловой скорости (размер 1)
             m: Масса [кг]
             J: Момент инерции [кг·м²]
             C: Коэффициент вязкого сопротивления для поступательного движения [Н·с/м]
             B: Коэффициент вязкого трения для вращательного движения [Н·м·с]
             dt: Шаг по времени [с]
-            v_old: Скорость на предыдущем шаге [vx, vy]
-            omega_old: Угловая скорость на предыдущем шаге [рад/с]
+            velocity: Переменная линейной скорости (размер 2)
+            omega: Переменная угловой скорости (размер 1)
+            assembler: MatrixAssembler для автоматической регистрации переменных
         """
+        if velocity is None:
+            velocity = Variable("v_body", size=2)
+
+        if omega is None:
+            omega = Variable("omega_body", size=1)
+
         if velocity.size != 2:
             raise ValueError("velocity должна иметь размер 2 (vx, vy)")
         
@@ -227,6 +223,8 @@ class RigidBody2D(Contribution):
         if B < 0:
             raise ValueError("Коэффициент углового демпфирования не может быть отрицательным")
         
+        super().__init__([velocity, omega], assembler)
+        
         self.velocity = velocity
         self.omega = omega
         self.m = m
@@ -234,16 +232,6 @@ class RigidBody2D(Contribution):
         self.C = C
         self.B = B
         self.dt = dt
-        
-        # Начальные состояния
-        if v_old is None:
-            self.v_old = np.zeros(2)
-        else:
-            self.v_old = np.asarray(v_old)
-            if self.v_old.shape != (2,):
-                raise ValueError("v_old должен быть вектором размера 2")
-        
-        self.omega_old = omega_old
         
         # Эффективные коэффициенты для неявной схемы
         if dt is not None:
@@ -257,9 +245,17 @@ class RigidBody2D(Contribution):
             # Статический анализ
             self.C_eff_linear = C if C > 0 else 1e-10
             self.C_eff_angular = B if B > 0 else 1e-10
-    
-    def get_variables(self) -> List[Variable]:
-        return [self.velocity, self.omega]
+
+    def set_values(self, v: np.ndarray, w: float):
+        """
+        Установить текущее состояние тела
+
+        Args:
+            v: Линейная скорость [vx, vy]
+            w: Угловая скорость [рад/с]
+        """
+        self.velocity.set_value(v)
+        self.omega.set_value(w)
     
     def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
@@ -284,22 +280,11 @@ class RigidBody2D(Contribution):
         # Инерционный член от предыдущей скорости
         v_indices = index_map[self.velocity]
         for i, idx in enumerate(v_indices):
-            b[idx] += (self.m / self.dt) * self.v_old[i]
+            b[idx] += (self.m / self.dt) * self.velocity.value[i]
         
         # Инерционный член от предыдущей угловой скорости
         omega_idx = index_map[self.omega][0]
-        b[omega_idx] += (self.J / self.dt) * self.omega_old
-    
-    def update_state(self, v_new: np.ndarray, omega_new: float):
-        """
-        Обновить состояние после шага по времени
-        
-        Args:
-            v_new: Новая линейная скорость [vx, vy]
-            omega_new: Новая угловая скорость [рад/с]
-        """
-        self.v_old = np.asarray(v_new)
-        self.omega_old = omega_new
+        b[omega_idx] += (self.J / self.dt) * self.omega.value
     
     def get_kinetic_energy(self, v: np.ndarray = None, omega: float = None) -> float:
         """
@@ -309,10 +294,10 @@ class RigidBody2D(Contribution):
             E_kin = (1/2)*m*v² + (1/2)*J*ω² [Дж]
         """
         if v is None:
-            v = self.v_old
+            v = self.velocity.value
         if omega is None:
-            omega = self.omega_old
-        
+            omega = self.omega.value
+
         v = np.asarray(v)
         E_trans = 0.5 * self.m * np.dot(v, v)  # поступательная энергия
         E_rot = 0.5 * self.J * omega**2         # вращательная энергия
@@ -327,7 +312,7 @@ class RigidBody2D(Contribution):
             p = m*v [кг·м/с]
         """
         if v is None:
-            v = self.v_old
+            v = self.velocity.value
         return self.m * np.asarray(v)
     
     def get_angular_momentum(self, omega: float = None) -> float:
@@ -338,22 +323,101 @@ class RigidBody2D(Contribution):
             L = J*ω [кг·м²/с]
         """
         if omega is None:
-            omega = self.omega_old
+            omega = self.omega.value
         return self.J * omega
+
+
+class ForceOnBody2D(Contribution):
+    """
+    Обобщенная нагрузка на твердое тело (сила и/или момент).
+    
+    Применяет силу к центру масс и/или момент к телу.
+    Более явная семантика по сравнению с ForceVector2D и TorqueSource2D.
+    """
+    
+    def __init__(self, 
+                 body: 'RigidBody2D',
+                 force: np.ndarray = None,
+                 torque: float = None,
+                 assembler=None):
+        """
+        Args:
+            body: Твердое тело, к которому применяется нагрузка
+            force: Сила [Fx, Fy] [Н], приложенная к центру масс (опционально)
+            torque: Момент [Н·м] вокруг центра масс (опционально)
+            assembler: MatrixAssembler для автоматической регистрации переменных
+        """
+        if force is None and torque is None:
+            raise ValueError("Должна быть указана хотя бы одна нагрузка: force или torque")
+        
+        self.body = body
+        self.velocity = body.velocity
+        self.omega = body.omega
+        
+        # Сила
+        if force is not None:
+            self.force = np.asarray(force)
+            if self.force.shape != (2,):
+                raise ValueError("force должна быть вектором размера 2")
+        else:
+            self.force = None
+        
+        # Момент
+        self.torque = torque
+        
+        # Определяем список переменных
+        vars_list = []
+        if self.force is not None:
+            vars_list.append(self.velocity)
+        if self.torque is not None:
+            vars_list.append(self.omega)
+        
+        super().__init__(vars_list, assembler)
+    
+    def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
+        """Нагрузка не влияет на матрицу"""
+        pass
+    
+    def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
+        """Добавить нагрузку в правую часть"""
+        # Добавляем силу
+        if self.force is not None:
+            v_indices = index_map[self.velocity]
+            for i, idx in enumerate(v_indices):
+                b[idx] += self.force[i]
+        
+        # Добавляем момент
+        if self.torque is not None:
+            omega_idx = index_map[self.omega][0]
+            b[omega_idx] += self.torque
+    
+    def get_power(self) -> float:
+        """
+        Вычислить мощность нагрузки
+        
+        Returns:
+            Мощность P = F·v + τ·ω [Вт]
+        """
+        power = 0.0
+        if self.force is not None:
+            power += np.dot(self.force, self.velocity.value)
+        if self.torque is not None:
+            power += self.torque * self.omega.value
+        return power
 
 
 class ForceVector2D(Contribution):
     """
     Векторная сила, приложенная к твердому телу (2D).
-    
     Применяется к переменной velocity размера 2.
     """
     
-    def __init__(self, velocity: Variable, force: np.ndarray):
+    def __init__(self, velocity: Variable, force: np.ndarray, assembler=None):
         """
         Args:
             velocity: Переменная скорости (размер 2)
             force: Приложенная сила [Fx, Fy] [Н]
+            assembler: MatrixAssembler для автоматической регистрации переменных
         """
         if velocity.size != 2:
             raise ValueError("velocity должна иметь размер 2")
@@ -362,9 +426,8 @@ class ForceVector2D(Contribution):
         self.force = np.asarray(force)
         if self.force.shape != (2,):
             raise ValueError("force должна быть вектором размера 2")
-    
-    def get_variables(self) -> List[Variable]:
-        return [self.velocity]
+        
+        super().__init__([velocity], assembler)
     
     def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         pass
@@ -408,27 +471,24 @@ class RevoluteJoint2D(Constraint):
     """
     
     def __init__(self,
-                 velocity: Variable,     # скорость центра масс [vx, vy]
-                 omega: Variable,        # угловая скорость ω
-                 r: np.ndarray):         # вектор от ЦМ к точке крепления [rx, ry]
+                 body: 'RigidBody2D',    # твердое тело
+                 r: np.ndarray,          # вектор от ЦМ к точке крепления [rx, ry]
+                 assembler=None):        # ассемблер для автоматической регистрации
         """
         Args:
-            velocity: Переменная скорости центра масс (размер 2)
-            omega: Переменная угловой скорости (размер 1)
+            body: Твердое тело, к которому применяется связь
             r: Вектор от центра масс к точке шарнира [rx, ry] [м]
+            assembler: MatrixAssembler для автоматической регистрации переменных
         """
-        if velocity.size != 2:
-            raise ValueError("velocity должна иметь размер 2")
-        
-        if omega.size != 1:
-            raise ValueError("omega должна быть скаляром")
-        
-        self.velocity = velocity
-        self.omega = omega
+        self.body = body
+        self.velocity = body.velocity
+        self.omega = body.omega
         self.r = np.asarray(r)
         
         if self.r.shape != (2,):
             raise ValueError("r должен быть вектором размера 2")
+        
+        super().__init__([self.velocity, self.omega], assembler)
         
         self.rx = r[0]
         self.ry = r[1]
@@ -451,8 +511,25 @@ class RevoluteJoint2D(Constraint):
             [ self.rx]   # коэффициент при ω для второго уравнения
         ])
     
-    def get_variables(self) -> List[Variable]:
-        return [self.velocity, self.omega]
+    def update_r(self, r: np.ndarray):
+        """
+        Обновить вектор от центра масс к точке шарнира.
+        
+        Args:
+            r: Новый вектор [rx, ry] [м]
+        """
+        self.r = np.asarray(r)
+        if self.r.shape != (2,):
+            raise ValueError("r должен быть вектором размера 2")
+        
+        self.rx = r[0]
+        self.ry = r[1]
+        
+        # Обновляем матрицу коэффициентов
+        self.C_omega = np.array([
+            [-self.ry],
+            [ self.rx]
+        ])
     
     def get_n_constraints(self) -> int:
         """Два уравнения связи (vx и vy)"""
@@ -496,19 +573,18 @@ class FixedPoint2D(Constraint):
     """
     Фиксация точки в пространстве (v = 0).
     
-    Используется для полной фиксации скорости (например, заземление).
+    Используется для полной фиксации скорости тела (например, заземление).
     """
     
-    def __init__(self, velocity: Variable, target: np.ndarray = None):
+    def __init__(self, body: 'RigidBody2D', target: np.ndarray = None, assembler=None):
         """
         Args:
-            velocity: Переменная скорости (размер 2)
+            body: Твердое тело, к которому применяется связь
             target: Целевая скорость [vx, vy] (по умолчанию [0, 0])
+            assembler: MatrixAssembler для автоматической регистрации переменных
         """
-        if velocity.size != 2:
-            raise ValueError("velocity должна иметь размер 2")
-        
-        self.velocity = velocity
+        self.body = body
+        self.velocity = body.velocity
         
         if target is None:
             self.target = np.zeros(2)
@@ -516,9 +592,8 @@ class FixedPoint2D(Constraint):
             self.target = np.asarray(target)
             if self.target.shape != (2,):
                 raise ValueError("target должен быть вектором размера 2")
-    
-    def get_variables(self) -> List[Variable]:
-        return [self.velocity]
+        
+        super().__init__([self.velocity], assembler)
     
     def get_n_constraints(self) -> int:
         """Два уравнения связи (vx = 0, vy = 0)"""

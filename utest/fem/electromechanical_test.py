@@ -211,7 +211,7 @@ class TestMotorWithLoad(unittest.TestCase):
         v_source = VoltageSource(v_plus, v_gnd, V)
         ground = Ground(v_gnd)
         motor = DCMotor(v_plus, v_gnd, omega, R, L, K_e, K_t, dt=dt, I_old=0.0)
-        inertia = RotationalInertia2D(omega, J, B, dt=dt, omega_old=0.0)
+        inertia = RotationalInertia2D(omega, J, B, dt=dt)
         
         omega_values = [0.0]
         I_values = [0.0]
@@ -227,10 +227,6 @@ class TestMotorWithLoad(unittest.TestCase):
             
             I = motor.get_current(v_plus.value, v_gnd.value, omega.value)
             I_values.append(I)
-            
-            # Обновить состояния
-            motor.update_state(v_plus.value, v_gnd.value, omega.value)
-            inertia.update_state(omega.value)
         
         # Проверить, что скорость растет
         self.assertGreater(omega_values[30], omega_values[10])
