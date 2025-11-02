@@ -33,16 +33,107 @@ class Variable:
         self.name = name
         self.size = size
         self.global_indices = []  # будет заполнено при сборке
-        self.value = numpy.zeros(size) # текущее значение переменной (обновляется после решения)
         self._assembler = None  # ссылка на assembler, в котором зарегистрирована переменная
         
+        self.value = numpy.zeros(size) # текущее значение переменной (обновляется после решения)
+        self.value_dot = numpy.zeros(size) # скорость изменения переменной (если применимо)
+        self.value_ddot = numpy.zeros(size) # ускорение изменения переменной (если применимо)
+
+    def integrate(self, dt: float):
+        """Обновить значение переменной по скорости и ускорению за шаг dt"""
+        self.value += self.value_dot * dt + 0.5 * self.value_ddot * dt * dt
+        self.value_dot += self.value_ddot * dt
+
     def set_value(self, value: np.ndarray):
         """Установить текущее значение переменной"""
         self.value = np.array(value)
 
+    def set_value_dot(self, value_dot: np.ndarray):
+        """Установить скорость изменения переменной"""
+        self.value_dot = np.array(value_dot)
+
+    def set_value_ddot(self, value_ddot: np.ndarray):
+        """Установить ускорение изменения переменной"""
+        self.value_ddot = np.array(value_ddot)
+
     def __repr__(self):
         return f"Variable({self.name}, size={self.size})"
 
+    def state_for_assembler(self) -> np.ndarray:
+        """Вернуть текущее состояние переменной для сборки векторного решения"""
+        return self.value, self.value_dot
+
+class RotationVariable(Variable):
+    def __init__(self, name: str):
+        super().__init__(name, size=3)  # Вращение в 2D - скалярный угол
+        self.rotation = np.array([0.0,0.0,0.0,1.0]) # кватернион по умолчанию
+
+    def integrate(self, dt: float):
+        self.value_dot += self.value_ddot * dt
+        omega = self.value_dot
+        omega_norm = np.linalg.norm(omega)
+        if omega_norm < 1e-12:
+            return  # нет вращения
+
+        axis = omega / omega_norm
+        theta = omega_norm * dt
+        dq = np.array([
+            axis[0] * np.sin(theta / 2),
+            axis[1] * np.sin(theta / 2),
+            axis[2] * np.sin(theta / 2),
+            np.cos(theta / 2)
+        ])
+
+        self.rotation = self.quat_multiply(self.rotation, dq)
+        self.rotation /= np.linalg.norm(self.rotation)
+
+    @staticmethod
+    def quat_multiply(q1, q2):
+        x1, y1, z1, w1 = q1
+        x2, y2, z2, w2 = q2
+        return np.array([
+            w1*x2 + x1*w2 + y1*z2 - z1*y2,
+            w1*y2 - x1*z2 + y1*w2 + z1*x2,
+            w1*z2 + x1*y2 - y1*x2 + z1*w2,
+            w1*w2 - x1*x2 - y1*y2 - z1*z2
+        ])
+
+    def state_for_assembler(self) -> np.ndarray:
+        """Вернуть текущее состояние переменной для сборки векторного решения
+        Предпологается, что матрица не зависит от углового положения, только от угловой скорости"""
+        return np.zeros(3), self.value_dot
+
+class PoseVariable(Variable):
+    def __init__(self, name: str):
+        super().__init__(name, size=6)  # 3 pos + 3 quat
+        self.position = np.zeros(3)
+        self.rotation = np.array([0, 0, 0, 1])
+        self.linear_velocity = np.zeros(3)
+        self.angular_velocity = np.zeros(3)
+        self.linear_acceleration = np.zeros(3)
+        self.angular_acceleration = np.zeros(3)
+
+    def integrate(self, dt: float):
+        # линейная часть
+        self.linear_velocity += self.linear_acceleration * dt
+        self.position += self.linear_velocity * dt + 0.5 * self.linear_acceleration * dt**2
+        # вращательная часть — через RotationVariable
+        rot_var = RotationVariable("tmp")
+        rot_var.value = self.rotation.copy()
+        rot_var.value_dot = self.angular_velocity.copy()
+        rot_var.value_ddot = self.angular_acceleration.copy()
+        rot_var.integrate(dt)
+        self.rotation = rot_var.value
+
+    def set_value_ddot(self, value: np.ndarray):
+        """Установить ускорение изменения переменной"""
+        self.linear_acceleration = np.array(value[:3])
+        self.angular_acceleration = np.array(value[3:])
+
+    def state_for_assembler(self) -> np.ndarray:
+        """Вернуть текущее состояние переменной для сборки векторного решения
+        Вращение обнуляется. Предполагается, что матрица не зависит от ориентации, только от скоростей."""
+        return np.concatenate([np.zeros(3), self.position]), np.concatenate([self.angular_velocity, self.linear_velocity])
 
 class Contribution:
     """
@@ -256,7 +347,58 @@ class MatrixAssembler:
             contribution.contribute_to_b(b, self._index_map)
         
         return A, b
-    
+
+    def assemble_Adxx_Cdx_Kx_b(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Собрать глобальную систему Ad·x'' + C·x' + K·x = b
+        
+        Returns:
+            (Ad, C, K, b): Матрицы и вектор правой части
+        """
+        # Построить карту индексов
+        self._index_map = self._build_index_map()
+        
+        # Создать глобальные матрицы и вектор
+        n_dofs = self.total_dofs()
+        Ad = np.zeros((n_dofs, n_dofs))
+        C = np.zeros((n_dofs, n_dofs))
+        K = np.zeros((n_dofs, n_dofs))
+        b = np.zeros(n_dofs)
+        
+        # Собрать вклады
+        for contribution in self.contributions:
+            if hasattr(contribution, 'contribute_to_Ad'):
+                contribution.contribute_to_Ad(Ad, self._index_map)
+            if hasattr(contribution, 'contribute_to_C'):
+                contribution.contribute_to_C(C, self._index_map)
+            if hasattr(contribution, 'contribute_to_K'):
+                contribution.contribute_to_K(K, self._index_map)
+            contribution.contribute_to_b(b, self._index_map)
+        
+        return Ad, C, K, b
+
+    def assemble_Kx_b(self) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Собрать глобальную систему K*x = b
+        
+        Returns:
+            (K, b): Матрица и вектор правой части
+        """
+        # Построить карту индексов
+        self._index_map = self._build_index_map()
+        
+        # Создать глобальные матрицу и вектор
+        n_dofs = self.total_dofs()
+        K = np.zeros((n_dofs, n_dofs))
+        b = np.zeros(n_dofs)
+        
+        # Собрать вклады
+        for contribution in self.contributions:
+            contribution.contribute_to_K(K, self._index_map)
+            contribution.contribute_to_b(b, self._index_map)
+        
+        return K, b
+
     def assemble_with_constraints(self) -> Tuple[np.ndarray, np.ndarray]:
         """
         Собрать расширенную систему с множителями Лагранжа для связей
@@ -316,6 +458,29 @@ class MatrixAssembler:
         b_ext[n_dofs:] = d
         
         return A_ext, b_ext
+
+    def state_vectors(self) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Собрать векторы состояния x и x_dot из текущих значений переменных
+        
+        Returns:
+            x: Вектор состояний
+            x_dot: Вектор скоростей состояний
+        """
+        if self._index_map is None:
+            raise RuntimeError("Система не собрана. Вызовите assemble() перед получением векторов состояния.")
+        
+        n_dofs = self.total_dofs()
+        x = np.zeros(n_dofs)
+        x_dot = np.zeros(n_dofs)
+        
+        for var in self.variables:
+            indices = self._index_map[var]
+            value, value_dot = var.state_for_assembler()
+            x[indices] = value
+            x_dot[indices] = value_dot
+        
+        return x, x_dot
     
     def solve(self, check_conditioning: bool = True, 
               use_least_squares: bool = False,
@@ -391,6 +556,36 @@ class MatrixAssembler:
             self._lagrange_multipliers = None
         
         return x
+
+    def solve_Adxx_Cdx_Kx_b(self, x_dot: np.ndarray, x: np.ndarray,
+                            check_conditioning: bool = True,
+                            use_least_squares: bool = False) -> np.ndarray:
+        """
+        Решить систему Ad·x'' + C·x' + K·x = b
+
+        Args:
+            x_dot: Вектор скоростей состояний
+            x: Вектор состояний
+            check_conditioning: Проверить обусловленность матрицы
+            use_least_squares: Использовать lstsq вместо solve
+            b: Вектор правой части
+            """
+
+        Ad, C, K, b = self.assemble_Adxx_Cdx_Kx_b()
+        v, v_dot = self.state_vectors()
+
+        # Собрать левую часть
+        A_eff = Ad
+        A_eff += C @ x_dot
+        A_eff += K @ x
+
+        # Правая часть
+        b_eff = b
+
+        return self.solve(check_conditioning=check_conditioning,
+                          use_least_squares=use_least_squares,
+                          use_constraints=False)
+
     
     def set_solution_to_variables(self, x: np.ndarray):
         """
