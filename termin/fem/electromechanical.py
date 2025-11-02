@@ -13,7 +13,7 @@
 import numpy as np
 from typing import List, Dict
 from .assembler import Contribution, Variable
-from .multibody import RotationalInertia, TorqueSource  # импортируем из multibody
+from .multibody2d import RotationalInertia2D, TorqueSource2D  # импортируем из multibody2d
 
 
 class DCMotor(Contribution):
@@ -248,7 +248,7 @@ def create_motor_system(V_source: float, R: float, L: float,
     motor = DCMotor(v_plus, v_gnd, omega, R, L, K_e, K_t, dt=dt)
     
     # Механическая часть
-    inertia = RotationalInertia(omega, J, B, dt=dt)
+    inertia = RotationalInertia2D(omega, J, B, dt=dt)
     
     elements = [v_src, ground, motor, inertia]
     variables = [v_plus, v_gnd, omega]

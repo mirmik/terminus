@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from termin.subspaces import (nullspace_projector, nullspace_basis,
+from termin.linalg.subspaces import (nullspace_projector, nullspace_basis,
                           rowspace_projector, rowspace_basis,
                           colspace_projector, colspace_basis,
                           left_nullspace_projector, left_nullspace_basis,

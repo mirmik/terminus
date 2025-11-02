@@ -75,6 +75,54 @@ class Contribution:
         raise NotImplementedError
 
 
+class Constraint:
+    """
+    Базовый класс для голономных связей (constraints).
+    
+    Связь ограничивает движение системы: C·x = d
+    
+    В отличие от Contribution (который добавляет вклад в A и b),
+    Constraint реализуется через множители Лагранжа и добавляет
+    строки в расширенную систему.
+    
+    Примеры:
+    - Фиксация точки в пространстве
+    - Шарнирное соединение тел
+    - Равенство переменных
+    - Кинематические ограничения
+    """
+    
+    def get_variables(self) -> List[Variable]:
+        """Возвращает список переменных, участвующих в связи"""
+        raise NotImplementedError
+    
+    def get_n_constraints(self) -> int:
+        """Возвращает количество уравнений связи"""
+        raise NotImplementedError
+    
+    def contribute_to_C(self, C: np.ndarray, constraint_offset: int, 
+                       index_map: Dict[Variable, List[int]]):
+        """
+        Добавить вклад в матрицу связей C
+        
+        Args:
+            C: Матрица связей (n_constraints_total × n_dofs)
+            constraint_offset: Смещение для текущей связи в общей матрице
+            index_map: Отображение Variable -> список глобальных индексов
+        """
+        raise NotImplementedError
+    
+    def contribute_to_d(self, d: np.ndarray, constraint_offset: int):
+        """
+        Добавить вклад в правую часть связей d
+        
+        Args:
+            d: Вектор правой части связей
+            constraint_offset: Смещение для текущей связи
+        """
+        raise NotImplementedError
+
+
 class MatrixAssembler:
     """
     Сборщик матриц из вкладов.
@@ -86,7 +134,9 @@ class MatrixAssembler:
     def __init__(self):
         self.variables: List[Variable] = []
         self.contributions: List[Contribution] = []
+        self.constraints: List[Constraint] = []  # Связи через множители Лагранжа
         self._index_map: Optional[Dict[Variable, List[int]]] = None
+        self._constraint_vars: List[Variable] = []  # Переменные для множителей Лагранжа
         
     def add_variable(self, name: str, size: int = 1) -> Variable:
         """
@@ -156,19 +206,89 @@ class MatrixAssembler:
         
         return A, b
     
-    def solve(self, check_conditioning: bool = True, 
-              use_least_squares: bool = False) -> np.ndarray:
+    def assemble_with_constraints(self) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Собрать и решить систему A*x = b
+        Собрать расширенную систему с множителями Лагранжа для связей
+        
+        Расширенная система имеет вид:
+        [ A   C^T ] [ x ]   [ b ]
+        [ C    0  ] [ λ ] = [ d ]
+        
+        где:
+        - A: стандартная матрица системы (n_dofs × n_dofs)
+        - C: матрица связей (n_constraints × n_dofs)
+        - x: вектор переменных (n_dofs)
+        - λ: множители Лагранжа (n_constraints)
+        - b: правая часть (n_dofs)
+        - d: правая часть связей (n_constraints)
+        
+        Returns:
+            A_ext: Расширенная матрица размера (n_dofs + n_constraints) × (n_dofs + n_constraints)
+            b_ext: Расширенная правая часть размера (n_dofs + n_constraints)
+        """
+        if not self.constraints:
+            # Нет связей - возвращаем обычную систему
+            return self.assemble()
+        
+        # Собрать базовую систему A*x = b
+        A, b = self.assemble()
+        n_dofs = len(b)
+        
+        # Подсчитать общее количество связей
+        n_constraints = sum(c.get_n_constraints() for c in self.constraints)
+        
+        # Создать матрицу связей C (n_constraints × n_dofs)
+        C = np.zeros((n_constraints, n_dofs))
+        d = np.zeros(n_constraints)
+        
+        # Заполнить матрицу связей
+        constraint_offset = 0
+        for constraint in self.constraints:
+            constraint.contribute_to_C(C, constraint_offset, self._index_map)
+            constraint.contribute_to_d(d, constraint_offset)
+            constraint_offset += constraint.get_n_constraints()
+        
+        # Собрать расширенную систему
+        # [ A   C^T ]
+        # [ C    0  ]
+        n_total = n_dofs + n_constraints
+        A_ext = np.zeros((n_total, n_total))
+        
+        A_ext[:n_dofs, :n_dofs] = A
+        A_ext[:n_dofs, n_dofs:] = C.T
+        A_ext[n_dofs:, :n_dofs] = C
+        # A_ext[n_dofs:, n_dofs:] уже заполнено нулями
+        
+        # Расширенная правая часть [b, d]
+        b_ext = np.zeros(n_total)
+        b_ext[:n_dofs] = b
+        b_ext[n_dofs:] = d
+        
+        return A_ext, b_ext
+    
+    def solve(self, check_conditioning: bool = True, 
+              use_least_squares: bool = False,
+              use_constraints: bool = True) -> np.ndarray:
+        """
+        Собрать и решить систему A*x = b (или расширенную систему с связями)
         
         Args:
             check_conditioning: Проверить обусловленность матрицы и выдать предупреждение
             use_least_squares: Использовать lstsq вместо solve (робастнее, но медленнее)
+            use_constraints: Использовать множители Лагранжа для связей (если есть)
         
         Returns:
-            x: Вектор решения (все переменные подряд)
+            x: Вектор решения (все переменные подряд, без множителей Лагранжа)
         """
-        A, b = self.assemble()
+        # Выбрать метод сборки
+        if use_constraints and self.constraints:
+            A, b = self.assemble_with_constraints()
+            n_dofs = self.total_dofs()
+            has_constraints = True
+        else:
+            A, b = self.assemble()
+            n_dofs = len(b)
+            has_constraints = False
         
         # Проверка обусловленности
         if check_conditioning:
@@ -191,7 +311,7 @@ class MatrixAssembler:
         # Решение системы
         if use_least_squares:
             # Метод наименьших квадратов - более робастный
-            x, residuals, rank, s = np.linalg.lstsq(A, b, rcond=None)
+            x_full, residuals, rank, s = np.linalg.lstsq(A, b, rcond=None)
             if check_conditioning and rank < len(b):
                 import warnings
                 warnings.warn(
@@ -202,7 +322,7 @@ class MatrixAssembler:
         else:
             # Прямое решение - быстрее, но менее робастное
             try:
-                x = np.linalg.solve(A, b)
+                x_full = np.linalg.solve(A, b)
             except np.linalg.LinAlgError as e:
                 raise RuntimeError(
                     f"Не удалось решить систему: {e}. "
@@ -210,27 +330,16 @@ class MatrixAssembler:
                     f"или плохо обусловлена. Попробуйте use_least_squares=True"
                 ) from e
         
+        # Извлечь только переменные (без множителей Лагранжа)
+        if has_constraints:
+            x = x_full[:n_dofs]
+            # Сохранить множители Лагранжа (для отладки/анализа)
+            self._lagrange_multipliers = x_full[n_dofs:]
+        else:
+            x = x_full
+            self._lagrange_multipliers = None
+        
         return x
-    
-    def get_solution_dict(self, x: np.ndarray) -> Dict[str, np.ndarray]:
-        """
-        Преобразовать вектор решения в словарь {имя_переменной: значение}
-        
-        Args:
-            x: Вектор решения
-            
-        Returns:
-            Словарь с решениями для каждой переменной
-        """
-        if self._index_map is None:
-            raise RuntimeError("Система не собрана. Вызовите assemble() или solve()")
-        
-        result = {}
-        for var in self.variables:
-            indices = self._index_map[var]
-            result[var.name] = x[indices] if len(indices) > 1 else x[indices[0]]
-        
-        return result
     
     def set_solution_to_variables(self, x: np.ndarray):
         """
@@ -253,7 +362,8 @@ class MatrixAssembler:
                 var.value = x[indices[0]]
     
     def solve_and_set(self, check_conditioning: bool = True, 
-                      use_least_squares: bool = False) -> np.ndarray:
+                      use_least_squares: bool = False,
+                      use_constraints: bool = True) -> np.ndarray:
         """
         Решить систему и сохранить результат в переменные
         
@@ -262,14 +372,27 @@ class MatrixAssembler:
         Args:
             check_conditioning: Проверить обусловленность матрицы
             use_least_squares: Использовать lstsq вместо solve
+            use_constraints: Использовать множители Лагранжа для связей
         
         Returns:
             x: Вектор решения (также сохранен в переменных)
         """
         x = self.solve(check_conditioning=check_conditioning, 
-                       use_least_squares=use_least_squares)
+                       use_least_squares=use_least_squares,
+                       use_constraints=use_constraints)
         self.set_solution_to_variables(x)
         return x
+    
+    def get_lagrange_multipliers(self) -> Optional[np.ndarray]:
+        """
+        Получить множители Лагранжа после решения системы с связями
+        
+        Множители Лагранжа представляют собой силы реакции связей.
+        
+        Returns:
+            Массив множителей Лагранжа или None, если система решалась без связей
+        """
+        return getattr(self, '_lagrange_multipliers', None)
     
     def diagnose_matrix(self) -> Dict[str, any]:
         """
@@ -521,6 +644,92 @@ class ConstraintContribution(Contribution):
         indices = index_map[self.variable]
         idx = indices[self.component]
         b[idx] += self.penalty * self.value
+
+
+class LagrangeConstraint(Constraint):
+    """
+    Голономная связь, реализованная через множители Лагранжа.
+    
+    Связь имеет вид: C·x = d
+    
+    где C - матрица коэффициентов связи, d - правая часть.
+    
+    Для решения системы с связями используется расширенная матрица:
+    [ A   C^T ] [ x ]   [ b ]
+    [ C    0  ] [ λ ] = [ d ]
+    
+    Примеры:
+    - Фиксация точки: vx = 0, vy = 0
+    - Шарнирная связь: v + ω × r = 0
+    - Равенство переменных: u1 = u2
+    """
+    
+    def __init__(self, variables: List[Variable], 
+                 coefficients: List[np.ndarray], 
+                 rhs: np.ndarray = None):
+        """
+        Args:
+            variables: Список переменных, участвующих в связи
+            coefficients: Список матриц коэффициентов для каждой переменной
+                         coefficients[i] имеет форму (n_constraints, variables[i].size)
+            rhs: Правая часть связи (вектор размера n_constraints), по умолчанию 0
+        """
+        self.variables = variables
+        self.coefficients = [np.atleast_2d(c) for c in coefficients]
+        
+        # Проверка размерностей
+        n_constraints = self.coefficients[0].shape[0]
+        for i, (var, coef) in enumerate(zip(variables, self.coefficients)):
+            if coef.shape[0] != n_constraints:
+                raise ValueError(f"Все матрицы коэффициентов должны иметь одинаковое "
+                               f"количество строк (связей)")
+            if coef.shape[1] != var.size:
+                raise ValueError(f"Матрица коэффициентов {i} имеет {coef.shape[1]} столбцов, "
+                               f"ожидалось {var.size}")
+        
+        self.n_constraints = n_constraints
+        
+        if rhs is None:
+            self.rhs = np.zeros(n_constraints)
+        else:
+            self.rhs = np.atleast_1d(rhs)
+            if len(self.rhs) != n_constraints:
+                raise ValueError(f"Размер правой части {len(self.rhs)} не соответствует "
+                               f"количеству связей {n_constraints}")
+    
+    def get_variables(self) -> List[Variable]:
+        """Возвращает список переменных, участвующих в связи"""
+        return self.variables
+    
+    def get_n_constraints(self) -> int:
+        """Возвращает количество уравнений связи"""
+        return self.n_constraints
+    
+    def contribute_to_C(self, C: np.ndarray, constraint_offset: int, 
+                       index_map: Dict[Variable, List[int]]):
+        """
+        Добавить вклад в матрицу связей C
+        
+        Args:
+            C: Матрица связей (n_constraints_total × n_dofs)
+            constraint_offset: Смещение для текущей связи в общей матрице
+            index_map: Отображение Variable -> список глобальных индексов
+        """
+        for var, coef in zip(self.variables, self.coefficients):
+            var_indices = index_map[var]
+            for i in range(self.n_constraints):
+                for j, global_idx in enumerate(var_indices):
+                    C[constraint_offset + i, global_idx] += coef[i, j]
+    
+    def contribute_to_d(self, d: np.ndarray, constraint_offset: int):
+        """
+        Добавить вклад в правую часть связей d
+        
+        Args:
+            d: Вектор правой части связей
+            constraint_offset: Смещение для текущей связи
+        """
+        d[constraint_offset:constraint_offset + self.n_constraints] += self.rhs
 
 
 # ============================================================================

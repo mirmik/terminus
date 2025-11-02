@@ -15,14 +15,37 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from termin.fem.electromechanical import DCMotor
-from termin.fem.multibody import RotationalInertia, FixedRotation
+from termin.fem.multibody2d import RotationalInertia2D
 from termin.fem.electrical import VoltageSource, Ground
-from termin.fem.assembler import Variable, MatrixAssembler
+from termin.fem.assembler import Variable, MatrixAssembler, LagrangeConstraint
 
 
-def solve_system(contributions, variables):
+def fixed_scalar(variable: Variable, value: float = 0.0):
+    """
+    Создать constraint для фиксации скалярной переменной
+    
+    Args:
+        variable: Переменная размера 1
+        value: Целевое значение
+    
+    Returns:
+        LagrangeConstraint для фиксации переменной
+    """
+    return LagrangeConstraint(
+        variables=[variable],
+        coefficients=[np.array([[1.0]])],  # просто x = value
+        rhs=np.array([value])
+    )
+
+
+def solve_system(contributions, variables, constraints=None):
     """
     Вспомогательная функция для решения системы
+    
+    Args:
+        contributions: Список Contribution объектов
+        variables: Список Variable объектов
+        constraints: Список Constraint объектов (опционально)
     """
     assembler = MatrixAssembler()
     assembler.variables = variables
@@ -30,10 +53,14 @@ def solve_system(contributions, variables):
     for contrib in contributions:
         assembler.contributions.append(contrib)
     
+    if constraints:
+        assembler.constraints = constraints
+    
     import warnings
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        assembler.solve_and_set()
+        use_constraints = constraints is not None and len(constraints) > 0
+        assembler.solve_and_set(use_constraints=use_constraints)
 
 
 class TestDCMotor(unittest.TestCase):
@@ -60,11 +87,12 @@ class TestDCMotor(unittest.TestCase):
         v_source = VoltageSource(v_plus, v_gnd, 10.0)
         motor = DCMotor(v_plus, v_gnd, omega, R, L, K_e, K_t)
         ground = Ground(v_gnd)
-        fixed_rotation = FixedRotation(omega, 0.0)  # зафиксировать ω=0
+        fixed_rotation = fixed_scalar(omega, 0.0)  # зафиксировать ω=0
         
         solve_system(
-            [v_source, motor, ground, fixed_rotation],
-            [v_plus, v_gnd, omega]
+            [v_source, motor, ground],
+            [v_plus, v_gnd, omega],
+            constraints=[fixed_rotation]
         )
         
         # Проверить напряжение
@@ -102,11 +130,12 @@ class TestDCMotor(unittest.TestCase):
         v_source = VoltageSource(v_plus, v_gnd, 10.0)
         motor = DCMotor(v_plus, v_gnd, omega, R, L, K_e, K_t)
         ground = Ground(v_gnd)
-        fixed_rotation = FixedRotation(omega, 50.0)
+        fixed_rotation = fixed_scalar(omega, 50.0)
         
         solve_system(
-            [v_source, motor, ground, fixed_rotation],
-            [v_plus, v_gnd, omega]
+            [v_source, motor, ground],
+            [v_plus, v_gnd, omega],
+            constraints=[fixed_rotation]
         )
         
         self.assertAlmostEqual(omega.value, 50.0, places=4)
@@ -144,7 +173,7 @@ class TestMotorWithLoad(unittest.TestCase):
         v_source = VoltageSource(v_plus, v_gnd, V)
         ground = Ground(v_gnd)
         motor = DCMotor(v_plus, v_gnd, omega, R, L, K_e, K_t)
-        inertia = RotationalInertia(omega, J, B)
+        inertia = RotationalInertia2D(omega, J, B)
         
         solve_system(
             [v_source, ground, motor, inertia],
@@ -182,7 +211,7 @@ class TestMotorWithLoad(unittest.TestCase):
         v_source = VoltageSource(v_plus, v_gnd, V)
         ground = Ground(v_gnd)
         motor = DCMotor(v_plus, v_gnd, omega, R, L, K_e, K_t, dt=dt, I_old=0.0)
-        inertia = RotationalInertia(omega, J, B, dt=dt, omega_old=0.0)
+        inertia = RotationalInertia2D(omega, J, B, dt=dt, omega_old=0.0)
         
         omega_values = [0.0]
         I_values = [0.0]

@@ -13,10 +13,12 @@ FEM (Finite Element Method) модуль для мультифизическог
 from .assembler import (
     Variable,
     Contribution,
+    Constraint,
     MatrixAssembler,
     BilinearContribution,
     LoadContribution,
     ConstraintContribution,
+    LagrangeConstraint,
 )
 
 # Механические элементы
@@ -38,17 +40,16 @@ from .electrical import (
     Ground,
 )
 
-# Многотельная динамика
-from .multibody import (
-    RotationalInertia,
-    TorqueSource,
-    RotationalSpring,
-    RotationalDamper,
-    FixedRotation,
-    LinearMass,
-    ForceSource,
-    LinearSpring,
+# Многотельная динамика (2D - планарное движение)
+from .multibody2d import (
+    RotationalInertia2D,
+    TorqueSource2D,
+    RigidBody2D,
+    ForceVector2D,
+    RevoluteJoint2D,
+    FixedPoint2D,
 )
+
 
 # Электромеханика
 from .electromechanical import (

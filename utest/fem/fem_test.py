@@ -48,17 +48,16 @@ class TestSpringSystem(unittest.TestCase):
         # Решить
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            solution = assembler.solve()
-        result = assembler.get_solution_dict(solution)
+            assembler.solve_and_set()
         
         # Проверить результаты
-        self.assertAlmostEqual(result['u1'], 0.0, places=6)
-        self.assertAlmostEqual(result['u2'], 0.1, places=6)
-        self.assertAlmostEqual(result['u3'], 0.1, places=6)
+        self.assertAlmostEqual(u1.value, 0.0, places=6)
+        self.assertAlmostEqual(u2.value, 0.1, places=6)
+        self.assertAlmostEqual(u3.value, 0.1, places=6)
         
         # Проверка: сила в пружинах
-        F1 = k1 * (result['u2'] - result['u1'])
-        F2 = k2 * (result['u3'] - result['u2'])
+        F1 = k1 * (u2.value - u1.value)
+        F2 = k2 * (u3.value - u2.value)
         self.assertAlmostEqual(F1, F, places=6)
         self.assertAlmostEqual(F2, 0.0, places=6)
     
@@ -81,12 +80,11 @@ class TestSpringSystem(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            solution = assembler.solve()
-        result = assembler.get_solution_dict(solution)
+            assembler.solve_and_set()
         
         # Ожидаемое перемещение: u2 = F/k = 50/500 = 0.1
-        self.assertAlmostEqual(result['u1'], 0.0, places=6)
-        self.assertAlmostEqual(result['u2'], 0.1, places=6)
+        self.assertAlmostEqual(u1.value, 0.0, places=6)
+        self.assertAlmostEqual(u2.value, 0.1, places=6)
 
 
 class TestElectricalCircuit(unittest.TestCase):
@@ -119,17 +117,16 @@ class TestElectricalCircuit(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            solution = assembler.solve()
-        result = assembler.get_solution_dict(solution)
+            assembler.solve_and_set()
         
         # Проверить результаты
-        self.assertAlmostEqual(result['V1'], 5.0, places=6)
-        self.assertAlmostEqual(result['V3'], 0.0, places=6)
+        self.assertAlmostEqual(V1.value, 5.0, places=6)
+        self.assertAlmostEqual(V3.value, 0.0, places=6)
         
         # Аналитическое решение для делителя: V2 = V1 * R2/(R1+R2)
         V2_expected = 5.0 * R2 / (R1 + R2)
-        self.assertAlmostEqual(result['V2'], V2_expected, places=6)
-        self.assertAlmostEqual(result['V2'], 3.333333, places=5)
+        self.assertAlmostEqual(V2.value, V2_expected, places=6)
+        self.assertAlmostEqual(V2.value, 3.333333, places=5)
     
     def test_simple_resistor_circuit(self):
         """Простая цепь с одним резистором"""
@@ -147,11 +144,10 @@ class TestElectricalCircuit(unittest.TestCase):
         assembler.add_contribution(ConstraintContribution(V1, value=10.0))
         assembler.add_contribution(ConstraintContribution(V2, value=0.0))
         
-        solution = assembler.solve()
-        result = assembler.get_solution_dict(solution)
+        assembler.solve_and_set()
         
-        self.assertAlmostEqual(result['V1'], 10.0, places=6)
-        self.assertAlmostEqual(result['V2'], 0.0, places=6)
+        self.assertAlmostEqual(V1.value, 10.0, places=6)
+        self.assertAlmostEqual(V2.value, 0.0, places=6)
 
 
 class TestMultiDimensional(unittest.TestCase):
@@ -187,12 +183,11 @@ class TestMultiDimensional(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            solution = assembler.solve()
-        result = assembler.get_solution_dict(solution)
+            assembler.solve_and_set()
         
         # Проверить результаты
-        np.testing.assert_array_almost_equal(result['u1'], [0.0, 0.0], decimal=6)
-        np.testing.assert_array_almost_equal(result['u2'], [0.1, 0.05], decimal=6)
+        np.testing.assert_array_almost_equal(u1.value, [0.0, 0.0], decimal=6)
+        np.testing.assert_array_almost_equal(u2.value, [0.1, 0.05], decimal=6)
     
     def test_2d_anisotropic_element(self):
         """Тест анизотропного 2D элемента"""
@@ -223,15 +218,14 @@ class TestMultiDimensional(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            solution = assembler.solve()
-        result = assembler.get_solution_dict(solution)
+            assembler.solve_and_set()
         
         # Ожидаемые перемещения: ux = F/kx, uy = F/ky
         expected_ux = F / kx
         expected_uy = F / ky
         
-        self.assertAlmostEqual(result['u2'][0], expected_ux, places=6)
-        self.assertAlmostEqual(result['u2'][1], expected_uy, places=6)
+        self.assertAlmostEqual(u2.value[0], expected_ux, places=6)
+        self.assertAlmostEqual(u2.value[1], expected_uy, places=6)
 
 
 class TestMatrixAssembler(unittest.TestCase):
@@ -265,12 +259,11 @@ class TestMatrixAssembler(unittest.TestCase):
         assembler.add_contribution(ConstraintContribution(u1, value=1.0))
         assembler.add_contribution(ConstraintContribution(u2, value=3.0))
         
-        solution = assembler.solve()
-        result = assembler.get_solution_dict(solution)
+        assembler.solve_and_set()
         
         # Оба узла должны быть на заданных значениях
-        self.assertAlmostEqual(result['u1'], 1.0, places=6)
-        self.assertAlmostEqual(result['u2'], 3.0, places=6)
+        self.assertAlmostEqual(u1.value, 1.0, places=6)
+        self.assertAlmostEqual(u2.value, 3.0, places=6)
 
 
 class TestMatrixConditioning(unittest.TestCase):
@@ -381,12 +374,11 @@ class TestMatrixConditioning(unittest.TestCase):
         assembler.add_contribution(LoadContribution(u2, load=100.0))
         
         # Решить через least squares
-        solution = assembler.solve(use_least_squares=True, check_conditioning=False)
-        result = assembler.get_solution_dict(solution)
+        assembler.solve_and_set(use_least_squares=True, check_conditioning=False)
         
         # Результат должен быть близок к точному
-        self.assertAlmostEqual(result['u1'], 0.0, places=5)
-        self.assertAlmostEqual(result['u2'], 0.1, places=5)
+        self.assertAlmostEqual(u1.value, 0.0, places=5)
+        self.assertAlmostEqual(u2.value, 0.1, places=5)
     
     def test_penalty_comparison(self):
         """Тест сравнения разных значений penalty"""
@@ -403,9 +395,8 @@ class TestMatrixConditioning(unittest.TestCase):
             assembler.add_contribution(ConstraintContribution(u1, value=0.0, penalty=penalty))
             assembler.add_contribution(LoadContribution(u2, load=100.0))
             
-            solution = assembler.solve(check_conditioning=False)
-            result = assembler.get_solution_dict(solution)
-            results[penalty] = result['u2']
+            assembler.solve_and_set(check_conditioning=False)
+            results[penalty] = u2.value
         
         # Все результаты должны быть близки друг к другу
         expected = 0.1
@@ -605,11 +596,11 @@ class TestVariableSolution(unittest.TestCase):
         self.assertGreater(u2.value, 0.0)
         self.assertGreater(u3.value, u2.value)
         
-        # Проверить что возвращенное значение соответствует сохраненным
-        sol_dict = assembler.get_solution_dict(x)
-        self.assertAlmostEqual(u1.value, sol_dict['u1'], places=10)
-        self.assertAlmostEqual(u2.value, sol_dict['u2'], places=10)
-        self.assertAlmostEqual(u3.value, sol_dict['u3'], places=10)
+        # Проверить что возвращенное значение x соответствует переменным
+        # x содержит все значения подряд
+        self.assertAlmostEqual(u1.value, x[0], places=10)
+        self.assertAlmostEqual(u2.value, x[1], places=10)
+        self.assertAlmostEqual(u3.value, x[2], places=10)
 
 
 if __name__ == "__main__":

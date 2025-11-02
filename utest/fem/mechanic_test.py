@@ -51,20 +51,18 @@ class TestBarElement(unittest.TestCase):
         # Решить
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            x = assembler.solve()
-        
-        sol = assembler.get_solution_dict(x)
+            assembler.solve_and_set()
         
         # Аналитическое решение: u = F*L/(E*A)
         u_expected = F * L / (E * A)
         
         # Penalty method вносит небольшую погрешность
-        self.assertAlmostEqual(sol['u2'], u_expected, delta=abs(u_expected)*0.15)
+        self.assertAlmostEqual(u2.value, u_expected, delta=abs(u_expected)*0.15)
         # Граничное условие выполняется с точностью penalty method
-        self.assertLess(abs(sol['u1']), abs(u_expected)*0.11)
+        self.assertLess(abs(u1.value), abs(u_expected)*0.11)
         
         # Проверить напряжение
-        stress = bar.get_stress(np.array([sol['u1']]), np.array([sol['u2']]))
+        stress = bar.get_stress(np.array([u1.value]), np.array([u2.value]))
         stress_expected = F / A
         self.assertAlmostEqual(stress, stress_expected, places=5)
     
@@ -102,16 +100,14 @@ class TestBarElement(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            x = assembler.solve(use_least_squares=True)  # Используем lstsq для робастности
-        
-        sol = assembler.get_solution_dict(x)
+            assembler.solve_and_set(use_least_squares=True)  # Используем lstsq для робастности
         
         # Удлинение вдоль стержня
         L = np.linalg.norm(coord2 - coord1)
         elongation = F * L / (E * A)
         
         # Перемещения должны быть вдоль стержня
-        u2_vec = sol['u2']
+        u2_vec = u2.value
         displacement = np.linalg.norm(u2_vec)
         
         self.assertAlmostEqual(displacement, elongation, delta=abs(elongation)*0.15)
@@ -158,15 +154,13 @@ class TestBarElement(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            x = assembler.solve()
-        
-        sol = assembler.get_solution_dict(x)
+            assembler.solve_and_set()
         
         # Верхний узел должен сместиться вниз
-        self.assertLess(sol['u3'][1], 0.0)
+        self.assertLess(u3.value[1], 0.0)
         
         # Симметрия: горизонтальное перемещение должно быть почти нулевым
-        self.assertAlmostEqual(sol['u3'][0], 0.0, places=8)
+        self.assertAlmostEqual(u3.value[0], 0.0, places=8)
 
 
 class TestBeamElement(unittest.TestCase):
@@ -200,9 +194,7 @@ class TestBeamElement(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            x = assembler.solve()
-        
-        sol = assembler.get_solution_dict(x)
+            assembler.solve_and_set()
         
         # Аналитическое решение для консольной балки:
         # v(L) = F*L³/(3*E*I) (знак определяется знаком F)
@@ -212,8 +204,8 @@ class TestBeamElement(unittest.TestCase):
         theta_expected = F * L**2 / (2 * E * I)
         
         # Проверяем с допуском (балочная теория приближенная)
-        self.assertAlmostEqual(sol['v2'], v_expected, delta=abs(v_expected)*0.01)
-        self.assertAlmostEqual(sol['theta2'], theta_expected, delta=abs(theta_expected)*0.01)
+        self.assertAlmostEqual(v2.value, v_expected, delta=abs(v_expected)*0.01)
+        self.assertAlmostEqual(theta2.value, theta_expected, delta=abs(theta_expected)*0.01)
     
     def test_simple_beam_uniform_load(self):
         """Однопролетная балка с равномерной нагрузкой"""
@@ -242,9 +234,7 @@ class TestBeamElement(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            x = assembler.solve()
-        
-        sol = assembler.get_solution_dict(x)
+            assembler.solve_and_set()
         
         # Прогиб в середине для равномерно нагруженной балки на двух опорах:
         # v_max = 5*q*L⁴/(384*E*I)
@@ -258,7 +248,7 @@ class TestBeamElement(unittest.TestCase):
         N3 = 3*xi**2 - 2*xi**3
         N4 = L * (-xi**2 + xi**3)
         
-        v_mid = N1*sol['v1'] + N2*sol['theta1'] + N3*sol['v2'] + N4*sol['theta2']
+        v_mid = N1*v1.value + N2*theta1.value + N3*v2.value + N4*theta2.value
         
         # Прогиб должен быть отрицательным (вниз)
         self.assertLess(v_mid, 0.0)
@@ -298,15 +288,13 @@ class TestBeamElement(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            x = assembler.solve()
-        
-        sol = assembler.get_solution_dict(x)
+            assembler.solve_and_set()
         
         # Общая длина 2L
         L_total = 2 * L
         v_expected = F * L_total**3 / (3 * E * I)
         
-        self.assertAlmostEqual(sol['v3'], v_expected, delta=abs(v_expected)*0.01)
+        self.assertAlmostEqual(v3.value, v_expected, delta=abs(v_expected)*0.01)
 
 
 class TestTriangleElement(unittest.TestCase):
@@ -353,9 +341,7 @@ class TestTriangleElement(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            x = assembler.solve()
-        
-        sol = assembler.get_solution_dict(x)
+            assembler.solve_and_set()
         
         # Напряжение sigma_x = F / (b*t), где b - ширина
         b = 1.0  # высота прямоугольника
@@ -369,16 +355,16 @@ class TestTriangleElement(unittest.TestCase):
         delta_expected = epsilon_x * L
         
         # Перемещение правого края
-        ux2 = sol['u2'][0]
-        ux3 = sol['u3'][0]
+        ux2 = u2.value[0]
+        ux3 = u3.value[0]
         
         self.assertAlmostEqual(ux2, delta_expected, delta=abs(delta_expected)*0.15)
         self.assertAlmostEqual(ux3, delta_expected, delta=abs(delta_expected)*0.15)
         
         # Перемещения в y - эффект Пуассона (сужение при растяжении)
         # Проверяем только порядок величины
-        uy2 = sol['u2'][1]
-        uy3 = sol['u3'][1]
+        uy2 = u2.value[1]
+        uy3 = u3.value[1]
         
         # Должно быть сужение (отрицательное перемещение для нижнего края)
         # Но знак зависит от нумерации узлов, проверим просто малость
@@ -415,12 +401,10 @@ class TestTriangleElement(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            x = assembler.solve()
-        
-        sol = assembler.get_solution_dict(x)
+            assembler.solve_and_set()
         
         # Верхний узел должен сместиться
-        self.assertGreater(sol['u3'][0], 0.0)
+        self.assertGreater(u3.value[0], 0.0)
     
     def test_triangle_body_force(self):
         """Треугольник с объемной силой"""
@@ -460,12 +444,10 @@ class TestTriangleElement(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            x = assembler.solve()
-        
-        sol = assembler.get_solution_dict(x)
+            assembler.solve_and_set()
         
         # Только узел 3 должен сместиться вниз (узлы 1 и 2 закреплены)
-        self.assertLess(sol['u3'][1], 0.0)
+        self.assertLess(u3.value[1], 0.0)
     
     def test_triangle_stress_calculation(self):
         """Проверка расчета напряжений"""
