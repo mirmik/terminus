@@ -23,7 +23,7 @@ class Pose2:
         """Create an identity pose (no rotation, no translation)."""
         return Pose2(ang=0.0, lin=numpy.array([0.0, 0.0]))
 
-    def as_rotation_matrix(self):
+    def rotation_matrix(self):
         """Get the 2x2 rotation matrix corresponding to the pose's orientation."""
         if self._rot_matrix is None:
             c = math.cos(self.ang)
@@ -37,7 +37,7 @@ class Pose2:
     def as_matrix(self):
         """Get the 3x3 transformation matrix corresponding to the pose."""
         if self._mat is None:
-            R = self.as_rotation_matrix()
+            R = self.rotation_matrix()
             t = self.lin
             self._mat = numpy.eye(3)
             self._mat[:2, :2] = R
@@ -64,7 +64,7 @@ class Pose2:
         point = numpy.asarray(point)
         if point.shape != (2,):
             raise ValueError("point must be a 2D vector")
-        R = self.as_rotation_matrix()
+        R = self.rotation_matrix()
         return R @ point + self.lin
 
     def transform_vector(self, vector: numpy.ndarray) -> numpy.ndarray:
@@ -72,7 +72,7 @@ class Pose2:
         vector = numpy.asarray(vector)
         if vector.shape != (2,):
             raise ValueError("vector must be a 2D vector")
-        R = self.as_rotation_matrix()
+        R = self.rotation_matrix()
         return R @ vector
 
     def inverse_transform_point(self, point: numpy.ndarray) -> numpy.ndarray:
@@ -80,7 +80,7 @@ class Pose2:
         point = numpy.asarray(point)
         if point.shape != (2,):
             raise ValueError("point must be a 2D vector")
-        R = self.as_rotation_matrix()
+        R = self.rotation_matrix()
         return R.T @ (point - self.lin)
 
     def inverse_transform_vector(self, vector: numpy.ndarray) -> numpy.ndarray:
@@ -88,7 +88,7 @@ class Pose2:
         vector = numpy.asarray(vector)
         if vector.shape != (2,):
             raise ValueError("vector must be a 2D vector")
-        R = self.as_rotation_matrix()
+        R = self.rotation_matrix()
         return R.T @ vector
 
     def __mul__(self, other):
@@ -98,7 +98,7 @@ class Pose2:
         # Compose rotations: angles add
         new_ang = self.ang + other.ang
         # Compose translations: rotate other's translation and add to self's
-        R = self.as_rotation_matrix()
+        R = self.rotation_matrix()
         new_lin = self.lin + R @ other.lin
         return Pose2(ang=new_ang, lin=new_lin)
 

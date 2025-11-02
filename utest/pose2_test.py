@@ -18,7 +18,7 @@ class TestPose2(unittest.TestCase):
         """Тест матрицы поворота"""
         angle = math.pi / 4  # 45 градусов
         pose = Pose2(ang=angle)
-        R = pose.as_rotation_matrix()
+        R = pose.rotation_matrix()
         
         # Проверка размера
         self.assertEqual(R.shape, (2, 2))
@@ -122,7 +122,7 @@ class TestPose2(unittest.TestCase):
         # Проверка структуры матрицы
         # [R | t]
         # [0 | 1]
-        R = pose.as_rotation_matrix()
+        R = pose.rotation_matrix()
         np.testing.assert_array_almost_equal(mat[:2, :2], R)
         np.testing.assert_array_almost_equal(mat[:2, 2], pose.lin)
         np.testing.assert_array_almost_equal(mat[2, :], np.array([0.0, 0.0, 1.0]))

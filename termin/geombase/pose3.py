@@ -20,7 +20,7 @@ class Pose3:
             lin=numpy.array([0.0, 0.0, 0.0])
         )
 
-    def as_rotation_matrix(self):
+    def rotation_matrix(self):
         """Get the 3x3 rotation matrix corresponding to the pose's orientation."""
         if self._rot_matrix is None:
             x, y, z, w = self.ang
@@ -34,7 +34,7 @@ class Pose3:
     def as_matrix(self):
         """Get the 4x4 transformation matrix corresponding to the pose."""
         if self._mat is None:
-            R = self.as_rotation_matrix()
+            R = self.rotation_matrix()
             t = self.lin
             self._mat = numpy.eye(4)
             self._mat[:3, :3] = R
@@ -44,7 +44,7 @@ class Pose3:
     def as_matrix34(self):
         """Get the 3x4 transformation matrix corresponding to the pose."""
         if self._mat34 is None:
-            R = self.as_rotation_matrix()
+            R = self.rotation_matrix()
             t = self.lin
             self._mat34 = numpy.zeros((3, 4))
             self._mat34[:, :3] = R

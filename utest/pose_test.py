@@ -199,7 +199,7 @@ class TestPose3(unittest.TestCase):
         numpy.testing.assert_array_almost_equal(pose.lin, eye)
         
         # The Z axis (local up, index 2 in rotation matrix) should align with world up
-        rot_mat = pose.as_rotation_matrix()
+        rot_mat = pose.rotation_matrix()
         local_up = rot_mat[:, 1]  # Column 1 is the up direction
         numpy.testing.assert_array_almost_equal(
             local_up,
@@ -236,7 +236,7 @@ class TestPose3(unittest.TestCase):
         self.assertEqual(mat34.shape, (3, 4))
         
         # Check that rotation part matches 3x3 rotation matrix
-        rot_mat = pose.as_rotation_matrix()
+        rot_mat = pose.rotation_matrix()
         numpy.testing.assert_array_almost_equal(mat34[:, :3], rot_mat)
         
         # Check that translation part is correct

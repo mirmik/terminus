@@ -9,6 +9,12 @@ from termin.geombase.pose3 import Pose3
 from termin.geombase.screw import Screw2, cross2d_scalar
 
 
+def skew(v: np.ndarray) -> np.ndarray:
+    """Возвращает кососимметричную матрицу для вектора v."""
+    return np.array([[0, -v[2], v[1]],
+                     [v[2], 0, -v[0]],
+                     [-v[1], v[0], 0]])
+
 
 class SpatialInertia2D:
     """
@@ -112,7 +118,7 @@ class SpatialInertia3D:
 
     def __add__(self, other):
         """Сумма двух spatial inertia в одном фрейме."""
-        if not isinstance(other, SpatialInertia):
+        if not isinstance(other, SpatialInertia3D):
             return NotImplemented
 
         m1, m2 = self.m, other.m
@@ -139,6 +145,7 @@ class SpatialInertia3D:
         )
 
         return SpatialInertia3D(m, I, c)
+
 
     def to_matrix(self):
         c_skew = skew(self.c)
