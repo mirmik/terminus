@@ -32,6 +32,14 @@ class Screw:
 class Screw2(Screw):
     """A 2D Screw specialized for planar motions."""
     def __init__(self, ang: numpy.ndarray, lin: numpy.ndarray):
+
+        # check shapes
+        if ang.shape != (1,) and ang.shape != ():
+            raise Exception("ang must be a scalar or shape (1,) ndarray")
+
+        if lin.shape != (2,):
+            raise Exception("lin must be shape (2,) ndarray")
+
         super().__init__(ang=ang, lin=lin)
 
     def moment(self) -> float:

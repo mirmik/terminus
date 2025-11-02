@@ -11,7 +11,8 @@ from termin.fem.multibody2d import (
     RigidBody2D,
     ForceVector2D,
     ForceOnBody2D,
-    RevoluteJoint2D
+    FixedRevoluteJoint2D,
+    TwoBodyRevoluteJoint2D
 )
 
 
@@ -111,7 +112,7 @@ class TestIntegrationMultibody2D(unittest.TestCase):
 
 
 class TestPendulum2D(unittest.TestCase):
-    """Тесты для 2D маятника с RigidBody2D и RevoluteJoint2D"""
+    """Тесты для 2D маятника с RigidBody2D и FixedRevoluteJoint2D"""
     
     def test_pendulum_equilibrium(self):
         """
@@ -139,11 +140,11 @@ class TestPendulum2D(unittest.TestCase):
         F_gravity = np.array([0.0, -m*g])
         assembler.add_contribution(ForceOnBody2D(body, force=F_gravity))
         
-        # Вращательный шарнир
+        # Вращательный шарнир с фиксацией в пространстве
         # Центр масс находится на расстоянии L/2 от точки подвеса
         # Вектор от ЦМ к точке подвеса: r = [0, L/2] (вверх)
         r_pivot = np.array([0.0, L/2])
-        joint = RevoluteJoint2D(body, r_pivot)
+        joint = FixedRevoluteJoint2D(body, r_pivot)
         assembler.add_constraint(joint)
         
         # Решение
@@ -184,7 +185,7 @@ class TestPendulum2D(unittest.TestCase):
         assembler.add_contribution(ForceOnBody2D(body, force=F_gravity))
         
         r_pivot = np.array([0.0, L/2])
-        joint = RevoluteJoint2D(body, r_pivot)
+        joint = FixedRevoluteJoint2D(body, r_pivot)
         assembler.add_constraint(joint)
         
         with warnings.catch_warnings():
@@ -241,9 +242,9 @@ class TestPendulum2D(unittest.TestCase):
         torque_gravity = -m * g * L / 2
         assembler.add_contribution(ForceOnBody2D(body, force=F_gravity, torque=torque_gravity))
         
-        # Шарнир (для горизонтального положения r от ЦМ к шарниру)
+        # Шарнир с фиксацией (для горизонтального положения r от ЦМ к шарниру)
         r_pivot = np.array([-L/2, 0.0])
-        joint = RevoluteJoint2D(body, r_pivot)
+        joint = FixedRevoluteJoint2D(body, r_pivot)
         assembler.add_constraint(joint)
         
         with warnings.catch_warnings():
@@ -340,9 +341,9 @@ class TestPendulum2D(unittest.TestCase):
         F_gravity = np.array([0.0, -m*g])
         assembler.add_contribution(ForceOnBody2D(body, force=F_gravity))
         
-        # Создаем шарнир (один раз!)
+        # Создаем шарнир с фиксацией (один раз!)
         r_pivot = np.array([-(L/2)*np.sin(theta0), (L/2)*np.cos(theta0)])
-        joint = RevoluteJoint2D(body, r_pivot)
+        joint = FixedRevoluteJoint2D(body, r_pivot)
         assembler.add_constraint(joint)
         
         # Текущее состояние
@@ -419,6 +420,291 @@ class TestPendulum2D(unittest.TestCase):
         # Убеждаемся, что маятник качается в обе стороны
         self.assertGreater(omega_max, 0.1)
         self.assertLess(omega_min, -0.1)
+
+
+class TestTwoBodyRevoluteJoint2D(unittest.TestCase):
+    """Тесты для двухтельного вращательного шарнира (RevoluteJoint2D)"""
+    
+    def test_two_bodies_at_rest(self):
+        """
+        Два тела, соединенные шарниром, в состоянии покоя.
+        Без сил система должна оставаться в покое.
+        """
+        # Параметры тел
+        m1 = 1.0
+        m2 = 1.0
+        J1 = 0.5
+        J2 = 0.5
+        dt = 0.01
+        
+        # Сборка системы
+        assembler = MatrixAssembler()
+        
+        # Создаем два тела
+        body1 = RigidBody2D(m=m1, J=J1, C=0.0, B=0.0, dt=dt)
+        body2 = RigidBody2D(m=m2, J=J2, C=0.0, B=0.0, dt=dt)
+        
+        assembler.add_contribution(body1)
+        assembler.add_contribution(body2)
+        
+        # Соединяем их шарниром
+        # Точка соединения на расстоянии 0.5м от каждого центра масс
+        r1 = np.array([0.5, 0.0])  # от ЦМ body1 к точке шарнира
+        r2 = np.array([-0.5, 0.0]) # от ЦМ body2 к точке шарнира
+        joint = TwoBodyRevoluteJoint2D(body1, body2, r1, r2)
+        assembler.add_constraint(joint)
+        
+        # Решение
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            assembler.solve_and_set()
+        
+        # Все скорости должны быть нулевыми
+        np.testing.assert_allclose(body1.velocity.value, 0.0, atol=1e-8)
+        np.testing.assert_allclose(body2.velocity.value, 0.0, atol=1e-8)
+        np.testing.assert_allclose(body1.omega.value, 0.0, atol=1e-8)
+        np.testing.assert_allclose(body2.omega.value, 0.0, atol=1e-8)
+    
+    def test_two_bodies_constraint_satisfaction(self):
+        """
+        Проверка выполнения кинематической связи при начальных скоростях.
+        """
+        # Параметры
+        m1 = 1.0
+        m2 = 1.0
+        J1 = 0.5
+        J2 = 0.5
+        dt = 0.01
+        
+        # Сборка системы
+        assembler = MatrixAssembler()
+        
+        body1 = RigidBody2D(m=m1, J=J1, C=0.0, B=0.0, dt=dt)
+        body2 = RigidBody2D(m=m2, J=J2, C=0.0, B=0.0, dt=dt)
+        
+        # Устанавливаем начальные скорости
+        body1.velocity.set_value(np.array([1.0, 0.0]))
+        body1.omega.set_value(0.5)
+        body2.velocity.set_value(np.array([0.5, 0.0]))
+        body2.omega.set_value(-0.3)
+        
+        assembler.add_contribution(body1)
+        assembler.add_contribution(body2)
+        
+        # Шарнир
+        r1 = np.array([0.5, 0.0])
+        r2 = np.array([-0.5, 0.0])
+        joint = TwoBodyRevoluteJoint2D(body1, body2, r1, r2)
+        assembler.add_constraint(joint)
+        
+        # Решение
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            assembler.solve_and_set()
+        
+        # Проверка выполнения кинематической связи
+        # v1 + ω1 × r1 = v2 + ω2 × r2
+        v1 = body1.velocity.value
+        w1 = body1.omega.value
+        v2 = body2.velocity.value
+        w2 = body2.omega.value
+        
+        # Скорость точки шарнира на body1
+        v_joint1 = v1 + np.array([-w1 * r1[1], w1 * r1[0]])
+        
+        # Скорость точки шарнира на body2
+        v_joint2 = v2 + np.array([-w2 * r2[1], w2 * r2[0]])
+        
+        # Они должны совпадать
+        np.testing.assert_allclose(v_joint1, v_joint2, atol=1e-8)
+    
+    def test_double_pendulum(self):
+        """
+        Двойной маятник: два звена, соединенные шарнирами.
+        Первое звено подвешено на фиксированном шарнире, второе - на первом.
+        """
+        # Параметры звеньев
+        m = 1.0      # масса каждого звена
+        L = 1.0      # длина каждого звена
+        g = 9.81     # гравитация
+        J = m * L**2 / 3  # момент инерции стержня относительно конца
+        dt = 0.001   # малый шаг для точности
+        
+        # Сборка системы
+        assembler = MatrixAssembler()
+        
+        # Первое звено (верхнее)
+        body1 = RigidBody2D(m=m, J=J, C=0.0, B=0.0, dt=dt)
+        assembler.add_contribution(body1)
+        
+        # Второе звено (нижнее)
+        body2 = RigidBody2D(m=m, J=J, C=0.0, B=0.0, dt=dt)
+        assembler.add_contribution(body2)
+        
+        # Гравитация на оба звена
+        F_gravity = np.array([0.0, -m*g])
+        assembler.add_contribution(ForceOnBody2D(body1, force=F_gravity))
+        assembler.add_contribution(ForceOnBody2D(body2, force=F_gravity))
+        
+        # Первый шарнир: фиксация первого звена в пространстве
+        # Вектор от ЦМ к точке подвеса (в положении равновесия - вверх)
+        r1_fixed = np.array([0.0, L/2])
+        joint1 = FixedRevoluteJoint2D(body1, r1_fixed)
+        assembler.add_constraint(joint1)
+        
+        # Второй шарнир: соединение двух звеньев
+        # От ЦМ первого звена к низу: [0, -L/2]
+        # От ЦМ второго звена к верху: [0, L/2]
+        r1_joint = np.array([0.0, -L/2])
+        r2_joint = np.array([0.0, L/2])
+        joint2 = TwoBodyRevoluteJoint2D(body1, body2, r1_joint, r2_joint)
+        assembler.add_constraint(joint2)
+        
+        # Решение для положения равновесия
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            assembler.solve_and_set()
+        
+        # В положении равновесия все скорости должны быть нулевыми
+        np.testing.assert_allclose(body1.velocity.value, 0.0, atol=1e-8)
+        np.testing.assert_allclose(body1.omega.value, 0.0, atol=1e-8)
+        np.testing.assert_allclose(body2.velocity.value, 0.0, atol=1e-8)
+        np.testing.assert_allclose(body2.omega.value, 0.0, atol=1e-8)
+        
+        # Проверка связей
+        v1 = body1.velocity.value
+        w1 = body1.omega.value
+        v2 = body2.velocity.value
+        w2 = body2.omega.value
+        
+        # Связь 1: точка на body1 зафиксирована
+        v_fixed = v1 + np.array([-w1 * r1_fixed[1], w1 * r1_fixed[0]])
+        np.testing.assert_allclose(v_fixed, 0.0, atol=1e-8)
+        
+        # Связь 2: точки соединения имеют одинаковую скорость
+        v_joint1 = v1 + np.array([-w1 * r1_joint[1], w1 * r1_joint[0]])
+        v_joint2 = v2 + np.array([-w2 * r2_joint[1], w2 * r2_joint[0]])
+        np.testing.assert_allclose(v_joint1, v_joint2, atol=1e-8)
+    
+    def test_force_transmission_through_joint(self):
+        """
+        Проверка передачи силы через шарнир.
+        Если к одному телу приложена сила, она должна передаваться на второе тело.
+        """
+        # Параметры
+        m1 = 1.0
+        m2 = 2.0
+        J1 = 0.5
+        J2 = 1.0
+        dt = 0.01
+        
+        # Сборка системы
+        assembler = MatrixAssembler()
+        
+        body1 = RigidBody2D(m=m1, J=J1, C=0.0, B=0.0, dt=dt)
+        body2 = RigidBody2D(m=m2, J=J2, C=0.0, B=0.0, dt=dt)
+        
+        assembler.add_contribution(body1)
+        assembler.add_contribution(body2)
+        
+        # Прикладываем силу к body1
+        force = np.array([10.0, 0.0])
+        assembler.add_contribution(ForceOnBody2D(body1, force=force))
+        
+        # Соединяем шарниром
+        r1 = np.array([0.5, 0.0])
+        r2 = np.array([-0.5, 0.0])
+        joint = TwoBodyRevoluteJoint2D(body1, body2, r1, r2)
+        assembler.add_constraint(joint)
+        
+        # Решение
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            assembler.solve_and_set()
+        
+        # Оба тела должны двигаться (через шарнир передается сила)
+        # Связанные тела ускоряются вместе
+        v1 = body1.velocity.value
+        v2 = body2.velocity.value
+        
+        # Оба тела должны иметь ненулевые скорости
+        self.assertGreater(np.linalg.norm(v1), 1e-6)
+        self.assertGreater(np.linalg.norm(v2), 1e-6)
+        
+        # Проверяем, что связь выполняется
+        w1 = body1.omega.value
+        w2 = body2.omega.value
+        v_joint1 = v1 + np.array([-w1 * r1[1], w1 * r1[0]])
+        v_joint2 = v2 + np.array([-w2 * r2[1], w2 * r2[0]])
+        np.testing.assert_allclose(v_joint1, v_joint2, atol=1e-8)
+    
+    def test_update_r_method(self):
+        """
+        Проверка метода update_r для обновления векторов к точке шарнира.
+        """
+        # Параметры
+        m1 = 1.0
+        m2 = 1.0
+        J1 = 0.5
+        J2 = 0.5
+        dt = 0.01
+        
+        # Сборка системы
+        assembler = MatrixAssembler()
+        
+        body1 = RigidBody2D(m=m1, J=J1, C=0.0, B=0.0, dt=dt)
+        body2 = RigidBody2D(m=m2, J=J2, C=0.0, B=0.0, dt=dt)
+        
+        body1.omega.set_value(1.0)
+        body2.omega.set_value(-1.0)
+        
+        assembler.add_contribution(body1)
+        assembler.add_contribution(body2)
+        
+        # Начальные векторы
+        r1 = np.array([0.5, 0.0])
+        r2 = np.array([-0.5, 0.0])
+        joint = TwoBodyRevoluteJoint2D(body1, body2, r1, r2)
+        assembler.add_constraint(joint)
+        
+        # Решение
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            assembler.solve_and_set()
+        
+        # Проверяем, что связь выполняется с начальными векторами
+        v1 = body1.velocity.value
+        w1 = body1.omega.value
+        v2 = body2.velocity.value
+        w2 = body2.omega.value
+        
+        v_joint1 = v1 + np.array([-w1 * r1[1], w1 * r1[0]])
+        v_joint2 = v2 + np.array([-w2 * r2[1], w2 * r2[0]])
+        np.testing.assert_allclose(v_joint1, v_joint2, atol=1e-8)
+        
+        # Обновляем векторы (тела повернулись)
+        new_r1 = np.array([0.3, 0.4])
+        new_r2 = np.array([-0.3, -0.4])
+        joint.update_r(new_r1, new_r2)
+        
+        # Проверяем, что векторы обновились
+        np.testing.assert_allclose(joint.r1, new_r1)
+        np.testing.assert_allclose(joint.r2, new_r2)
+        
+        # Решаем снова с новыми векторами
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            assembler.solve_and_set()
+        
+        # Связь должна выполняться с новыми векторами
+        v1 = body1.velocity.value
+        w1 = body1.omega.value
+        v2 = body2.velocity.value
+        w2 = body2.omega.value
+        
+        v_joint1_new = v1 + np.array([-w1 * new_r1[1], w1 * new_r1[0]])
+        v_joint2_new = v2 + np.array([-w2 * new_r2[1], w2 * new_r2[0]])
+        np.testing.assert_allclose(v_joint1_new, v_joint2_new, atol=1e-8)
 
 
 if __name__ == '__main__':

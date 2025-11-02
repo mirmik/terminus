@@ -12,7 +12,8 @@ Contributions (физические элементы):
 - ForceVector2D: векторная сила на тело (устаревший)
 
 Constraints (кинематические связи):
-- RevoluteJoint2D: вращательный шарнир (точка фиксирована)
+- FixedRevoluteJoint2D: шарнир с фиксацией в пространстве (заземление)
+- TwoBodyRevoluteJoint2D: вращательный шарнир между двумя телами
 - FixedPoint2D: фиксация точки в пространстве
 """
 
@@ -452,11 +453,12 @@ class ForceVector2D(Contribution):
 # ============================================================================
 
 
-class RevoluteJoint2D(Constraint):
+class FixedRevoluteJoint2D(Constraint):
     """
-    Вращательный шарнир (revolute joint) для твердого тела.
+    Вращательный шарнир с фиксацией в пространстве (ground revolute joint).
     
     Фиксирует точку на теле в пространстве, разрешая только вращение вокруг этой точки.
+    Эквивалентно присоединению тела к неподвижному основанию через шарнир.
     
     Кинематическая связь:
     - Скорость точки крепления должна быть нулевой: v_cm + ω × r = 0
@@ -567,6 +569,138 @@ class RevoluteJoint2D(Constraint):
         """
         v_pin = v + np.array([-omega * self.ry, omega * self.rx])
         return v_pin
+
+
+class TwoBodyRevoluteJoint2D(Constraint):
+    """
+    Вращательный шарнир между двумя телами (two-body revolute joint).
+    
+    Соединяет два тела через точку, разрешая только относительное вращение.
+    
+    Кинематическая связь:
+    - Скорости точек крепления на обоих телах должны совпадать:
+      v1_cm + ω1 × r1 = v2_cm + ω2 × r2
+    - В 2D: v1 + [-ω1*r1y, ω1*r1x] = v2 + [-ω2*r2y, ω2*r2x]
+    
+    Это даёт два уравнения связи (для x и y компонент).
+    
+    где:
+    - v1_cm, v2_cm: скорости центров масс тел [vx, vy]
+    - ω1, ω2: угловые скорости тел
+    - r1, r2: векторы от центров масс к точке шарнира [rx, ry]
+    
+    Реализуется через множители Лагранжа.
+    """
+    
+    def __init__(self,
+                 body1: 'RigidBody2D',   # первое тело
+                 body2: 'RigidBody2D',   # второе тело
+                 r1: np.ndarray,         # вектор от ЦМ тела1 к точке шарнира
+                 r2: np.ndarray,         # вектор от ЦМ тела2 к точке шарнира
+                 assembler=None):
+        """
+        Args:
+            body1: Первое твердое тело
+            body2: Второе твердое тело
+            r1: Вектор от центра масс body1 к точке шарнира [rx, ry] [м]
+            r2: Вектор от центра масс body2 к точке шарнира [rx, ry] [м]
+            assembler: MatrixAssembler для автоматической регистрации переменных
+        """
+        self.body1 = body1
+        self.body2 = body2
+        self.velocity1 = body1.velocity
+        self.velocity2 = body2.velocity
+        self.omega1 = body1.omega
+        self.omega2 = body2.omega
+        
+        self.r1 = np.asarray(r1)
+        self.r2 = np.asarray(r2)
+        
+        if self.r1.shape != (2,):
+            raise ValueError("r1 должен быть вектором размера 2")
+        if self.r2.shape != (2,):
+            raise ValueError("r2 должен быть вектором размера 2")
+        
+        super().__init__([self.velocity1, self.omega1, self.velocity2, self.omega2], assembler)
+        
+        self.r1x = r1[0]
+        self.r1y = r1[1]
+        self.r2x = r2[0]
+        self.r2y = r2[1]
+        
+        # Матрица коэффициентов связи
+        # Связь: v1x - ω1*r1y - v2x + ω2*r2y = 0
+        #        v1y + ω1*r1x - v2y - ω2*r2x = 0
+        #
+        # В матричной форме: C * [v1x, v1y, ω1, v2x, v2y, ω2]^T = 0
+        # C = [[1,  0, -r1y, -1,  0,  r2y],
+        #      [0,  1,  r1x,  0, -1, -r2x]]
+    
+    def update_r(self, r1: np.ndarray, r2: np.ndarray):
+        """
+        Обновить векторы от центров масс к точке шарнира.
+        
+        Args:
+            r1: Новый вектор для body1 [rx, ry] [м]
+            r2: Новый вектор для body2 [rx, ry] [м]
+        """
+        self.r1 = np.asarray(r1)
+        self.r2 = np.asarray(r2)
+        
+        if self.r1.shape != (2,):
+            raise ValueError("r1 должен быть вектором размера 2")
+        if self.r2.shape != (2,):
+            raise ValueError("r2 должен быть вектором размера 2")
+        
+        self.r1x = r1[0]
+        self.r1y = r1[1]
+        self.r2x = r2[0]
+        self.r2y = r2[1]
+    
+    def get_n_constraints(self) -> int:
+        """Два уравнения связи (x и y компоненты)"""
+        return 2
+    
+    def contribute_to_C(self, C: np.ndarray, constraint_offset: int, 
+                       index_map: Dict[Variable, List[int]]):
+        """
+        Добавить вклад в матрицу связей C
+        """
+        v1_indices = index_map[self.velocity1]
+        omega1_idx = index_map[self.omega1][0]
+        v2_indices = index_map[self.velocity2]
+        omega2_idx = index_map[self.omega2][0]
+        
+        # Первое уравнение: v1x - ω1*r1y - v2x + ω2*r2y = 0
+        C[constraint_offset, v1_indices[0]] += 1.0      # v1x
+        C[constraint_offset, omega1_idx] += -self.r1y   # -ω1*r1y
+        C[constraint_offset, v2_indices[0]] += -1.0     # -v2x
+        C[constraint_offset, omega2_idx] += self.r2y    # ω2*r2y
+        
+        # Второе уравнение: v1y + ω1*r1x - v2y - ω2*r2x = 0
+        C[constraint_offset + 1, v1_indices[1]] += 1.0      # v1y
+        C[constraint_offset + 1, omega1_idx] += self.r1x    # ω1*r1x
+        C[constraint_offset + 1, v2_indices[1]] += -1.0     # -v2y
+        C[constraint_offset + 1, omega2_idx] += -self.r2x   # -ω2*r2x
+    
+    def contribute_to_d(self, d: np.ndarray, constraint_offset: int):
+        """
+        Правая часть связи (нулевая для совпадения скоростей точек)
+        """
+        # d[constraint_offset:constraint_offset+2] уже заполнено нулями
+        pass
+    
+    def get_constraint_violation(self, v1: np.ndarray, omega1: float,
+                                  v2: np.ndarray, omega2: float) -> np.ndarray:
+        """
+        Вычислить нарушение кинематической связи
+        
+        Returns:
+            Вектор нарушения: (v1 + ω1 × r1) - (v2 + ω2 × r2) [м/с]
+        """
+        v1_pin = v1 + np.array([-omega1 * self.r1y, omega1 * self.r1x])
+        v2_pin = v2 + np.array([-omega2 * self.r2y, omega2 * self.r2x])
+        return v1_pin - v2_pin
 
 
 class FixedPoint2D(Constraint):

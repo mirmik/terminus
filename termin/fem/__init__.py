@@ -46,7 +46,9 @@ from .multibody2d import (
     TorqueSource2D,
     RigidBody2D,
     ForceVector2D,
-    RevoluteJoint2D,
+    ForceOnBody2D,
+    FixedRevoluteJoint2D,
+    TwoBodyRevoluteJoint2D,
     FixedPoint2D,
 )
 
@@ -89,6 +91,16 @@ __all__ = [
     'LinearMass',
     'ForceSource',
     'LinearSpring',
+    
+    # Multibody 2D
+    'RotationalInertia2D',
+    'TorqueSource2D',
+    'RigidBody2D',
+    'ForceVector2D',
+    'ForceOnBody2D',
+    'FixedRevoluteJoint2D',
+    'TwoBodyRevoluteJoint2D',
+    'FixedPoint2D',
     
     # Electromechanical
     'DCMotor',
