@@ -65,6 +65,8 @@ class RotationalInertia2D(Contribution):
         if B < 0:
             raise ValueError("Коэффициент демпфирования не может быть отрицательным")
         
+        self.lambda_var = Variable("lambda_rot_inertia", size=1) 
+
         super().__init__([omega], assembler)
         
         self.omega = omega
@@ -542,13 +544,14 @@ class FixedRevoluteJoint2D(Constraint):
         ])
     
     def contribute_to_holonomic(self, C: np.ndarray,
-                       index_map: Dict[Variable, List[int]]):
+                       index_map: Dict[Variable, List[int]],
+                       lambdas_index_map: Dict[Variable, List[int]]):
         """
         Добавить вклад в матрицу связей C
         """
         v_indices = index_map[self.body.velocity]
         omega_idx = index_map[self.body.omega][0]
-        constr_indices = index_map[self.lambdas[0]]
+        constr_indices = lambdas_index_map[self.lambdas]
 
         # Заполнить коэффициенты для vx и vy
         for i in range(2):  # две связи
@@ -558,11 +561,10 @@ class FixedRevoluteJoint2D(Constraint):
             # Коэффициент при omega
             C[constr_indices[i], omega_idx] += self.C_omega[i, 0]
 
-    def contribute_to_holonomic_load(self, d: np.ndarray,  index_map: Dict[Variable, List[int]]):
+    def contribute_to_holonomic_load(self, d: np.ndarray,  holonomic_index_map: Dict[Variable, List[int]]):
         """
         Правая часть связи (нулевая для фиксации точки)
         """
-        # d[constraint_offset:constraint_offset+2] уже заполнено нулями
         pass
     
     def get_constraint_violation(self, v: np.ndarray, omega: float) -> np.ndarray:
@@ -628,7 +630,7 @@ class TwoBodyRevoluteJoint2D(Constraint):
         if self.r2.shape != (2,):
             raise ValueError("r2 должен быть вектором размера 2")
 
-        super().__init__([self.velocity1, self.omega1, self.velocity2, self.omega2], [self.lambdas], assembler)
+        super().__init__([self.velocity1, self.omega1, self.velocity2, self.omega2], [self.lambdas], [], assembler)
 
         self.r1x = r1[0]
         self.r1y = r1[1]
@@ -664,21 +666,20 @@ class TwoBodyRevoluteJoint2D(Constraint):
         self.r2x = r2[0]
         self.r2y = r2[1]
     
-    def get_n_holonomic(self) -> int:
-        """Два уравнения связи (x и y компоненты)"""
-        return 2
-    
     def contribute_to_holonomic(self, C: np.ndarray,
-                       index_map: Dict[Variable, List[int]]):
+                       vars_index_map: Dict[Variable, List[int]],
+                       lambdas_index_map: Dict[Variable, List[int]]):
         """
         Добавить вклад в матрицу связей C
         """
-        v1_indices = index_map[self.velocity1]
-        omega1_idx = index_map[self.omega1][0]
-        v2_indices = index_map[self.velocity2]
-        omega2_idx = index_map[self.omega2][0]
+        v1_indices = vars_index_map[self.velocity1]
+        omega1_idx = vars_index_map[self.omega1][0]
+        v2_indices = vars_index_map[self.velocity2]
+        omega2_idx = vars_index_map[self.omega2][0]
 
-        constr_indices = index_map[self.lambdas[0]]
+        constr_indices = lambdas_index_map[self.lambdas]
+        print(constr_indices)
+        print(C)
         
         # Первое уравнение: v1x - ω1*r1y - v2x + ω2*r2y = 0
         C[constr_indices[0], v1_indices[0]] += 1.0      # v1x
@@ -692,11 +693,10 @@ class TwoBodyRevoluteJoint2D(Constraint):
         C[constr_indices[1], v2_indices[1]] += -1.0     # -v2y
         C[constr_indices[1], omega2_idx] += -self.r2x   # -ω2*r2x
     
-    def contribute_to_holonomic_load(self, d: np.ndarray, constraint_offset: int):
+    def contribute_to_holonomic_load(self, d: np.ndarray,  holonomic_index_map: Dict[Variable, List[int]]):
         """
         Правая часть связи (нулевая для совпадения скоростей точек)
         """
-        # d[constraint_offset:constraint_offset+2] уже заполнено нулями
         pass
     
     def get_constraint_violation(self, v1: np.ndarray, omega1: float,
@@ -728,6 +728,7 @@ class FixedPoint2D(Constraint):
         """
         self.body = body
         self.velocity = body.velocity
+        self.lambdas = Variable("lambda_fixed_point", size=2)  # два множителя Лагранжа
         
         if target is None:
             self.target = np.zeros(2)
@@ -735,25 +736,23 @@ class FixedPoint2D(Constraint):
             self.target = np.asarray(target)
             if self.target.shape != (2,):
                 raise ValueError("target должен быть вектором размера 2")
-        
-        super().__init__([self.velocity], assembler)
+
+        super().__init__([self.velocity], [self.lambdas], assembler)
+
     
-    def get_n_constraints(self) -> int:
-        """Два уравнения связи (vx = 0, vy = 0)"""
-        return 2
-    
-    def contribute_to_damping(self, C: np.ndarray, constraint_offset: int, 
-                       index_map: Dict[Variable, List[int]]):
+    def contribute_to_damping(self, C: np.ndarray, 
+                       index_map: Dict[Variable, List[int]], lambdas_index_map: Dict[Variable, List[int]]):
         """
         Матрица связи: единичная матрица [[1, 0], [0, 1]]
         """
         v_indices = index_map[self.velocity]
+        lambda_idx = lambdas_index_map[self.lambdas[0]]
         
-        C[constraint_offset, v_indices[0]] += 1.0      # vx = target[0]
-        C[constraint_offset + 1, v_indices[1]] += 1.0  # vy = target[1]
+        C[lambda_idx, v_indices[0]] += 1.0      # vx = target[0]
+        C[lambda_idx + 1, v_indices[1]] += 1.0  # vy = target[1]
     
-    def contribute_to_d(self, d: np.ndarray, constraint_offset: int):
+    def contribute_to_load(self, d: np.ndarray):
         """
         Правая часть: целевая скорость
         """
-        d[constraint_offset:constraint_offset + 2] += self.target
+        d[lambdas_index_map[self.lambdas]] += self.target

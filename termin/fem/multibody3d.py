@@ -107,7 +107,7 @@ class RotationalInertia3D(Contribution):
             for j in range(3):
                 A[indices[i], indices[j]] += self.M_eff[i, j]
     
-    def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_load(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
         Добавить вклад от предыдущего состояния
         """
@@ -178,7 +178,7 @@ class TorqueVector3D(Contribution):
     def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         pass
     
-    def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_load(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
         indices = index_map[self.omega]
         for i in range(3):
             b[indices[i]] += self.torque[i]
@@ -257,7 +257,7 @@ class LinearMass3D(Contribution):
             for j in range(3):
                 A[indices[i], indices[j]] += self.M_eff[i, j]
     
-    def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_load(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
         if self.dt is None:
             return
         
@@ -345,9 +345,9 @@ class RigidBody3D(Contribution):
         self.mass.contribute_to_mass(A, index_map)
         self.inertia.contribute_to_mass(A, index_map)
     
-    def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
-        self.mass.contribute_to_b(b, index_map)
-        self.inertia.contribute_to_b(b, index_map)
+    def contribute_to_load(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
+        self.mass.contribute_to_load(b, index_map)
+        self.inertia.contribute_to_load(b, index_map)
     
     def get_kinetic_energy(self, v: np.ndarray = None, omega: np.ndarray = None) -> float:
         """
@@ -399,7 +399,7 @@ class ForceVector3D(Contribution):
     def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         pass
     
-    def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_load(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
         indices = index_map[self.velocity]
         for i in range(3):
             b[indices[i]] += self.force[i]
@@ -456,8 +456,10 @@ class SphericalJoint3D(Constraint):
         
         if self.r.shape != (3,):
             raise ValueError("r должен быть вектором размера 3")
+
+        self.lambdas = Variable(size=3, name="lambda_spherical_joint_3d")
         
-        super().__init__([velocity, omega], assembler)
+        super().__init__([velocity, omega], [self.lambdas], [], assembler)
         
         self.velocity = velocity
         self.omega = omega
@@ -477,29 +479,29 @@ class SphericalJoint3D(Constraint):
         # Берем с обратным знаком: ω × r = -[r]_× * ω
         self.r_skew = -r_skew_standard
     
-    def get_n_constraints(self) -> int:
-        """Три уравнения связи (vx, vy, vz)"""
-        return 3
     
-    def contribute_to_damping(self, C: np.ndarray, constraint_offset: int,
-                       index_map: Dict[Variable, List[int]]):
+    def contribute_to_holonomic(self, C: np.ndarray, 
+                       index_map: Dict[Variable, List[int]],
+                       lambdas_index_map: Dict[Variable, List[int]]):
         """
         Связь: v_cm + ω × r = 0
         v + [r]_× * ω = 0
         """
         v_indices = index_map[self.velocity]
         omega_indices = index_map[self.omega]
+
+        constr_indices = lambdas_index_map[self.lambdas]
         
         # Коэффициенты при v: единичная матрица
         for i in range(3):
-            C[constraint_offset + i, v_indices[i]] += 1.0
+            C[constr_indices[i], v_indices[i]] += 1.0
         
         # Коэффициенты при ω: кососимметрическая матрица [r]_×
         for i in range(3):
             for j in range(3):
-                C[constraint_offset + i, omega_indices[j]] += self.r_skew[i, j]
-    
-    def contribute_to_d(self, d: np.ndarray, constraint_offset: int):
+                C[constr_indices[i], omega_indices[j]] += self.r_skew[i, j]
+
+    def contribute_to_holonomic_load(self, d: np.ndarray, lambdas_index_map: Dict[Variable, List[int]]):
         """
         Правая часть связи (нулевая)
         """
@@ -535,31 +537,32 @@ class FixedPoint3D(Constraint):
         else:
             self.target = np.asarray(target)
             if self.target.shape != (3,):
-                raise ValueError("target должен быть вектором размера 3")
-        
-        super().__init__([velocity], assembler)
-        
+                raise ValueError("target должен быть вектором размера 3")   
+
+        self.lambdas = Variable(size=3, name="lambda_fixed_point_3d")
+
+        super().__init__([velocity], [self.lambdas], [], assembler)
+
         self.velocity = velocity
-    
-    def get_n_constraints(self) -> int:
-        """Три уравнения связи"""
-        return 3
-    
-    def contribute_to_damping(self, C: np.ndarray, constraint_offset: int,
-                       index_map: Dict[Variable, List[int]]):
+
+
+    def contribute_to_holonomic(self, C: np.ndarray,
+                       index_map: Dict[Variable, List[int]],
+                       lambdas_index_map: Dict[Variable, List[int]],):
         """
         Матрица связи: единичная матрица
         """
         v_indices = index_map[self.velocity]
+        lambdas_indices = lambdas_index_map[self.lambdas]
         
         for i in range(3):
-            C[constraint_offset + i, v_indices[i]] += 1.0
-    
-    def contribute_to_d(self, d: np.ndarray, constraint_offset: int):
+            C[lambdas_indices[i], v_indices[i]] += 1.0
+
+    def contribute_to_holonomic_load(self, d: np.ndarray, lambdas_index_map: Dict[Variable, List[int]]):
         """
         Правая часть: целевая скорость
         """
-        d[constraint_offset:constraint_offset + 3] += self.target
+        d[lambdas_index_map[self.lambdas]] += self.target
 
 
 class FixedRotation3D(Constraint):
@@ -583,27 +586,28 @@ class FixedRotation3D(Constraint):
             self.target = np.asarray(target)
             if self.target.shape != (3,):
                 raise ValueError("target должен быть вектором размера 3")
-        
-        super().__init__([omega], assembler)
-        
+
+        self.lambdas = Variable(size=3, name="lambda_fixed_rotation_3d")
+
+        super().__init__([omega], [self.lambdas], [], assembler)
+
         self.omega = omega
-    
-    def get_n_constraints(self) -> int:
-        """Три уравнения связи"""
-        return 3
-    
-    def contribute_to_damping(self, C: np.ndarray, constraint_offset: int,
-                       index_map: Dict[Variable, List[int]]):
+
+
+    def contribute_to_holonomic(self, C: np.ndarray,
+                       index_map: Dict[Variable, List[int]],
+                       lambdas_index_map: Dict[Variable, List[int]]):
         """
         Матрица связи: единичная матрица
         """
         omega_indices = index_map[self.omega]
+        lambdas_indices = lambdas_index_map[self.lambdas]
         
         for i in range(3):
-            C[constraint_offset + i, omega_indices[i]] += 1.0
-    
-    def contribute_to_d(self, d: np.ndarray, constraint_offset: int):
+            C[lambdas_indices[i], omega_indices[i]] += 1.0
+
+    def contribute_to_holonomic_load(self, d: np.ndarray, lambdas_index_map: Dict[Variable, List[int]]):
         """
         Правая часть: целевая угловая скорость
         """
-        d[constraint_offset:constraint_offset + 3] += self.target
+        d[lambdas_index_map[self.lambdas]] += self.target

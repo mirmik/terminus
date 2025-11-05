@@ -250,6 +250,9 @@ class Constraint:
             assembler.add_constraint(self)
         self._rank = self._evaluate_rank()
 
+        self._rank_holonomic = sum(var.size for var in self.holonomic_lambdas)
+        self._rank_nonholonomic = sum(var.size for var in self.nonholonomic_lambdas)
+
     def _evaluate_rank(self) -> int:
         return sum(var.size for var in self.variables)
 
@@ -267,11 +270,11 @@ class Constraint:
     
     def get_n_holonomic(self) -> int:
         """Возвращает количество голономных уравнений связи"""
-        return len(self.holonomic_lambdas)
+        return self._rank_holonomic
 
     def get_n_nonholonomic(self) -> int:
         """Возвращает количество неоголономных уравнений связи"""
-        return len(self.nonholonomic_lambdas)
+        return self._rank_nonholonomic
 
     def contribute_to_holonomic(self, H: np.ndarray, 
                        index_map: Dict[Variable, List[int]]):
@@ -282,10 +285,11 @@ class Constraint:
             H: Матрица связей (n_constraints_total × n_dofs)
             index_map: Отображение Variable -> список глобальных индексов
         """
-        return np.zeros((self.get_n_constraints(), H.shape[1]))
+        return np.zeros((self.get_n_holonomic(), H.shape[1]))
     
     def contribute_to_nonholonomic(self, N: np.ndarray,                                    
-                                     index_map: Dict[Variable, List[int]]):
+                                     vars_index_map: Dict[Variable, List[int]],
+                                     lambdas_index_map: Dict[Variable, List[int]]):
         """
         Добавить вклад в матрицу связей для неограниченных связей
 
@@ -293,9 +297,9 @@ class Constraint:
             N: Матрица связей (n_constraints_total × n_dofs)
             index_map: Отображение Variable -> список глобальных индексов
         """
-        return np.zeros((self.get_n_constraints(), N.shape[1]))
+        return np.zeros((self.get_n_nonholonomic(), N.shape[1]))
 
-    def contribute_to_holonomic_load(self, d: np.ndarray,  index_map: Dict[Variable, List[int]]):
+    def contribute_to_holonomic_load(self, d: np.ndarray,  holonomic_index_map: Dict[Variable, List[int]]):
         """
         Добавить вклад в правую часть связей d
         
@@ -303,8 +307,8 @@ class Constraint:
             d: Вектор правой части связей
         """
         return np.zeros(self.get_n_holonomic())
-    
-    def contribute_to_nonholonomic_load(self, d: np.ndarray):
+
+    def contribute_to_nonholonomic_load(self, d: np.ndarray,  lambdas_index_map: Dict[Variable, List[int]]):
         """
         Добавить вклад в правую часть связей d для неограниченных связей
 
@@ -329,8 +333,14 @@ class MatrixAssembler:
         self.variables: List[Variable] = []
         self.contributions: List[Contribution] = []
         self.constraints: List[Constraint] = []  # Связи через множители Лагранжа
-        self._index_map: Optional[Dict[Variable, List[int]]] = None
-        self._constraint_vars: List[Variable] = []  # Переменные для множителей Лагранжа
+
+        self._full_index_map : Optional[Dict[Variable, List[int]]] = None
+        self._variables_index_map: Optional[Dict[Variable, List[int]]] = None
+        self._holonomic_index_map: Optional[Dict[Variable, List[int]]] = None
+        self._nonholonomic_index_map: Optional[Dict[Variable, List[int]]] = None
+
+        self._holonomic_constraint_vars: List[Variable] = []  # Переменные для множителей Лагранжа
+        self._nonholonomic_constraint_vars: List[Variable] = []  # Переменные для множителей Лагранжа для неоголономных связей
 
         self._q = None  # Вектор состояний
         self._q_dot = None  # Вектор скоростей состояний
@@ -468,7 +478,7 @@ class MatrixAssembler:
             self._q[indices] = var.value
             self._q_dot[indices] = var.value_dot
 
-    def _build_index_map(self) -> Dict[Variable, List[int]]:
+    def _build_index_map(self, variables) -> Dict[Variable, List[int]]:
         """
         Построить отображение: Variable -> глобальные индексы DOF
         
@@ -478,28 +488,52 @@ class MatrixAssembler:
         index_map = {}
         current_index = 0
         
-        for var in self.variables:
-            indices = list(range(current_index, current_index + var.size))
-            index_map[var] = indices
-            var.global_indices = indices
-            current_index += var.size
-
-        for var in self._constraint_vars:
+        for var in variables:
             indices = list(range(current_index, current_index + var.size))
             index_map[var] = indices
             var.global_indices = indices
             current_index += var.size
         
+        return index_map
+
+    def _build_full_index_map(self) -> Dict[Variable, List[int]]:
+        """
+        Построить полное отображение: Variable -> глобальные индексы DOF
+        включая все переменные и переменные связей
+        """
+        full_variables = self.variables + self._holonomic_constraint_vars + self._nonholonomic_constraint_vars
+        full_index_map = {}
+        current_index = 0
+        
+        for var in full_variables:
+            indices = list(range(current_index, current_index + var.size))
+            full_index_map[var] = indices
+            current_index += var.size
+        
+        return full_index_map
+
+    def _build_index_maps(self) -> Dict[Variable, List[int]]:
+        """
+        Построить отображение: Variable -> глобальные индексы DOF
+        
+        Назначает каждой компоненте каждой переменной уникальный
+        глобальный индекс в системе.
+        """
+        self._index_map = self._build_index_map(self.variables)
+        self._holonomic_index_map = self._build_index_map(self._holonomic_constraint_vars)
+        self._nonholonomic_index_map = self._build_index_map(self._nonholonomic_constraint_vars)
+
+        self._full_index_map = self._build_full_index_map()
+
         self._dirty_index_map = False
-        self._index_map = index_map
         self._rebuild_state_vectors()
     
     def index_map(self) -> Dict[Variable, List[int]]:
         """
         Получить текущее отображение Variable -> глобальные индексы DOF
         """
-        if self._dirty_index_map or self._index_map is None:
-            self._build_index_map()
+        if self._dirty_index_map:
+            self._build_index_maps()
         return self._index_map
     
     def total_dofs(self) -> int:
@@ -614,9 +648,9 @@ class MatrixAssembler:
 
         # Заполнить матрицу связей
         for constraint in self.constraints:
-            constraint.contribute_to_holonomic(H, index_map)
-            constraint.contribute_to_nonholonomic(N, index_map)
-            constraint.contribute_to_holonomic_load(dH, index_map)
+            constraint.contribute_to_holonomic(H, index_map, self._holonomic_index_map)
+            constraint.contribute_to_nonholonomic(N, index_map, self._nonholonomic_index_map)
+            constraint.contribute_to_holonomic_load(dH, self._holonomic_index_map)
 
         return H, N, dH, dN
 
@@ -994,34 +1028,6 @@ class MatrixAssembler:
         self.set_solution_to_variables(x)
         return x
     
-    def solve_static_problem(self, check_conditioning: bool = True, 
-                      use_least_squares: bool = False,
-                      use_constraints: bool = True) -> np.ndarray:
-        """
-        Решить систему и сохранить результат в переменные
-        
-        Удобный метод, который объединяет solve() и set_solution_to_variables().
-        
-        Args:
-            check_conditioning: Проверить обусловленность матрицы
-            use_least_squares: Использовать lstsq вместо solve
-            use_constraints: Использовать множители Лагранжа для связей
-        
-        Returns:
-            x: Вектор решения (также сохранен в переменных)
-        """
-        # x = self.solve(check_conditioning=check_conditioning, 
-        #                use_least_squares=use_least_squares,
-        #                use_constraints=use_constraints)
-
-        A, b = self.assemble_static_problem()
-
-        x = self._solve_system(A=A, b=b, check_conditioning=check_conditioning,
-                                use_least_squares=use_least_squares)
-
-        self.set_solution_to_variables(x)
-        return x
-    
     def get_lagrange_multipliers(self) -> Optional[np.ndarray]:
         """
         Получить множители Лагранжа после решения системы с связями
@@ -1339,37 +1345,39 @@ class LagrangeConstraint(Constraint):
     def get_variables(self) -> List[Variable]:
         """Возвращает список переменных, участвующих в связи"""
         return self.variables
-    
-    def get_n_constraints(self) -> int:
-        """Возвращает количество уравнений связи"""
-        return self.n_constraints
-    
+
     def contribute_to_holonomic(self, C: np.ndarray, 
-                       index_map: Dict[Variable, List[int]]):
+                       index_map: Dict[Variable, List[int]],
+                       lambdas_index_map: Dict[Variable, List[int]]):
         """
         Добавить вклад в матрицу связей C
         
         Args:
             C: Матрица связей (n_constraints_total × n_dofs)
-            constraint_offset: Смещение для текущей связи в общей матрице
             index_map: Отображение Variable -> список глобальных индексов
         """
-        for var, coef in zip(self.variables, self.coefficients):
-            var_indices = index_map[var]
-            for i in range(self.n_constraints):
+        # for var, coef in zip(self.variables, self.coefficients):
+        #     var_indices = index_map[var]
+        #     for i in range(self.n_constraints):
+        #         for j, global_idx in enumerate(var_indices):
+        #             C[i, global_idx] += coef[i, j]
+        indices = index_map[self.variables[0]]
+        contr_indicies = lambdas_index_map[self.lambdas]
+        for i in range(self.n_constraints):
+            for var, coef in zip(self.variables, self.coefficients):
+                var_indices = index_map[var]
                 for j, global_idx in enumerate(var_indices):
-                    C[i, global_idx] += coef[i, j]
-    
-    def contribute_to_holonomic_load(self, d: np.ndarray,  index_map: Dict[Variable, List[int]]):
+                    C[contr_indicies[i], global_idx] += coef[i, j]
+
+    def contribute_to_holonomic_load(self, d: np.ndarray,  holonomic_index_map: Dict[Variable, List[int]]):
         """
         Добавить вклад в правую часть связей d
         
         Args:
             d: Вектор правой части связей
-            constraint_offset: Смещение для текущей связи
         """
         for var in self.variables:
-            index = index_map[var][0]
+            index = holonomic_index_map[var][0]
             d[index] += self.rhs
 
 # ============================================================================
