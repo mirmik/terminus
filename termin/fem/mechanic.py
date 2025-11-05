@@ -155,7 +155,7 @@ class BarElement(Contribution):
     def get_variables(self) -> List[Variable]:
         return [self.node1, self.node2]
     
-    def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_stiffness(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         K_global = self._get_global_stiffness()
         
         # Получить глобальные индексы
@@ -168,7 +168,7 @@ class BarElement(Contribution):
             for j, gj in enumerate(global_indices):
                 A[gi, gj] += K_global[i, j]
     
-    def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_load(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
         # Стержневой элемент без распределенной нагрузки не вносит вклад в b
         pass
     
@@ -287,7 +287,7 @@ class BeamElement2D(Contribution):
     def get_variables(self) -> List[Variable]:
         return [self.node1_v, self.node1_theta, self.node2_v, self.node2_theta]
     
-    def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_stiffness(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         K_local = self._get_local_stiffness()
         
         # Получить глобальные индексы в правильном порядке
@@ -303,7 +303,7 @@ class BeamElement2D(Contribution):
             for j, gj in enumerate(global_indices):
                 A[gi, gj] += K_local[i, j]
     
-    def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_load(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
         # Балка без распределенной нагрузки не вносит вклад в b
         pass
     
@@ -403,11 +403,11 @@ class DistributedLoad(Contribution):
     def get_variables(self) -> List[Variable]:
         return [self.node1_v, self.node1_theta, self.node2_v, self.node2_theta]
     
-    def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_stiffness(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         # Не влияет на матрицу жесткости
         pass
     
-    def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_load(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
         # Эквивалентные узловые силы для равномерной нагрузки
         q, L = self.q, self.L
         
@@ -601,7 +601,7 @@ class Triangle3Node(Contribution):
     def get_variables(self) -> List[Variable]:
         return [self.node1, self.node2, self.node3]
     
-    def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_stiffness(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         # Получить глобальные индексы всех DOF
         # Порядок: [ux1, uy1, ux2, uy2, ux3, uy3]
         global_indices = []
@@ -613,7 +613,7 @@ class Triangle3Node(Contribution):
             for j, gj in enumerate(global_indices):
                 A[gi, gj] += self.K[i, j]
     
-    def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_load(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
         # Треугольник без объемных сил не вносит вклад в b
         pass
     
@@ -690,10 +690,10 @@ class BodyForce(Contribution):
     def get_variables(self) -> List[Variable]:
         return [self.node1, self.node2, self.node3]
     
-    def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_stiffness(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         pass
     
-    def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_load(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
         # Для линейного треугольника с равномерной объемной силой,
         # эквивалентные узловые силы: F_node = (volume / 3) * force_density
         volume = self.area * self.thickness

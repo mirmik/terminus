@@ -51,7 +51,7 @@ class TestBarElement(unittest.TestCase):
         # Решить
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            assembler.solve_and_set()
+            assembler.solve_stiffness_problem()
         
         # Аналитическое решение: u = F*L/(E*A)
         u_expected = F * L / (E * A)
@@ -100,7 +100,7 @@ class TestBarElement(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            assembler.solve_and_set(use_least_squares=True)  # Используем lstsq для робастности
+            assembler.solve_stiffness_problem(use_least_squares=True)  # Используем lstsq для робастности
         
         # Удлинение вдоль стержня
         L = np.linalg.norm(coord2 - coord1)
@@ -154,7 +154,7 @@ class TestBarElement(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            assembler.solve_and_set()
+            assembler.solve_stiffness_problem()
         
         # Верхний узел должен сместиться вниз
         self.assertLess(u3.value[1], 0.0)
@@ -194,7 +194,7 @@ class TestBeamElement(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            assembler.solve_and_set()
+            assembler.solve_stiffness_problem()
         
         # Аналитическое решение для консольной балки:
         # v(L) = F*L³/(3*E*I) (знак определяется знаком F)
@@ -234,7 +234,7 @@ class TestBeamElement(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            assembler.solve_and_set()
+            assembler.solve_stiffness_problem()
         
         # Прогиб в середине для равномерно нагруженной балки на двух опорах:
         # v_max = 5*q*L⁴/(384*E*I)
@@ -288,7 +288,7 @@ class TestBeamElement(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            assembler.solve_and_set()
+            assembler.solve_stiffness_problem()
         
         # Общая длина 2L
         L_total = 2 * L
@@ -341,7 +341,7 @@ class TestTriangleElement(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            assembler.solve_and_set()
+            assembler.solve_stiffness_problem()
         
         # Напряжение sigma_x = F / (b*t), где b - ширина
         b = 1.0  # высота прямоугольника
@@ -401,7 +401,7 @@ class TestTriangleElement(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            assembler.solve_and_set()
+            assembler.solve_stiffness_problem()
         
         # Верхний узел должен сместиться
         self.assertGreater(u3.value[0], 0.0)
@@ -444,7 +444,7 @@ class TestTriangleElement(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            assembler.solve_and_set()
+            assembler.solve_stiffness_problem()
         
         # Только узел 3 должен сместиться вниз (узлы 1 и 2 закреплены)
         self.assertLess(u3.value[1], 0.0)

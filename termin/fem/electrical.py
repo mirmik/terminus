@@ -70,7 +70,7 @@ class Resistor(Contribution):
             [-1,  1]
         ])
     
-    def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
         Добавить матрицу проводимости в глобальную систему
         """
@@ -173,7 +173,7 @@ class Capacitor(Contribution):
         else:
             self.G_eff = 0  # В статике конденсатор = разрыв
     
-    def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
         В динамике: добавляем эффективную проводимость G_eff = C/dt
         В статике: не добавляем ничего (разрыв цепи)
@@ -289,7 +289,7 @@ class Inductor(Contribution):
         else:
             self.G_eff = float('inf')  # В статике катушка = короткое замыкание
     
-    def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
         В динамике: G_eff = dt/L
         В статике: бесконечная проводимость (короткое замыкание)
@@ -391,7 +391,7 @@ class VoltageSource(Contribution):
         # Большое число для численной реализации ограничения
         self.G_big = 1e10
     
-    def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
         Добавляем очень большую проводимость
         """
@@ -461,7 +461,7 @@ class CurrentSource(Contribution):
         self.node2 = node2
         self.I = I
     
-    def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
         Источник тока не влияет на матрицу системы
         """
@@ -519,7 +519,7 @@ class Ground(Contribution):
         self.node = node
         self.G_big = 1e10  # Большое число для реализации ограничения
     
-    def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
         Добавляем большое число на диагональ
         """

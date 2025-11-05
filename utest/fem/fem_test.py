@@ -48,7 +48,7 @@ class TestSpringSystem(unittest.TestCase):
         # Решить
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            assembler.solve_and_set()
+            assembler.solve_stiffness_problem()
         
         # Проверить результаты
         self.assertAlmostEqual(u1.value, 0.0, places=6)
@@ -80,7 +80,7 @@ class TestSpringSystem(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            assembler.solve_and_set()
+            assembler.solve_stiffness_problem()
         
         # Ожидаемое перемещение: u2 = F/k = 50/500 = 0.1
         self.assertAlmostEqual(u1.value, 0.0, places=6)
@@ -117,7 +117,7 @@ class TestElectricalCircuit(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            assembler.solve_and_set()
+            assembler.solve_stiffness_problem()
         
         # Проверить результаты
         self.assertAlmostEqual(V1.value, 5.0, places=6)
@@ -144,7 +144,7 @@ class TestElectricalCircuit(unittest.TestCase):
         assembler.add_contribution(ConstraintContribution(V1, value=10.0))
         assembler.add_contribution(ConstraintContribution(V2, value=0.0))
         
-        assembler.solve_and_set()
+        assembler.solve_stiffness_problem()
         
         self.assertAlmostEqual(V1.value, 10.0, places=6)
         self.assertAlmostEqual(V2.value, 0.0, places=6)
@@ -183,7 +183,7 @@ class TestMultiDimensional(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            assembler.solve_and_set()
+            assembler.solve_stiffness_problem()
         
         # Проверить результаты
         np.testing.assert_array_almost_equal(u1.value, [0.0, 0.0], decimal=6)
@@ -218,7 +218,7 @@ class TestMultiDimensional(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            assembler.solve_and_set()
+            assembler.solve_stiffness_problem()
         
         # Ожидаемые перемещения: ux = F/kx, uy = F/ky
         expected_ux = F / kx
@@ -259,7 +259,7 @@ class TestMatrixAssembler(unittest.TestCase):
         assembler.add_contribution(ConstraintContribution(u1, value=1.0))
         assembler.add_contribution(ConstraintContribution(u2, value=3.0))
         
-        assembler.solve_and_set()
+        assembler.solve_stiffness_problem()
         
         # Оба узла должны быть на заданных значениях
         self.assertAlmostEqual(u1.value, 1.0, places=6)
@@ -330,7 +330,7 @@ class TestMatrixConditioning(unittest.TestCase):
         # Должно выдать предупреждение
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            solution = assembler.solve(check_conditioning=True)
+            solution = assembler.solve_stiffness_problem(check_conditioning=True)
             
             # Проверить, что было предупреждение
             self.assertGreater(len(w), 0)
@@ -359,7 +359,7 @@ class TestMatrixConditioning(unittest.TestCase):
         
         # Попытка решения должна вызвать ошибку
         with self.assertRaises(RuntimeError):
-            assembler.solve(check_conditioning=False, use_least_squares=False)
+            assembler.solve_stiffness_problem(check_conditioning=False, use_least_squares=False)
     
     def test_least_squares_solver(self):
         """Тест решателя методом наименьших квадратов"""
@@ -374,7 +374,7 @@ class TestMatrixConditioning(unittest.TestCase):
         assembler.add_contribution(LoadContribution(u2, load=100.0))
         
         # Решить через least squares
-        assembler.solve_and_set(use_least_squares=True, check_conditioning=False)
+        assembler.solve_stiffness_problem(use_least_squares=True, check_conditioning=False)
         
         # Результат должен быть близок к точному
         self.assertAlmostEqual(u1.value, 0.0, places=5)
@@ -395,7 +395,7 @@ class TestMatrixConditioning(unittest.TestCase):
             assembler.add_contribution(ConstraintContribution(u1, value=0.0, penalty=penalty))
             assembler.add_contribution(LoadContribution(u2, load=100.0))
             
-            assembler.solve_and_set(check_conditioning=False)
+            assembler.solve_stiffness_problem(check_conditioning=False)
             results[penalty] = u2.value
         
         # Все результаты должны быть близки друг к другу
@@ -496,7 +496,7 @@ class TestVariableSolution(unittest.TestCase):
         # Решить
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            x = assembler.solve()
+            x = assembler.solve_stiffness_problem()
         
         # Сохранить в переменные
         assembler.set_solution_to_variables(x)
@@ -543,7 +543,7 @@ class TestVariableSolution(unittest.TestCase):
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            x = assembler.solve(check_conditioning=False)
+            x = assembler.solve_stiffness_problem(check_conditioning=False)
         
         assembler.set_solution_to_variables(x)
         
@@ -584,7 +584,7 @@ class TestVariableSolution(unittest.TestCase):
         # Решить и сохранить одним вызовом
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            x = assembler.solve_and_set()
+            x = assembler.solve_stiffness_problem()
         
         # Проверить что все переменные заполнены
         self.assertIsNotNone(u1.value)

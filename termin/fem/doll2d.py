@@ -108,7 +108,7 @@ class Doll2D(Contribution):
                 child_twist = child.joint.twist_after_joint(link.twist)
                 self._update_link_kinematics(child, child_pose, child_twist)
     
-    def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
         Добавить матрицу масс M(q) в глобальную матрицу.
         

@@ -93,7 +93,7 @@ class DCMotor(Contribution):
     def get_variables(self) -> List[Variable]:
         return [self.V_plus, self.V_minus, self.omega]
     
-    def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
         Добавить вклад в матрицу системы
         

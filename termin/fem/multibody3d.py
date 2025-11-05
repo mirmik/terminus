@@ -98,7 +98,7 @@ class RotationalInertia3D(Contribution):
             if np.allclose(self.M_eff, 0):
                 self.M_eff = np.eye(3) * 1e-10  # малое число для стабильности
     
-    def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
         Добавить эффективную матрицу в систему
         """
@@ -175,7 +175,7 @@ class TorqueVector3D(Contribution):
         
         self.omega = omega
     
-    def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         pass
     
     def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
@@ -251,7 +251,7 @@ class LinearMass3D(Contribution):
             if np.allclose(self.M_eff, 0):
                 self.M_eff = np.eye(3) * 1e-10
     
-    def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         indices = index_map[self.velocity]
         for i in range(3):
             for j in range(3):
@@ -341,9 +341,9 @@ class RigidBody3D(Contribution):
         self.mass = LinearMass3D(velocity, m, C, dt)
         self.inertia = RotationalInertia3D(omega, J, B, dt, include_gyroscopic)
     
-    def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
-        self.mass.contribute_to_A(A, index_map)
-        self.inertia.contribute_to_A(A, index_map)
+    def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
+        self.mass.contribute_to_mass(A, index_map)
+        self.inertia.contribute_to_mass(A, index_map)
     
     def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
         self.mass.contribute_to_b(b, index_map)
@@ -396,7 +396,7 @@ class ForceVector3D(Contribution):
         
         self.velocity = velocity
     
-    def contribute_to_A(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         pass
     
     def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
@@ -481,7 +481,7 @@ class SphericalJoint3D(Constraint):
         """Три уравнения связи (vx, vy, vz)"""
         return 3
     
-    def contribute_to_C(self, C: np.ndarray, constraint_offset: int,
+    def contribute_to_damping(self, C: np.ndarray, constraint_offset: int,
                        index_map: Dict[Variable, List[int]]):
         """
         Связь: v_cm + ω × r = 0
@@ -545,7 +545,7 @@ class FixedPoint3D(Constraint):
         """Три уравнения связи"""
         return 3
     
-    def contribute_to_C(self, C: np.ndarray, constraint_offset: int,
+    def contribute_to_damping(self, C: np.ndarray, constraint_offset: int,
                        index_map: Dict[Variable, List[int]]):
         """
         Матрица связи: единичная матрица
@@ -592,7 +592,7 @@ class FixedRotation3D(Constraint):
         """Три уравнения связи"""
         return 3
     
-    def contribute_to_C(self, C: np.ndarray, constraint_offset: int,
+    def contribute_to_damping(self, C: np.ndarray, constraint_offset: int,
                        index_map: Dict[Variable, List[int]]):
         """
         Матрица связи: единичная матрица
