@@ -48,19 +48,19 @@
 #         constraints: Список Constraint объектов (опционально)
 #     """
 #     assembler = MatrixAssembler()
-#     assembler.variables = variables
     
 #     for contrib in contributions:
-#         assembler.contributions.append(contrib)
-    
+#         assembler.add_contribution(contrib)
+
 #     if constraints:
-#         assembler.constraints = constraints
+#         for constraint in constraints:
+#             assembler.add_constraint(constraint)
     
 #     import warnings
 #     with warnings.catch_warnings():
 #         warnings.simplefilter("ignore")
 #         use_constraints = constraints is not None and len(constraints) > 0
-#         assembler.solve_and_set(use_constraints=use_constraints)
+#         assembler.solve_stiffness_problem(use_least_squares=True)
 
 
 # class TestDCMotor(unittest.TestCase):

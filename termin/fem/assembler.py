@@ -1194,10 +1194,7 @@ class BilinearContribution(Contribution):
         if self.K_local.shape != (expected_size, expected_size):
             raise ValueError(f"Размер K_local {self.K_local.shape} не соответствует "
                            f"суммарному размеру переменных {expected_size}")
-    
-    def get_variables(self) -> List[Variable]:
-        return self.variables
-    
+        
     def contribute_to_stiffness(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         # Собрать глобальные индексы всех переменных
         global_indices = []
@@ -1333,6 +1330,9 @@ class LagrangeConstraint(Constraint):
                                f"ожидалось {var.size}")
         
         self.n_constraints = n_constraints
+
+        self.lambdas = Variable(name="lambda_constraint", size=n_constraints)
+        super().__init__([self.variables[0]], [self.lambdas], [])  # Инициализация базового класса Constraint
         
         if rhs is None:
             self.rhs = np.zeros(n_constraints)
@@ -1342,9 +1342,6 @@ class LagrangeConstraint(Constraint):
                 raise ValueError(f"Размер правой части {len(self.rhs)} не соответствует "
                                f"количеству связей {n_constraints}")
     
-    def get_variables(self) -> List[Variable]:
-        """Возвращает список переменных, участвующих в связи"""
-        return self.variables
 
     def contribute_to_holonomic(self, C: np.ndarray, 
                        index_map: Dict[Variable, List[int]],

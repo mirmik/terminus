@@ -501,11 +501,6 @@ class SphericalJoint3D(Constraint):
             for j in range(3):
                 C[constr_indices[i], omega_indices[j]] += self.r_skew[i, j]
 
-    def contribute_to_holonomic_load(self, d: np.ndarray, lambdas_index_map: Dict[Variable, List[int]]):
-        """
-        Правая часть связи (нулевая)
-        """
-        pass
     
     def get_constraint_violation(self, v: np.ndarray, omega: np.ndarray) -> np.ndarray:
         """

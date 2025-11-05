@@ -12,6 +12,9 @@ import numpy as np
 from typing import List, Dict
 from .assembler import Contribution, Variable
 
+# Optional:
+from typing import Optional
+
 
 class BarElement(Contribution):
     """
@@ -63,6 +66,8 @@ class BarElement(Contribution):
         if node1.size != len(self.coord1):
             raise ValueError(f"Размерность узла {node1.size} не соответствует "
                            f"размерности координат {len(self.coord1)}")
+
+        super().__init__(variables=[node1, node2])
         
         # Вычислить геометрические параметры
         self._compute_geometry()
@@ -152,9 +157,6 @@ class BarElement(Contribution):
         
         return K_global
     
-    def get_variables(self) -> List[Variable]:
-        return [self.node1, self.node2]
-    
     def contribute_to_stiffness(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         K_global = self._get_global_stiffness()
         
@@ -230,7 +232,8 @@ class BeamElement2D(Contribution):
                  node2_theta: Variable, # угол поворота узла 2
                  E: float,              # модуль Юнга
                  I: float,              # момент инерции сечения
-                 L: float):             # длина балки
+                 L: float,              # длина балки
+            assembler = None):
         """
         Args:
             node1_v: Переменная прогиба первого узла (скаляр)
@@ -245,6 +248,8 @@ class BeamElement2D(Contribution):
         self.node1_theta = node1_theta
         self.node2_v = node2_v
         self.node2_theta = node2_theta
+
+        super().__init__(variables=[node1_v, node1_theta, node2_v, node2_theta], assembler=assembler)
         
         self.E = E
         self.I = I
@@ -283,9 +288,6 @@ class BeamElement2D(Contribution):
         ])
         
         return K
-    
-    def get_variables(self) -> List[Variable]:
-        return [self.node1_v, self.node1_theta, self.node2_v, self.node2_theta]
     
     def contribute_to_stiffness(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         K_local = self._get_local_stiffness()
@@ -399,9 +401,8 @@ class DistributedLoad(Contribution):
         self.node2_theta = node2_theta
         self.q = q
         self.L = L
-    
-    def get_variables(self) -> List[Variable]:
-        return [self.node1_v, self.node1_theta, self.node2_v, self.node2_theta]
+
+        super().__init__(variables=[node1_v, node1_theta, node2_v, node2_theta])
     
     def contribute_to_stiffness(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         # Не влияет на матрицу жесткости
@@ -464,6 +465,8 @@ class Triangle3Node(Contribution):
         self.node1 = node1
         self.node2 = node2
         self.node3 = node3
+
+        super().__init__(variables=[node1, node2, node3])
         
         self.coords1 = np.array(coords1, dtype=float)
         self.coords2 = np.array(coords2, dtype=float)
@@ -598,9 +601,6 @@ class Triangle3Node(Contribution):
         # K = t * A * B^T * D * B
         self.K = self.thickness * self.area * (B.T @ D @ B)
     
-    def get_variables(self) -> List[Variable]:
-        return [self.node1, self.node2, self.node3]
-    
     def contribute_to_stiffness(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         # Получить глобальные индексы всех DOF
         # Порядок: [ux1, uy1, ux2, uy2, ux3, uy3]
@@ -683,12 +683,11 @@ class BodyForce(Contribution):
         self.area = area
         self.thickness = thickness
         self.force_density = np.array(force_density, dtype=float)
+
+        super().__init__(variables=[node1, node2, node3])
         
         if len(self.force_density) != 2:
             raise ValueError("Плотность силы должна быть 2D вектором")
-    
-    def get_variables(self) -> List[Variable]:
-        return [self.node1, self.node2, self.node3]
     
     def contribute_to_stiffness(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         pass

@@ -74,6 +74,8 @@ class DCMotor(Contribution):
         self.K_t = K_t
         self.dt = dt
         self.I_old = I_old
+
+        super().__init__(variables=[V_plus, V_minus, omega])
         
         # Для динамического анализа
         if dt is not None:
@@ -90,10 +92,7 @@ class DCMotor(Contribution):
         # Текущий ток (будет обновляться)
         self.I_current = I_old
     
-    def get_variables(self) -> List[Variable]:
-        return [self.V_plus, self.V_minus, self.omega]
-    
-    def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_stiffness(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
         Добавить вклад в матрицу системы
         
@@ -137,7 +136,7 @@ class DCMotor(Contribution):
         A[idx_omega, idx_plus] -= self.K_t * G  # связь ω с V+
         A[idx_omega, idx_minus] += self.K_t * G  # связь ω с V-
     
-    def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_load(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
         Добавить вклад в правую часть
         
