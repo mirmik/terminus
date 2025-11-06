@@ -8,7 +8,8 @@ from termin.linalg.subspaces import (nullspace_projector, nullspace_basis,
                           orthogonal_complement,
                           is_in_subspace, subspace_dimension, 
                           orthogonalize, gram_schmidt, orthogonalize_svd,
-                          subspace_intersection, projector_basis, is_projector)
+                          subspace_intersection, projector_basis, is_projector,
+                          affine_projector)
 
 
 class TestNullspaceProjector(unittest.TestCase):
@@ -1848,6 +1849,29 @@ class TestSubspaceIntersection(unittest.TestCase):
         v_proj = P_int @ v
         np.testing.assert_allclose(v_proj / np.linalg.norm(v_proj), 
                                    v / np.linalg.norm(v), atol=1e-10)
+
+
+    def test_affine_projector(self):
+        C = np.array([[0., 0., 1.]])  # Нормаль к плоскости XY
+        b = np.array([1.])     # Смещение вдоль Z
+
+        A, B = affine_projector(C, b)
+
+        x = np.array([2., 3., 5.])
+        x_proj = x - (A @ x - B)  # Проекция на плоскость XY + смещение вдоль Z
+        np.testing.assert_allclose(x_proj, np.array([2., 3., 1.]), atol=1e-10)
+        
+    def test_affine_projector_2(self):
+        C = np.array([[0., 0., 1.],
+                      [0., 1., 0.]])  
+        b = np.array([1., 1.])     # Смещение вдоль Z
+
+        A, B = affine_projector(C, b)
+
+        x = np.array([2., 3., 5.])
+        x_proj = x - (A @ x - B)  # Проекция на плоскость XY + смещение вдоль Z
+        np.testing.assert_allclose(x_proj, np.array([2., 1., 1.]), atol=1e-10)
+
 
 
 if __name__ == '__main__':

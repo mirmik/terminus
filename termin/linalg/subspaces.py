@@ -975,4 +975,53 @@ def subspace_intersection(P1, P2, tol=None):
     return intersection_basis @ intersection_basis.T.conj()
 
 
+def project_to_affine_constraint(x, C, b):
+    """Возвращает ортогональную проекцию вектора x на аффинное множество, заданное C @ y = b.
+    
+    Args:
+        x: Вектор размера (n,)
+        C: Линейно-независимая матрица размера (m, n), задающая линейное отображение
+        b: Вектор размера (m,), задающий сдвиг аффинного множества
 
+    Returns:
+        Вектор размера (n,) - проекция x на множество {y | C @ y = b}
+    """
+
+    x = numpy.asarray(x).flatten()
+    C = numpy.asarray(C)
+    b = numpy.asarray(b).flatten()
+    
+    if C.shape[0] != b.shape[0]:
+        raise ValueError(f"Размерность b должна соответствовать числу строк C, получены {C.shape[0]} и {b.shape[0]}")
+    if C.shape[1] != x.shape[0]:
+        raise ValueError(f"Размерность x должна соответствовать числу столбцов C, получены {C.shape[1]} и {x.shape[0]}")
+    
+    Ct = C.T.conj()
+    CCt_inv = numpy.linalg.pinv(C @ Ct)
+    projection = x - Ct @ (CCt_inv @ (C @ x - b))
+    return projection
+
+def affine_projector(C, b):
+    """Возвращает проектор на аффинное множество A, заданное C @ y = b и вектор смещения B:
+
+    Решение следует подставлять в форму x^ = x - (A.x - B).
+    Здесь
+    A = C.T @ (C @ C.T)^(-1) @ C
+    B = C.T @ (C @ C.T)^(-1) @ b
+    """
+    C = numpy.asarray(C)
+    b = numpy.asarray(b).flatten()
+    
+    if C.shape[0] != b.shape[0]:
+        raise ValueError(f"Размерность b должна соответствовать числу строк C, получены {C.shape[0]} и {b.shape[0]}")
+    
+    Ct = C.T.conj()
+    CCt_inv = numpy.linalg.pinv(C @ Ct)
+    
+    K = Ct @ CCt_inv
+    A = K @ C
+    B = K @ b
+
+    return A, B
+
+    

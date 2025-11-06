@@ -17,7 +17,7 @@
 
 import numpy as np
 from typing import List, Dict
-from .assembler import Contribution, Variable
+from .assembler import Contribution, Variable, Constraint   
 
 
 class Resistor(Contribution):
@@ -209,7 +209,7 @@ class Inductor(Contribution):
 
 
 
-class VoltageSource(Constrait):
+class VoltageSource(Constraint):
     """
     Идеальный источник напряжения.
     
@@ -232,7 +232,7 @@ class VoltageSource(Constrait):
         if node1.size != 1 or node2.size != 1:
             raise ValueError("Узлы должны быть скалярами")
         
-        self.current = 
+        #self.current = 
 
         super().__init__([node1, node2], assembler)
         
@@ -292,37 +292,37 @@ class CurrentSource(Contribution):
         b[idx2] -= self.I   # ток вытекает из node2
 
 
-# class Ground(Contribution):
-#     """
-#     Заземление - фиксирует потенциал узла в ноль.
+class Ground(Contribution):
+    """
+    Заземление - фиксирует потенциал узла в ноль.
     
-#     Это граничное условие, аналогичное закреплению в механике.
-#     """
+    Это граничное условие, аналогичное закреплению в механике.
+    """
     
-#     def __init__(self, node: Variable, assembler=None):
-#         """
-#         Args:
-#             node: Переменная потенциала узла, который заземляется
-#             assembler: MatrixAssembler для автоматической регистрации переменных
-#         """
-#         if node.size != 1:
-#             raise ValueError("Узел должен быть скаляром")
+    def __init__(self, node: Variable, assembler=None):
+        """
+        Args:
+            node: Переменная потенциала узла, который заземляется
+            assembler: MatrixAssembler для автоматической регистрации переменных
+        """
+        if node.size != 1:
+            raise ValueError("Узел должен быть скаляром")
         
-#         super().__init__([node], assembler)
+        super().__init__([node], assembler)
         
-#         self.node = node
-#         self.G_big = 1e10  # Большое число для реализации ограничения
+        self.node = node
+        self.G_big = 1e10  # Большое число для реализации ограничения
     
-#     def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
-#         """
-#         Добавляем большое число на диагональ
-#         """
-#         idx = index_map[self.node][0]
-#         A[idx, idx] += self.G_big
+    def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
+        """
+        Добавляем большое число на диагональ
+        """
+        idx = index_map[self.node][0]
+        A[idx, idx] += self.G_big
     
-#     def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
-#         """
-#         Правая часть = 0 (потенциал = 0)
-#         """
-#         # Если добавить G_big * 0 = 0, то ничего не меняется
-#         pass
+    def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
+        """
+        Правая часть = 0 (потенциал = 0)
+        """
+        # Если добавить G_big * 0 = 0, то ничего не меняется
+        pass
