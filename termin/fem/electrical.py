@@ -59,61 +59,24 @@ class Resistor(Contribution):
         self.node2 = node2
         self.R = R
         self.G = 1.0 / R  # проводимость
-    
-    def get_conductance_matrix(self) -> np.ndarray:
-        """
-        Матрица проводимости 2x2
-        """
-        G = self.G
-        return G * np.array([
+        self.G_matrix = np.array([
             [ 1, -1],
             [-1,  1]
-        ])
+        ]) * self.G
     
-    def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_damping(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
-        Добавить матрицу проводимости в глобальную систему
+        Добавляет вклад резистора в матрицу проводимости
         """
-        G_matrix = self.get_conductance_matrix()
+        G = self.G
         
-        # Получить глобальные индексы
         idx1 = index_map[self.node1][0]
         idx2 = index_map[self.node2][0]
         global_indices = [idx1, idx2]
         
-        # Добавить в глобальную матрицу
         for i, gi in enumerate(global_indices):
             for j, gj in enumerate(global_indices):
-                A[gi, gj] += G_matrix[i, j]
-    
-    def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
-        """
-        Резистор без источников не вносит вклад в правую часть
-        """
-        pass
-    
-    def get_current(self, V1: float, V2: float) -> float:
-        """
-        Вычислить ток через резистор по закону Ома
-        
-        Args:
-            V1: Потенциал узла 1 [В]
-            V2: Потенциал узла 2 [В]
-        
-        Returns:
-            Ток I [А] (от узла 1 к узлу 2)
-        """
-        return (V1 - V2) / self.R
-    
-    def get_power(self, V1: float, V2: float) -> float:
-        """
-        Вычислить рассеиваемую мощность
-        
-        Returns:
-            Мощность P [Вт]
-        """
-        I = self.get_current(V1, V2)
-        return I**2 * self.R
+                A[gi, gj] += self.G_matrix[i, j]
 
 
 class Capacitor(Contribution):
@@ -139,8 +102,6 @@ class Capacitor(Contribution):
                  node1: Variable,
                  node2: Variable,
                  C: float,           # емкость [Ф]
-                 dt: float = None,   # шаг по времени [с]
-                 V_old: float = 0.0, # напряжение на предыдущем шаге
                  assembler=None):    # ассемблер для автоматической регистрации
         """
         Args:
@@ -162,30 +123,16 @@ class Capacitor(Contribution):
         self.node1 = node1
         self.node2 = node2
         self.C = C
-        self.dt = dt
-        self.V_old = V_old
-        
-        # Для динамического анализа вычислить эффективную проводимость
-        if dt is not None:
-            if dt <= 0:
-                raise ValueError("Шаг по времени должен быть положительным")
-            self.G_eff = C / dt
-        else:
-            self.G_eff = 0  # В статике конденсатор = разрыв
-    
-    def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
-        """
-        В динамике: добавляем эффективную проводимость G_eff = C/dt
-        В статике: не добавляем ничего (разрыв цепи)
-        """
-        if self.dt is None:
-            return  # Статический анализ - конденсатор не вносит вклад
-        
-        G = self.G_eff
-        G_matrix = G * np.array([
+        self.C_matrix = np.array([
             [ 1, -1],
             [-1,  1]
-        ])
+        ]) * C
+        
+    def contribute_to_stiffness(self, M: np.ndarray, index_map: Dict[Variable, List[int]]):
+        """
+        Добавляет вклад конденсатора в матрицу массы
+        """
+        C = self.C
         
         idx1 = index_map[self.node1][0]
         idx2 = index_map[self.node2][0]
@@ -193,42 +140,7 @@ class Capacitor(Contribution):
         
         for i, gi in enumerate(global_indices):
             for j, gj in enumerate(global_indices):
-                A[gi, gj] += G_matrix[i, j]
-    
-    def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
-        """
-        Вклад от предыдущего состояния: G_eff * V_old
-        """
-        if self.dt is None:
-            return  # Статический анализ
-        
-        idx1 = index_map[self.node1][0]
-        idx2 = index_map[self.node2][0]
-        
-        I_history = self.G_eff * self.V_old
-        
-        b[idx1] += I_history
-        b[idx2] -= I_history
-    
-    def get_current(self, V1_new: float, V2_new: float) -> float:
-        """
-        Вычислить ток через конденсатор
-        
-        Returns:
-            Ток I [А]
-        """
-        if self.dt is None:
-            return 0.0  # DC анализ - нет тока
-        
-        V_new = V1_new - V2_new
-        I = self.C * (V_new - self.V_old) / self.dt
-        return I
-    
-    def update_state(self, V1_new: float, V2_new: float):
-        """
-        Обновить состояние конденсатора после шага по времени
-        """
-        self.V_old = V1_new - V2_new
+                M[gi, gj] += self.C_matrix[i, j]
 
 
 class Inductor(Contribution):
@@ -255,8 +167,6 @@ class Inductor(Contribution):
                  node1: Variable,
                  node2: Variable,
                  L: float,           # индуктивность [Гн]
-                 dt: float = None,   # шаг по времени [с]
-                 I_old: float = 0.0, # ток на предыдущем шаге
                  assembler=None):    # ассемблер для автоматической регистрации
         """
         Args:
@@ -278,33 +188,16 @@ class Inductor(Contribution):
         self.node1 = node1
         self.node2 = node2
         self.L = L
-        self.dt = dt
-        self.I_old = I_old
-        
-        # Для динамического анализа
-        if dt is not None:
-            if dt <= 0:
-                raise ValueError("Шаг по времени должен быть положительным")
-            self.G_eff = dt / L  # эффективная проводимость
-        else:
-            self.G_eff = float('inf')  # В статике катушка = короткое замыкание
-    
-    def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
-        """
-        В динамике: G_eff = dt/L
-        В статике: бесконечная проводимость (короткое замыкание)
-        """
-        if self.dt is None:
-            # Статический анализ - идеальный проводник
-            # Устанавливаем очень большую проводимость
-            G = 1e10
-        else:
-            G = self.G_eff
-        
-        G_matrix = G * np.array([
+        self.L_matrix = np.array([
             [ 1, -1],
             [-1,  1]
-        ])
+        ]) * L
+
+    def contribute_to_mass(self, M: np.ndarray, index_map: Dict[Variable, List[int]]):
+        """
+        Добавляет вклад катушки в матрицу массы
+        """
+        L = self.L
         
         idx1 = index_map[self.node1][0]
         idx2 = index_map[self.node2][0]
@@ -312,59 +205,16 @@ class Inductor(Contribution):
         
         for i, gi in enumerate(global_indices):
             for j, gj in enumerate(global_indices):
-                A[gi, gj] += G_matrix[i, j]
-    
-    def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
-        """
-        Вклад от предыдущего тока
-        """
-        if self.dt is None:
-            return  # Статический анализ
-        
-        idx1 = index_map[self.node1][0]
-        idx2 = index_map[self.node2][0]
-        
-        # Эквивалентный источник тока от истории
-        I_history = self.I_old
-        
-        b[idx1] -= I_history
-        b[idx2] += I_history
-    
-    def get_current(self, V1: float, V2: float) -> float:
-        """
-        Вычислить ток через катушку
-        
-        Returns:
-            Ток I [А]
-        """
-        if self.dt is None:
-            # DC анализ: ток определяется из решения системы
-            V = V1 - V2
-            # В DC должно быть V ≈ 0 (короткое замыкание)
-            return 0.0  # Нужно получать из решения
-        
-        V = V1 - V2
-        I_new = self.G_eff * V + self.I_old
-        return I_new
-    
-    def update_state(self, V1: float, V2: float):
-        """
-        Обновить состояние катушки после шага по времени
-        """
-        if self.dt is not None:
-            self.I_old = self.get_current(V1, V2)
+                M[gi, gj] += self.L_matrix[i, j]
 
 
-class VoltageSource(Contribution):
+
+class VoltageSource(Constrait):
     """
     Идеальный источник напряжения.
     
     Задает фиксированную разность потенциалов между узлами:
     V1 - V2 = V_source
-    
-    Реализуется через метод множителей Лагранжа или большого числа.
-    Здесь используем метод "большого числа": добавляем очень большую
-    проводимость и соответствующий источник тока.
     """
     
     def __init__(self,
@@ -382,56 +232,26 @@ class VoltageSource(Contribution):
         if node1.size != 1 or node2.size != 1:
             raise ValueError("Узлы должны быть скалярами")
         
+        self.current = 
+
         super().__init__([node1, node2], assembler)
         
         self.node1 = node1
         self.node2 = node2
         self.V = V
-        
-        # Большое число для численной реализации ограничения
-        self.G_big = 1e10
-    
-    def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
-        """
-        Добавляем очень большую проводимость
-        """
-        G = self.G_big
-        G_matrix = G * np.array([
-            [ 1, -1],
-            [-1,  1]
-        ])
-        
-        idx1 = index_map[self.node1][0]
-        idx2 = index_map[self.node2][0]
-        global_indices = [idx1, idx2]
-        
-        for i, gi in enumerate(global_indices):
-            for j, gj in enumerate(global_indices):
-                A[gi, gj] += G_matrix[i, j]
-    
-    def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
-        """
-        Добавляем эквивалентный источник тока: I = G_big * V
-        """
-        idx1 = index_map[self.node1][0]
-        idx2 = index_map[self.node2][0]
-        
-        I_eq = self.G_big * self.V
-        
-        b[idx1] += I_eq
-        b[idx2] -= I_eq
-    
-    def get_current(self, V1: float, V2: float) -> float:
-        """
-        Вычислить ток через источник напряжения
-        
-        Примечание: точный ток нужно вычислять из баланса токов в узле,
-        здесь возвращаем оценку на основе отклонения от заданного напряжения.
-        """
-        V_actual = V1 - V2
-        return self.G_big * (self.V - V_actual)
 
+    def contribute_to_holonomic_load(self, b: np.ndarray, holonomic_index_map: Dict[Variable, List[int]]):
+        """
+        Добавляем ограничение на разность потенциалов
+        """
+        idx1 = holonomic_index_map[self.node1][0]
+        idx2 = holonomic_index_map[self.node2][0]
+        
+        # Ограничение: V1 - V2 = V
+        b[idx1] += self.V
+        b[idx2] -= self.V
 
+        
 class CurrentSource(Contribution):
     """
     Идеальный источник тока.
@@ -461,74 +281,48 @@ class CurrentSource(Contribution):
         self.node2 = node2
         self.I = I
     
-    def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
+    def contribute_to_load(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
-        Источник тока не влияет на матрицу системы
-        """
-        pass
-    
-    def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
-        """
-        Добавляем ток в правую часть
+        Добавляем вклад источника тока в правую часть
         """
         idx1 = index_map[self.node1][0]
         idx2 = index_map[self.node2][0]
         
-        # Ток втекает в node1 и вытекает из node2
-        b[idx1] += self.I
-        b[idx2] -= self.I
-    
-    def get_voltage(self, V1: float, V2: float) -> float:
-        """
-        Получить напряжение на источнике тока
-        
-        Returns:
-            Напряжение V [В]
-        """
-        return V1 - V2
-    
-    def get_power(self, V1: float, V2: float) -> float:
-        """
-        Вычислить мощность источника
-        
-        Returns:
-            Мощность P [Вт] (положительная = отдает энергию)
-        """
-        V = self.get_voltage(V1, V2)
-        return V * self.I
+        b[idx1] += self.I   # ток втекает в node1
+        b[idx2] -= self.I   # ток вытекает из node2
 
 
-class Ground(Contribution):
-    """
-    Заземление - фиксирует потенциал узла в ноль.
+# class Ground(Contribution):
+#     """
+#     Заземление - фиксирует потенциал узла в ноль.
     
-    Это граничное условие, аналогичное закреплению в механике.
-    """
+#     Это граничное условие, аналогичное закреплению в механике.
+#     """
     
-    def __init__(self, node: Variable, assembler=None):
-        """
-        Args:
-            node: Переменная потенциала узла, который заземляется
-            assembler: MatrixAssembler для автоматической регистрации переменных
-        """
-        if node.size != 1:
-            raise ValueError("Узел должен быть скаляром")
+#     def __init__(self, node: Variable, assembler=None):
+#         """
+#         Args:
+#             node: Переменная потенциала узла, который заземляется
+#             assembler: MatrixAssembler для автоматической регистрации переменных
+#         """
+#         if node.size != 1:
+#             raise ValueError("Узел должен быть скаляром")
         
-        super().__init__([node], assembler)
+#         super().__init__([node], assembler)
         
-        self.node = node
-        self.G_big = 1e10  # Большое число для реализации ограничения
+#         self.node = node
+#         self.G_big = 1e10  # Большое число для реализации ограничения
     
-    def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
-        """
-        Добавляем большое число на диагональ
-        """
-        idx = index_map[self.node][0]
-        A[idx, idx] += self.G_big
+#     def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
+#         """
+#         Добавляем большое число на диагональ
+#         """
+#         idx = index_map[self.node][0]
+#         A[idx, idx] += self.G_big
     
-    def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
-        """
-        Правая часть = 0 (потенциал = 0)
-        """
-        # Если добавить G_big * 0 = 0, то ничего не меняется
-        pass
+#     def contribute_to_b(self, b: np.ndarray, index_map: Dict[Variable, List[int]]):
+#         """
+#         Правая часть = 0 (потенциал = 0)
+#         """
+#         # Если добавить G_big * 0 = 0, то ничего не меняется
+#         pass
