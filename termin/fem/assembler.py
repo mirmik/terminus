@@ -26,7 +26,7 @@ class Variable:
     - И т.д.
     """
     
-    def __init__(self, name: str, size: int = 1):
+    def __init__(self, name: str, size: int = 1, tag = None):
         """
         Args:
             name: Имя переменной (для отладки)
@@ -35,7 +35,10 @@ class Variable:
         self.name = name
         self.size = size
         self.global_indices = []  # будет заполнено при сборке
+        self.tag = tag  # произвольный тег для пользователя
         self._assembler = None  # ссылка на assembler, в котором зарегистрирована переменная
+
+        self._values_by_rank = [numpy.zeros(size), numpy.zeros(size), numpy.zeros(size)]  # для хранения значений по рангам
         
         self.value = numpy.zeros(size) # текущее значение переменной (обновляется после решения)
         self.value_dot = numpy.zeros(size) # скорость изменения переменной (если применимо)
@@ -178,6 +181,12 @@ class Contribution:
     def get_variables(self) -> List[Variable]:
         """Возвращает список переменных, которые затрагивает этот вклад"""
         return self.variables
+
+    def contribute_to_matrices(self, matrices, index_map: Dict[Variable, List[int]]):
+        """
+        Добавить вклад в матрицы
+        """
+        pass  
     
     def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """
@@ -348,6 +357,8 @@ class MatrixAssembler:
         self._q_ddot = None  # Вектор ускорений состояний
         self._lambdas_holonomic = None  # Множители Лагранжа для голономных связей
         self._lambdas_nonholonomic = None  # Множители Лагранжа для неограниченных связей
+
+        self._variables_by_tag: Dict = {}  # Словарь переменных по тегам для быстрого доступа
         
     def add_variable(self, name: str, size: int = 1) -> Variable:
         """
@@ -405,8 +416,17 @@ class MatrixAssembler:
             var._assembler = self
             self.variables.append(var)
             self._dirty_index_map = True
+            if var.tag not in self._variables_by_tag:
+                self._variables_by_tag[var.tag] = []
+            self._variables_by_tag[var.tag].append(var)
         elif var._assembler is not self:
             raise ValueError(f"Переменная {var.name} уже зарегистрирована в другом assembler")
+
+    def total_variables_by_tag(self, tag) -> int:
+        """Вернуть количество переменных с заданным тегом"""
+        if tag in self._variables_by_tag:
+            return sum(var.size for var in self._variables_by_tag[tag])
+        return 0
         
     def _register_holonomic_constraint_variable(self, var: Variable):
         """
@@ -561,6 +581,37 @@ class MatrixAssembler:
             contribution.contribute_to_load(b, index_map)
         
         return A, b
+
+    def assemble_dynamic_system(self) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Собрать глобальную систему A*x'' + C*x' + K*x = b
+        
+        Returns:
+            (A, C, K, b): Матрицы и вектор правой части
+        """
+        # Построить карту индексов
+        index_map = self.index_map()
+
+        # Создать глобальные матрицы и вектор
+        n_dofs = self.total_dofs()
+        
+        A = np.zeros((n_dofs, n_dofs))
+        C = np.zeros((n_dofs, n_dofs))
+        K = np.zeros((n_dofs, n_dofs))
+        b = np.zeros(n_dofs)
+
+        matrices = {
+            "mass": A,
+            "damping": C,
+            "stiffness": K,
+            "load": b
+        }
+
+        for contribution in self.contributions:
+            contribution.contribute(matrices, index_map)
+
+        return matrices
+
 
     def assemble_stiffness_problem(self) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -874,81 +925,6 @@ class MatrixAssembler:
             x_dot[indices] = value_dot
         
         return x, x_dot
-    
-    # def solve(self, check_conditioning: bool = True, 
-    #           use_least_squares: bool = False,
-    #           use_constraints: bool = True) -> np.ndarray:
-    #     """
-    #     Собрать и решить систему A*x = b (или расширенную систему с связями)
-        
-    #     Args:
-    #         check_conditioning: Проверить обусловленность матрицы и выдать предупреждение
-    #         use_least_squares: Использовать lstsq вместо solve (робастнее, но медленнее)
-    #         use_constraints: Использовать множители Лагранжа для связей (если есть)
-        
-    #     Returns:
-    #         x: Вектор решения (все переменные подряд, без множителей Лагранжа)
-    #     """
-    #     # Выбрать метод сборки
-    #     if use_constraints and self.constraints:
-    #         A, b = self.assemble_with_constraints()
-    #         n_dofs = self.total_dofs()
-    #         has_constraints = True
-    #     else:
-    #         A, b = self.assemble()
-    #         n_dofs = len(b)
-    #         has_constraints = False
-        
-    #     # Проверка обусловленности
-    #     if check_conditioning:
-    #         cond_number = np.linalg.cond(A)
-    #         if cond_number > 1e10:
-    #             import warnings
-    #             warnings.warn(
-    #                 f"Матрица плохо обусловлена: cond(A) = {cond_number:.2e}. "
-    #                 f"Это может быть из-за penalty method в граничных условиях. "
-    #                 f"Рассмотрите использование use_least_squares=True",
-    #                 RuntimeWarning
-    #             )
-    #         elif cond_number > 1e6:
-    #             import warnings
-    #             warnings.warn(
-    #                 f"Матрица имеет высокое число обусловленности: cond(A) = {cond_number:.2e}",
-    #                 RuntimeWarning
-    #             )
-        
-    #     # Решение системы
-    #     if use_least_squares:
-    #         # Метод наименьших квадратов - более робастный
-    #         x_full, residuals, rank, s = np.linalg.lstsq(A, b, rcond=None)
-    #         if check_conditioning and rank < len(b):
-    #             import warnings
-    #             warnings.warn(
-    #                 f"Матрица вырожденная или близка к вырожденной: "
-    #                 f"rank(A) = {rank}, expected {len(b)}",
-    #                 RuntimeWarning
-    #             )
-    #     else:
-    #         # Прямое решение - быстрее, но менее робастное
-    #         try:
-    #             x_full = np.linalg.solve(A, b)
-    #         except np.linalg.LinAlgError as e:
-    #             raise RuntimeError(
-    #                 f"Не удалось решить систему: {e}. "
-    #                 f"Возможно, матрица вырожденная (не хватает граничных условий?) "
-    #                 f"или плохо обусловлена. Попробуйте use_least_squares=True"
-    #             ) from e
-        
-    #     # Извлечь только переменные (без множителей Лагранжа)
-    #     if has_constraints:
-    #         x = x_full[:n_dofs]
-    #         # Сохранить множители Лагранжа (для отладки/анализа)
-    #         self._lagrange_multipliers = x_full[n_dofs:]
-    #     else:
-    #         x = x_full
-    #         self._lagrange_multipliers = None
-        
-    #     return x
 
     def solve_Adxx_Cdx_Kx_b(self, x_dot: np.ndarray, x: np.ndarray,
                             check_conditioning: bool = True,
@@ -1167,6 +1143,113 @@ class MatrixAssembler:
             print("SUMMARY: [WARNING] Problems detected, attention required")
         print("=" * 70)
 
+
+class DynamicMatrixAssembler(MatrixAssembler):
+    def _build_index_maps(self) -> Dict[Variable, List[int]]:
+        """
+        Построить отображение: Variable -> глобальные индексы DOF
+        
+        Назначает каждой компоненте каждой переменной уникальный
+        глобальный индекс в системе.
+        """
+        acceleration_vars = [var for var in self.variables if var.tag == "acceleration"]
+        self._index_map = self._build_index_map(acceleration_vars)
+
+        holonomic_vars = [var for var in self.variables if var.tag == "holonomic_constraint_force"]
+        self._holonomic_index_map = self._build_index_map(holonomic_vars)
+
+        self.old_q = np.zeros(self.total_variables_by_tag(tag="acceleration"))
+        self.old_q_dot = np.zeros(self.total_variables_by_tag(tag="acceleration"))
+
+    def index_maps(self) -> Dict[str, Dict[Variable, List[int]]]:
+        """
+        Получить текущее отображение Variable -> глобальные индексы DOF
+        для разных типов переменных
+        """
+        if self._dirty_index_map:
+            self._build_index_maps()
+        return {
+            "acceleration": self._index_map,
+            "holonomic_constraint_force": self._holonomic_index_map
+        }
+
+    def assemble(self):
+        # Построить карту индексов
+        index_maps = self.index_maps()
+
+        # Создать глобальные матрицы и вектор
+        n_dofs = self.total_variables_by_tag(tag="acceleration")
+        n_constraints = self.total_variables_by_tag(tag="holonomic_constraint_force")
+
+        A = np.zeros((n_dofs, n_dofs))
+        C = np.zeros((n_dofs, n_dofs))
+        K = np.zeros((n_dofs, n_dofs))
+        b = np.zeros(n_dofs)
+        H = np.zeros((n_constraints, n_dofs))
+        h = np.zeros(n_constraints)
+
+        matrices = {
+            "mass": A,
+            "damping": C,
+            "stiffness": K,
+            "load": b,
+            "holonomic": H,
+            "holonomic_load": h,
+            "old_q": self.old_q,
+            "old_q_dot": self.old_q_dot
+        }
+
+        for contribution in self.contributions:
+            contribution.contribute(matrices, index_maps)
+
+        return matrices
+
+    def assemble_extended_system(self, matrices: Dict[str, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
+        A = matrices["mass"]
+        C = matrices["damping"]
+        K = matrices["stiffness"]
+        b = matrices["load"]
+        old_q = matrices["old_q"]
+        old_q_dot = matrices["old_q_dot"]
+        H = matrices["holonomic"]
+        h = matrices["holonomic_load"]
+
+        size = self.total_variables_by_tag(tag="acceleration") + self.total_variables_by_tag(tag="holonomic_constraint_force")
+        n_dofs = self.total_variables_by_tag(tag="acceleration")
+        n_holonomic = self.total_variables_by_tag(tag="holonomic_constraint_force")
+
+        # Расширенная система
+        A_ext = np.zeros((size, size))
+        b_ext = np.zeros(size)
+
+        r0 = A.shape[0]
+        r1 = A.shape[0] + n_holonomic
+
+        c0 = A.shape[1]
+        c1 = A.shape[1] + n_holonomic
+
+        A_ext[0:r0, 0:c0] = A
+        A_ext[0:r0, c0:c1] = H.T
+        A_ext[r0:r1, 0:c0] = H
+        b_ext[0:r0] = b - C @ old_q_dot - K @ old_q
+        b_ext[r0:r1] = h
+
+        return A_ext, b_ext
+
+    def integrate_results(self, x_ext: np.ndarray, dt: float, restore_constraints: bool = True) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        n_dofs = self.total_variables_by_tag(tag="acceleration")
+        n_holonomic = self.total_variables_by_tag(tag="holonomic_constraint_force")
+
+        q_ddot = x_ext[:n_dofs]
+        holonomic_lambdas = x_ext[n_dofs:n_dofs + n_holonomic]
+
+        q_dot = self.old_q_dot + q_ddot * dt
+        q = self.old_q + q_dot * dt + 0.5 * q_ddot * dt * dt
+
+        self.old_q = q
+        self.old_q_dot = q_dot
+
+        return q, q_dot, q_ddot, holonomic_lambdas
 
 # ============================================================================
 # Примеры конкретных вкладов
