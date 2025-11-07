@@ -8,7 +8,7 @@ class KinematicTransform3(Transform3):
         super().__init__(parent=None, name=name, local_pose=local_pose)
 
         if not manual_output:
-            self.output = Transform3(parent=self)
+            self.output = Transform3(parent=self, name=f"{name}_output", local_pose=Pose3.identity())
         else:
             self.output = None
 
@@ -54,6 +54,18 @@ class KinematicTransform3(Transform3):
         if self.kinematic_parent is not None:
             self.kinematic_parent.update_kinematic_parent_recursively()
 
+    def to_trent_with_children(self) -> str:
+        dct = {
+            "type" : "transform",
+            "pose" : {
+                "position": self._local_pose.lin.tolist(),
+                "orientation": self._local_pose.ang.tolist()
+            },
+            "name": self.name,
+            "children": [child.to_trent_with_children(top_without_pose=True) for child in self.children]
+        }
+        return dct
+
 class KinematicTransform3OneScrew(KinematicTransform3):
     """A Transform3 specialized for 1-DOF kinematic chains."""
     def __init__(self, parent: Transform3 = None, name="kunit_oa", manual_output: bool = False, local_pose=Pose3.identity()):
@@ -97,9 +109,21 @@ class Rotator3(KinematicTransform3OneScrew):
         super().__init__(parent=parent, manual_output=manual_output, name=name, local_pose=local_pose)
         self._sens = Screw3(ang=numpy.array(axis), lin=numpy.array([0.0, 0.0, 0.0]))
 
+    def to_trent_with_children(self):
+        dct = super().to_trent_with_children()
+        dct["type"] = "rotator"
+        dct["axis"] = self._sens.ang.tolist()
+        return dct
+
 class Actuator3(KinematicTransform3OneScrew):
     def __init__(self, axis: numpy.ndarray, parent: Transform3 = None, manual_output: bool = False, name="actuator", local_pose=Pose3.identity()):
         """Initialize an Actuator that moves along a given screw."""
         super().__init__(parent=parent, manual_output=manual_output, name=name, local_pose=local_pose)
         self._sens = Screw3(lin=numpy.array(axis), ang=numpy.array([0.0, 0.0, 0.0]))
+
+    def to_trent_with_children(self):
+        dct = super().to_trent_with_children()
+        dct["type"] = "actuator"
+        dct["axis"] = self._sens.lin.tolist()
+        return dct
 

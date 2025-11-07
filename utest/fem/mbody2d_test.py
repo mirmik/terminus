@@ -179,60 +179,60 @@ class TestIntegrationMultibody2D(unittest.TestCase):
         assert np.isclose(body.velocity.value_ddot[1], 0.0)
         assert np.isclose(body.omega.value_ddot[0], 0.0)
 
-    def test_stabilization_test(self):
-        """Создание простой системы с одним твердым телом и фиксированным шарниром"""
-        assembler = DynamicMatrixAssembler()
+    # def test_stabilization_test(self):
+    #     """Создание простой системы с одним твердым телом и фиксированным шарниром"""
+    #     assembler = DynamicMatrixAssembler()
         
-        body = RigidBody2D(
-            m=5.0,
-            J=5.0,
-            gravity=np.array([0.0, -10.00]),
-            assembler=assembler)
+    #     body = RigidBody2D(
+    #         m=5.0,
+    #         J=5.0,
+    #         gravity=np.array([0.0, -10.00]),
+    #         assembler=assembler)
 
-        body.velocity.set_value(np.array([0.0, -1.0]))
-        body.omega.set_value(np.array([0.0]))
+    #     body.velocity.set_value(np.array([0.0, -1.0]))
+    #     body.omega.set_value(np.array([0.0]))
 
-        joint = FixedRotationJoint2D(
-            body=body,
-            assembler=assembler)
+    #     joint = FixedRotationJoint2D(
+    #         body=body,
+    #         assembler=assembler)
 
-        dt = 0.01  # временной шаг
+    #     dt = 0.01  # временной шаг
         
-        body.velocity.set_value(np.array([0.01, -1.0]))
-        body.omega.set_value(np.array([0.0]))
+    #     body.velocity.set_value(np.array([0.01, -1.0]))
+    #     body.omega.set_value(np.array([0.0]))
 
-        for step in range(20):
-            joint.update_radius_to_body()
-            print(f"Step {step}: radius to body = {joint.radius_to_body}")
+    #     for step in range(20):
+    #         joint.update_radius_to_body()
+    #         print(f"Step {step}: radius to body = {joint.radius_to_body}")
 
-            matrices = assembler.assemble()
-            A_ext, b_ext = assembler.assemble_extended_system(matrices)
-            x = linalg.solve(A_ext, b_ext)
-            q_ddot, holonomic_lambdas, nonholonomic_lambdas = assembler.sort_results(x)
-            q_dot = assembler.integrate_velocities(matrices["old_q_dot"], q_ddot, dt)
+    #         matrices = assembler.assemble()
+    #         A_ext, b_ext = assembler.assemble_extended_system(matrices)
+    #         x = linalg.solve(A_ext, b_ext)
+    #         q_ddot, holonomic_lambdas, nonholonomic_lambdas = assembler.sort_results(x)
+    #         q_dot = assembler.integrate_velocities(matrices["old_q_dot"], q_ddot, dt)
 
-            #print("holonomic:\n", matrices["holonomic"])
-            #print("holonomic_load:\n", matrices["holonomic_load"])
+    #         #print("holonomic:\n", matrices["holonomic"])
+    #         #print("holonomic_load:\n", matrices["holonomic_load"])
 
-            q_dot = assembler.restore_velocity_constraints(q_dot, matrices["holonomic"], matrices["holonomic_load"])
-            #print("restored q_dot =", q_dot)
+    #         q_dot = assembler.restore_velocity_constraints(q_dot, matrices["holonomic"], matrices["holonomic_load"])
+    #         #print("restored q_dot =", q_dot)
 
-            #assert q_dot[0] != 0.0
+    #         #assert q_dot[0] != 0.0
 
-            #print(matrices["damping"])
+    #         #print(matrices["damping"])
 
-            q = assembler.integrate_positions(matrices["old_q"], q_dot, q_ddot, dt)
-            #print("q =", q)
-            #q = assembler.restore_position_constraints(q, matrices["holonomic"], matrices["holonomic_load"])
+    #         q = assembler.integrate_positions(matrices["old_q"], q_dot, q_ddot, dt)
+    #         #print("q =", q)
+    #         #q = assembler.restore_position_constraints(q, matrices["holonomic"], matrices["holonomic_load"])
             
-            #print("q after position restore =", q)
+    #         #print("q after position restore =", q)
 
-            #assert q[0] != 0.0
+    #         #assert q[0] != 0.0
 
-            assembler.upload_results(q_ddot, q_dot, q)
-            assembler.integrate_nonlinear(dt)
-            if step == 19:
-                assert False
+    #         assembler.upload_results(q_ddot, q_dot, q)
+    #         assembler.integrate_nonlinear(dt)
+    #         if step == 19:
+    #             assert False
 
     # def test_simple_pendulum(self):
     #     """Создание простой системы с одним твердым телом и фиксированным шарниром"""

@@ -119,6 +119,19 @@ class Transform:
 
     def __repr__(self):
         return f"Transform({self.name}, local_pose={self._local_pose})"
+    
+    def to_trent_with_children(self, top_without_pose=False) -> str:
+        dct = {
+            "type" : "transform",
+            "name": self.name,
+            "children": [child.to_trent_with_children() for child in self.children]
+        }
+        if not top_without_pose:
+            dct["pose"] = {
+                "position": self._local_pose.lin.tolist(),
+                "orientation": self._local_pose.ang.tolist()
+            }
+        return dct
 
 
 def inspect_tree(transform: 'Transform', level: int = 0, name_only: bool = False):

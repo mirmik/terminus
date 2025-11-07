@@ -191,7 +191,7 @@ class FixedRotationJoint2D(Contribution):
 
         # Baumgarte стабилизация для ограничения скорости
         ksi = 1.0
-        omega_baumgarte = 0.01 / dt
+        omega_baumgarte = 5.0
 
         v_x = old_q_dot[v_indices[0]]
         v_y = old_q_dot[v_indices[1]]
