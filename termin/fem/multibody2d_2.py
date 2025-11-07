@@ -63,13 +63,29 @@ class RigidBody2D(Contribution):
         omega_idx = index_map[self.omega][0]
 
         # Вклад от массы и момента инерции
-        A[v_indices[0], v_indices[0]] += self.m
-        A[v_indices[1], v_indices[1]] += self.m
-        A[omega_idx, omega_idx] += self.J
+        self.contribute_mass(A, v_indices, omega_idx)
 
         # Вклад от гравитации
         b[v_indices[0]] += self.m * self.gravity[0]
         b[v_indices[1]] += self.m * self.gravity[1]
+
+    def contribute_mass(self, A, v_indices, omega_idx):
+        """Добавить вклад массы в матрицу масс"""
+        A[v_indices[0], v_indices[0]] += self.m
+        A[v_indices[1], v_indices[1]] += self.m
+        A[omega_idx, omega_idx] += self.J
+
+    def contribute_for_constraints_correction(self, matrices, index_maps: Dict[str, Dict[Variable, List[int]]]):
+        """
+        Добавить вклад в матрицы для коррекции ограничений на положения
+        """
+        A = matrices["mass"]  # Матрица масс
+        index_map = index_maps["acceleration"]
+        v_indices = index_map[self.velocity]
+        omega_idx = index_map[self.omega][0]
+
+        # Вклад от массы и момента инерции
+        self.contribute_mass(A, v_indices, omega_idx)
 
 
 class ForceOnBody2D(Contribution):
@@ -108,6 +124,13 @@ class ForceOnBody2D(Contribution):
         b[v_indices[1]] += self.force[1]
         b[omega_idx] += self.torque
 
+    def contribute_for_constraints_correction(self, matrices, index_maps: Dict[str, Dict[Variable, List[int]]]):
+        """
+        Добавить вклад в матрицы для коррекции ограничений на положения
+        """
+        # Внешние силы не влияют на коррекцию ограничений на положения
+        pass
+
 
 class FixedRotationJoint2D(Contribution):
     """
@@ -117,15 +140,39 @@ class FixedRotationJoint2D(Contribution):
     Эквивалентно присоединению тела к неподвижному основанию через шарнир.
     
     Кинематическая связь:
-    - Скорость точки крепления должна быть нулевой: v_cm + ω × r = 0
-    - В 2D: v_cm + [-ω*ry, ω*rx] = 0
     
-    где:
-    - v_cm: скорость центра масс тела [vx, vy]
-    - ω: угловая скорость тела
-    - r: вектор от центра масс к точке крепления [rx, ry]
+    r_0 = j - p_0
+    e = p + r_0 - j 
+
+    de/dt = H * q_dot
+
+    H = |de/dx| = [1, 0, -ry]
+        |de/dy| = [0, 1,  rx]
+
+    H * q_dot = | vx - ω*ry |
+                | vy + ω*rx |
+
+    dde/dt2 = H_dot * q_dot + H * q_ddot 
+
+    dH/dq = | 0 0 0 | | 0 0 0 | | 0 0 -r_x |
+            | 0 0 0 | | 0 0 0 | | 0 0 -r_y |
+
+    dH/dq * q_dot = | 0 0 -ω*rx |
+                    | 0 0 -ω*ry |
     
-    Реализуется через множители Лагранжа (точное удовлетворение связи).
+    H_dot * q_dot = dH/dq * q_dot * q_dot = | -ω*ω*rx |
+                                            | -ω*ω*ry |
+
+    Baumgarte стабилизация (не используется):
+    dde/dt2 + 2*ξ*ω_n*de/dt + ω_n²*e = 0
+
+    H_dot * q_dot + H * q_ddot + 2*ξ*ω_n*H*q_dot + ω_n²*e = 0
+
+    H * q_ddot = -H_dot * q_dot - 2*ξ*ω_n*H*q_dot - ω_n²*e
+
+    H * q_ddot = -| -ω*ω*rx | - 2*ξ*ω_n*| vx - ω*ry | - ω_n²*| x + rx - j_x |
+                  | -ω*ω*ry |           | vy + ω*rx |        | y + ry - j_y |
+
     """
     def __init__(self,
         body: RigidBody2D,
@@ -141,43 +188,35 @@ class FixedRotationJoint2D(Contribution):
         self.internal_force = Variable("F_joint", size=2, tag="holonomic_constraint_force")
         
         body_pose = self.body.pose()
-        self.joint_in_body = body_pose.inverse_transform_point(coords_of_joint)
+        
         self.coords_of_joint = coords_of_joint
-        self.length_of_radius = np.linalg.norm(self.coords_of_joint - body_pose.lin)
+        self.radius_in_local = body_pose.inverse_transform_point(self.coords_of_joint)
+
         self.update_radius_to_body()
         super().__init__([body.velocity, self.internal_force], assembler)
 
     def update_radius_to_body(self):
         """Обновить радиус до тела"""
-        radius_to_body = self.body.pose().lin - self.coords_of_joint
-        radius_in_body_ort = radius_to_body / np.linalg.norm(radius_to_body)
-        self.radius_to_body = radius_in_body_ort * self.length_of_radius 
+        body_pose = self.body.pose()
+        self.radius = body_pose.transform_point(self.radius_in_local) - body_pose.lin
 
     def contribute(self, matrices, index_maps: Dict[str, Dict[Variable, List[int]]]):
         """
         Добавить вклад в матрицы
         """
+        self.update_radius_to_body()
+
         H = matrices["holonomic"]  # Матрица ограничений
         h = matrices["holonomic_load"]    # Вектор ограничений
         b = matrices["load"]  # Вектор нагрузок
-        C = matrices["damping"]  # Матрица демпфирования
         old_q_dot = matrices["old_q_dot"]
         old_q = matrices["old_q"]
+        poserr = matrices["position_error"]
 
         index_map = index_maps["acceleration"]
         constraint_map = index_maps["holonomic_constraint_force"]
         v_indices = index_map[self.body.velocity]
         F_indices = constraint_map[self.internal_force]
-
-        dt = 0.01 # TODO: пробросить через параметры
-
-        # Матрица коэффициентов связи
-        # Связь: vx + ω*ry = 0
-        #        vy - ω*rx = 0
-        #
-        # В матричной форме: C * [vx, vy, ω]^T = 0
-        # H = [[1,  0,  ry],
-        #      [0,  1,  -rx]]
 
         # Вклад в матрицу ограничений от связи шарнира
         H[F_indices[0], v_indices[0]] += 1.0
@@ -186,49 +225,41 @@ class FixedRotationJoint2D(Contribution):
         H[F_indices[1], v_indices[1]] += 1.0
 
         # Вращательное влияние
-        H[F_indices[0], index_map[self.body.omega][0]] += self.radius_to_body[1]
-        H[F_indices[1], index_map[self.body.omega][0]] += -self.radius_to_body[0]
-
-        # Baumgarte стабилизация для ограничения скорости
-        ksi = 1.0
-        omega_baumgarte = 5.0
-
-        v_x = old_q_dot[v_indices[0]]
-        v_y = old_q_dot[v_indices[1]]
-        omega = old_q_dot[index_map[self.body.omega][0]]
+        H[F_indices[0], index_map[self.body.omega][0]] += -self.radius[1]
+        H[F_indices[1], index_map[self.body.omega][0]] += self.radius[0]
 
         x = old_q[v_indices[0]]
         y = old_q[v_indices[1]]
 
+        poserr[F_indices[0]] += x + self.radius[0] - self.coords_of_joint[0]
+        poserr[F_indices[1]] += y + self.radius[1] - self.coords_of_joint[1]
 
+    def contribute_for_constraints_correction(self, matrices, index_maps: Dict[str, Dict[Variable, List[int]]]):
+        """
+        Добавить вклад в матрицы для коррекции ограничений на положения
+        """
+        self.update_radius_to_body()
 
-        # e_vx = v_x + omega * ry
-        # e_vy = v_y - omega * rx
-        velocity_err = np.array([v_x + omega * self.radius_to_body[1],
-                                 v_y - omega * self.radius_to_body[0]])
+        H = matrices["holonomic"]  # Матрица ограничений
+        poserr = matrices["position_error"]
+        
+        index_map = index_maps["acceleration"]
+        constraint_map = index_maps["holonomic_constraint_force"]
+        v_indices = index_map[self.body.velocity]
+        F_indices = constraint_map[self.internal_force]
+        omega_idx = index_map[self.body.omega][0]
 
-        coordinate_err = self.body.pose().lin - self.radius_to_body - self.coords_of_joint
+        # Вклад в матрицу ограничений от связи шарнира
+        H[F_indices[0], v_indices[0]] += 1.0
+        H[F_indices[0], v_indices[1]] += 0.0
+        H[F_indices[1], v_indices[0]] += 0.0
+        H[F_indices[1], v_indices[1]] += 1.0
+        # Вращательное влияние
+        H[F_indices[0], omega_idx] += -self.radius[1]
+        H[F_indices[1], omega_idx] += self.radius[0]
 
-
-        h_1 = np.array([
-            omega*omega * self.radius_to_body[0],
-            omega*omega * self.radius_to_body[1]
-        ])
-
-        h_2 = 2 * ksi * omega_baumgarte * velocity_err
-
-        h_3 = omega_baumgarte * omega_baumgarte * coordinate_err
-
-        print("h_1 =", h_1)
-        print("h_2 =", h_2)
-        print("h_3 =", h_3)
-        print("coordinate_err =", coordinate_err)
-
-        h[F_indices[0]] += -h_1[0] 
-        h[F_indices[1]] += -h_1[1] 
-
-        h[F_indices[0]] += -h_2[0] 
-        h[F_indices[1]] += -h_2[1] 
-
-        h[F_indices[0]] += -h_3[0] 
-        h[F_indices[1]] += -h_3[1] 
+        # Ошибка положения
+        x = self.body.pose().lin[0]
+        y = self.body.pose().lin[1]
+        poserr[F_indices[0]] += x + self.radius[0] - self.coords_of_joint[0]
+        poserr[F_indices[1]] += y + self.radius[1] - self.coords_of_joint[1]

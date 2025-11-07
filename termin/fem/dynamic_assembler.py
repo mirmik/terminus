@@ -1,7 +1,7 @@
 from termin.fem.assembler import MatrixAssembler, Variable, Contribution
 from typing import Dict, List, Tuple
 import numpy as np
-from termin.linalg.subspaces import project_onto_affine
+from termin.linalg.subspaces import project_onto_affine, metric_project_onto_constraints 
 
 class DynamicMatrixAssembler(MatrixAssembler):
     def _build_index_maps(self) -> Dict[Variable, List[int]]:
@@ -67,28 +67,40 @@ class DynamicMatrixAssembler(MatrixAssembler):
         n_dofs = self.total_variables_by_tag(tag="acceleration")
         n_constraints = self.total_variables_by_tag(tag="holonomic_constraint_force")
 
-        A = np.zeros((n_dofs, n_dofs))
-        C = np.zeros((n_dofs, n_dofs))
-        K = np.zeros((n_dofs, n_dofs))
-        b = np.zeros(n_dofs)
-        H = np.zeros((n_constraints, n_dofs))
-        h = np.zeros(n_constraints)
-        old_q = self.collect_current_q(index_maps["acceleration"])
-        old_q_dot = self.collect_current_q_dot(index_maps["acceleration"])
-
         matrices = {
-            "mass": A,
-            "damping": C,
-            "stiffness": K,
-            "load": b,
-            "holonomic": H,
-            "holonomic_load": h,
-            "old_q": old_q,
-            "old_q_dot": old_q_dot
+            "mass": np.zeros((n_dofs, n_dofs)),
+            "damping": np.zeros((n_dofs, n_dofs)),
+            "stiffness": np.zeros((n_dofs, n_dofs)),
+            "load": np.zeros(n_dofs),
+            "holonomic": np.zeros((n_constraints, n_dofs)),
+            "holonomic_load": np.zeros(n_constraints),
+            "old_q": self.collect_current_q(index_maps["acceleration"]),
+            "old_q_dot": self.collect_current_q_dot(index_maps["acceleration"]),
+            "holonomic_velocity_rhs": np.zeros(n_constraints),
+            "position_error": np.zeros(n_constraints),
         }
 
         for contribution in self.contributions:
             contribution.contribute(matrices, index_maps)
+
+        return matrices
+
+    def assemble_for_constraints_correction(self):
+        # Построить карту индексов
+        index_maps = self.index_maps()
+
+        # Создать глобальные матрицы и вектор
+        n_dofs = self.total_variables_by_tag(tag="acceleration")
+        n_constraints = self.total_variables_by_tag(tag="holonomic_constraint_force")
+
+        matrices = {
+            "mass": np.zeros((n_dofs, n_dofs)),
+            "holonomic": np.zeros((n_constraints, n_dofs)),
+            "position_error": np.zeros(n_constraints),
+        }
+
+        for contribution in self.contributions:
+            contribution.contribute_for_constraints_correction(matrices, index_maps)
 
         return matrices
 
@@ -124,6 +136,39 @@ class DynamicMatrixAssembler(MatrixAssembler):
 
         return A_ext, b_ext
 
+    def velocity_project_onto_constraints(self, q_dot: np.ndarray, matrices: Dict[str, np.ndarray]) -> np.ndarray:
+        """Проецировать скорости на ограничения"""
+        H = matrices["holonomic"]
+        h = matrices["holonomic_velocity_rhs"]
+        M = matrices["mass"]
+        M_inv = np.linalg.inv(M)
+        return metric_project_onto_constraints(q_dot, H, M_inv, h=h)
+
+    def coords_project_onto_constraints(self, q: np.ndarray, matrices: Dict[str, np.ndarray]) -> np.ndarray:
+        """Проецировать скорости на ограничения"""
+        H = matrices["holonomic"]
+        f = matrices["position_error"]
+        M = matrices["mass"]
+        M_inv = np.linalg.inv(M)
+        return metric_project_onto_constraints(q, H, M_inv, error=f)
+
+    def integrate_with_constraint_projection(self, 
+                q_ddot: np.ndarray, matrices: Dict[str, np.ndarray], dt: float):
+        q_dot = self.integrate_velocities(matrices["old_q_dot"], q_ddot, dt)
+        q_dot = self.velocity_project_onto_constraints(q_dot, matrices)          
+            
+        q = self.integrate_positions(matrices["old_q"], q_dot, q_ddot, dt)
+            
+        self.upload_results(q_ddot, q_dot, q)
+        matrices = self.assemble_for_constraints_correction()
+            
+        q = self.coords_project_onto_constraints(q, matrices)
+
+        self.upload_result_values(q)
+        #self.integrate_nonlinear(dt)
+
+        return q_dot, q
+
     def sort_results(self, x_ext: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Разделить расширенное решение на ускорения и множители Лагранжа"""
         n_dofs = self.total_variables_by_tag(tag="acceleration")
@@ -151,9 +196,9 @@ class DynamicMatrixAssembler(MatrixAssembler):
         """Интегрировать скорости для получения новых положений"""
         return old_q + q_dot * dt + 0.5 * q_ddot * dt**2
 
-    def restore_position_constraints(self, q: np.ndarray, H: np.ndarray, h: np.ndarray) -> np.ndarray:
-        """Восстановить ограничения на положения (например, для закрепленных тел)"""
-        return project_onto_affine(q, H, h)
+    # def restore_position_constraints(self, q: np.ndarray, H: np.ndarray, h: np.ndarray) -> np.ndarray:
+    #     """Восстановить ограничения на положения (например, для закрепленных тел)"""
+    #     return project_onto_affine(q, H, h)
 
     def upload_results(self, q_ddot: np.ndarray, q_dot: np.ndarray, q: np.ndarray):
         """Загрузить результаты обратно в переменные"""
@@ -162,6 +207,14 @@ class DynamicMatrixAssembler(MatrixAssembler):
             if var.tag == "acceleration":
                 indices = index_map[var]
                 var.set_values(q_ddot[indices], q_dot[indices], q[indices])
+
+    def upload_result_values(self, q: np.ndarray):
+        """Загрузить только положения обратно в переменные"""
+        index_map = self.index_maps()["acceleration"]
+        for var in self.variables:
+            if var.tag == "acceleration":
+                indices = index_map[var]
+                var.set_value(q[indices])
 
     def integrate_nonlinear(self, dt: float):
         """Интегрировать нелинейные переменные (если есть)"""

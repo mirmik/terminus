@@ -1024,4 +1024,28 @@ def affine_projector(C, b):
 
     return A, B
 
+def metric_project_onto_constraints(
+        q: numpy.ndarray, 
+        H: numpy.ndarray,
+        M_inv: numpy.ndarray,
+        error: numpy.ndarray = None,
+        h: numpy.ndarray = None) -> numpy.ndarray:
+    """Проецировать скорости на ограничения
     
+    q - текущий вектор
+    H - матрица ограничений
+    M_inv - метрическая матрица
+    
+    Одно из двух должно быть задано:
+        error - текущая ошибка
+        h - правая часть ограничений
+    """
+    if error is None:
+        error = H @ q - h
+
+    S = H @ M_inv @ H.T
+
+    lmbda = numpy.linalg.solve(S, error)
+    corrected = q - M_inv @ H.T @ lmbda
+
+    return corrected 
