@@ -975,7 +975,7 @@ def subspace_intersection(P1, P2, tol=None):
     return intersection_basis @ intersection_basis.T.conj()
 
 
-def project_to_affine_constraint(x, C, b):
+def project_onto_affine(x, C, b):
     """Возвращает ортогональную проекцию вектора x на аффинное множество, заданное C @ y = b.
     
     Args:

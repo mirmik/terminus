@@ -40,9 +40,43 @@ class Variable:
 
         self._values_by_rank = [numpy.zeros(size), numpy.zeros(size), numpy.zeros(size)]  # для хранения значений по рангам
         
-        self.value = numpy.zeros(size) # текущее значение переменной (обновляется после решения)
-        self.value_dot = numpy.zeros(size) # скорость изменения переменной (если применимо)
-        self.value_ddot = numpy.zeros(size) # ускорение изменения переменной (если применимо)
+        #self.value = numpy.zeros(size) # текущее значение переменной (обновляется после решения)
+        #self.value_dot = numpy.zeros(size) # скорость изменения переменной (если применимо)
+        #self.value_ddot = numpy.zeros(size) # ускорение изменения переменной (если применимо)
+
+    # set и get для value, value_dot, value_ddot
+    @property
+    def value(self) -> np.ndarray:
+        """Текущее значение переменной"""
+        return self._values_by_rank[2]
+
+    @value.setter
+    def value(self, val: np.ndarray):
+        self._values_by_rank[2] = val
+
+    @property
+    def value_dot(self) -> np.ndarray:
+        """Скорость изменения переменной"""
+        return self._values_by_rank[1]
+   
+    @value_dot.setter
+    def value_dot(self, val: np.ndarray):
+        self._values_by_rank[1] = val
+
+    @property
+    def value_ddot(self) -> np.ndarray:
+        """Ускорение изменения переменной"""
+        return self._values_by_rank[0]
+
+    @value_ddot.setter
+    def value_ddot(self, val: np.ndarray):
+        self._values_by_rank[0] = val
+
+    def set_values(self, value_ddot: np.ndarray, value_dot: np.ndarray, value: np.ndarray):
+        """Установить все значения переменной"""
+        self.value_ddot = np.array(value_ddot)
+        self.value_dot = np.array(value_dot)
+        self.value = np.array(value)
 
     def integrate(self, dt: float):
         """Обновить значение переменной по скорости и ускорению за шаг dt"""
@@ -52,14 +86,17 @@ class Variable:
     def set_value(self, value: np.ndarray):
         """Установить текущее значение переменной"""
         self.value = np.array(value)
+        self._values_by_rank[2] = np.array(value)
 
     def set_value_dot(self, value_dot: np.ndarray):
         """Установить скорость изменения переменной"""
         self.value_dot = np.array(value_dot)
+        self._values_by_rank[1] = np.array(value_dot)
 
     def set_value_ddot(self, value_ddot: np.ndarray):
         """Установить ускорение изменения переменной"""
         self.value_ddot = np.array(value_ddot)
+        self._values_by_rank[0] = np.array(value_ddot)
 
     def __repr__(self):
         return f"Variable({self.name}, size={self.size})"
@@ -67,6 +104,14 @@ class Variable:
     def state_for_assembler(self) -> np.ndarray:
         """Вернуть текущее состояние переменной для сборки векторного решения"""
         return self.value, self.value_dot
+
+    def value_by_rank(self, rank: int) -> np.ndarray:
+        """Вернуть значение переменной для заданного ранга (0 - ускорение, 1 - скорость, 2 - положение)"""
+        return self._values_by_rank[rank]
+
+    def integrate_nonlinear(self, dt: float):
+        """Интегрировать нелинейность"""
+        pass  # по умолчанию ничего не делаем
     
 
 class RotationVariable(Variable):
@@ -1144,112 +1189,7 @@ class MatrixAssembler:
         print("=" * 70)
 
 
-class DynamicMatrixAssembler(MatrixAssembler):
-    def _build_index_maps(self) -> Dict[Variable, List[int]]:
-        """
-        Построить отображение: Variable -> глобальные индексы DOF
-        
-        Назначает каждой компоненте каждой переменной уникальный
-        глобальный индекс в системе.
-        """
-        acceleration_vars = [var for var in self.variables if var.tag == "acceleration"]
-        self._index_map = self._build_index_map(acceleration_vars)
 
-        holonomic_vars = [var for var in self.variables if var.tag == "holonomic_constraint_force"]
-        self._holonomic_index_map = self._build_index_map(holonomic_vars)
-
-        self.old_q = np.zeros(self.total_variables_by_tag(tag="acceleration"))
-        self.old_q_dot = np.zeros(self.total_variables_by_tag(tag="acceleration"))
-
-    def index_maps(self) -> Dict[str, Dict[Variable, List[int]]]:
-        """
-        Получить текущее отображение Variable -> глобальные индексы DOF
-        для разных типов переменных
-        """
-        if self._dirty_index_map:
-            self._build_index_maps()
-        return {
-            "acceleration": self._index_map,
-            "holonomic_constraint_force": self._holonomic_index_map
-        }
-
-    def assemble(self):
-        # Построить карту индексов
-        index_maps = self.index_maps()
-
-        # Создать глобальные матрицы и вектор
-        n_dofs = self.total_variables_by_tag(tag="acceleration")
-        n_constraints = self.total_variables_by_tag(tag="holonomic_constraint_force")
-
-        A = np.zeros((n_dofs, n_dofs))
-        C = np.zeros((n_dofs, n_dofs))
-        K = np.zeros((n_dofs, n_dofs))
-        b = np.zeros(n_dofs)
-        H = np.zeros((n_constraints, n_dofs))
-        h = np.zeros(n_constraints)
-
-        matrices = {
-            "mass": A,
-            "damping": C,
-            "stiffness": K,
-            "load": b,
-            "holonomic": H,
-            "holonomic_load": h,
-            "old_q": self.old_q,
-            "old_q_dot": self.old_q_dot
-        }
-
-        for contribution in self.contributions:
-            contribution.contribute(matrices, index_maps)
-
-        return matrices
-
-    def assemble_extended_system(self, matrices: Dict[str, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
-        A = matrices["mass"]
-        C = matrices["damping"]
-        K = matrices["stiffness"]
-        b = matrices["load"]
-        old_q = matrices["old_q"]
-        old_q_dot = matrices["old_q_dot"]
-        H = matrices["holonomic"]
-        h = matrices["holonomic_load"]
-
-        size = self.total_variables_by_tag(tag="acceleration") + self.total_variables_by_tag(tag="holonomic_constraint_force")
-        n_dofs = self.total_variables_by_tag(tag="acceleration")
-        n_holonomic = self.total_variables_by_tag(tag="holonomic_constraint_force")
-
-        # Расширенная система
-        A_ext = np.zeros((size, size))
-        b_ext = np.zeros(size)
-
-        r0 = A.shape[0]
-        r1 = A.shape[0] + n_holonomic
-
-        c0 = A.shape[1]
-        c1 = A.shape[1] + n_holonomic
-
-        A_ext[0:r0, 0:c0] = A
-        A_ext[0:r0, c0:c1] = H.T
-        A_ext[r0:r1, 0:c0] = H
-        b_ext[0:r0] = b - C @ old_q_dot - K @ old_q
-        b_ext[r0:r1] = h
-
-        return A_ext, b_ext
-
-    def integrate_results(self, x_ext: np.ndarray, dt: float, restore_constraints: bool = True) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        n_dofs = self.total_variables_by_tag(tag="acceleration")
-        n_holonomic = self.total_variables_by_tag(tag="holonomic_constraint_force")
-
-        q_ddot = x_ext[:n_dofs]
-        holonomic_lambdas = x_ext[n_dofs:n_dofs + n_holonomic]
-
-        q_dot = self.old_q_dot + q_ddot * dt
-        q = self.old_q + q_dot * dt + 0.5 * q_ddot * dt * dt
-
-        self.old_q = q
-        self.old_q_dot = q_dot
-
-        return q, q_dot, q_ddot, holonomic_lambdas
 
 # ============================================================================
 # Примеры конкретных вкладов
