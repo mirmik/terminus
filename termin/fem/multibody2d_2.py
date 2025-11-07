@@ -236,3 +236,190 @@ class FixedRotationJoint2D(Contribution):
         """
         self.update_radius_to_body()
         self.contribute(matrices, index_maps)
+
+class RevoluteJoint2D(Contribution):
+    """
+    Двухтелый вращательный шарнир (revolute joint).
+    Связывает две точки на двух телах: точка A должна совпадать с точкой B.
+    """
+
+    def __init__(self,
+        bodyA: RigidBody2D,
+        bodyB: RigidBody2D,
+        coords_of_joint: np.ndarray,
+        assembler=None):
+
+        self.bodyA = bodyA
+        self.bodyB = bodyB
+
+        # переменная внутренней силы (двухкомпонентная)
+        self.internal_force = Variable("F_rev", size=2, tag="holonomic_constraint_force")
+
+        # вычисляем локальные точки для обоих тел
+        poseA = self.bodyA.pose()
+        poseB = self.bodyB.pose()
+
+        self.rA_local = poseA.inverse_transform_point(coords_of_joint)
+        self.rB_local = poseB.inverse_transform_point(coords_of_joint)
+
+        # актуализируем глобальные вектор-радиусы
+        self.update_radii()
+
+        super().__init__([bodyA.velocity, bodyB.velocity, self.internal_force], assembler)
+
+
+    def update_radii(self):
+        """Пересчитать глобальные радиусы до опорных точек"""
+        poseA = self.bodyA.pose()
+        poseB = self.bodyB.pose()
+
+        self.rA = poseA.transform_point(self.rA_local) - poseA.lin
+        self.rB = poseB.transform_point(self.rB_local) - poseB.lin
+
+
+    def contribute(self, matrices, index_maps: Dict[str, Dict[Variable, List[int]]]):
+        """Добавляет вклад в матрицы для ускорений"""
+
+        # радиусы актуализируем каждый вызов
+        self.update_radii()
+
+        H = matrices["holonomic"]
+        poserr = matrices["position_error"]
+
+        amap = index_maps["acceleration"]
+        cmap = index_maps["holonomic_constraint_force"]
+
+        # индексы вектора скоростей
+        vA = amap[self.bodyA.velocity]
+        vB = amap[self.bodyB.velocity]
+
+        wA = amap[self.bodyA.omega][0]
+        wB = amap[self.bodyB.omega][0]
+
+        F = cmap[self.internal_force]  # 2 строки ограничений
+
+        # ---------- Якобиан по A ----------
+        # dφ/dx_A = +1
+        H[F[0], vA[0]] += 1.0
+        H[F[1], vA[1]] += 1.0
+
+        # dφ/dθ_A = [-rAy, +rAx]
+        H[F[0], wA] += -self.rA[1]
+        H[F[1], wA] +=  self.rA[0]
+
+        # ---------- Якобиан по B ----------
+        # dφ/dx_B = -1
+        H[F[0], vB[0]] += -1.0
+        H[F[1], vB[1]] += -1.0
+
+        # dφ/dθ_B = [+rBy, -rBx]
+        H[F[0], wB] +=  self.rB[1]
+        H[F[1], wB] += -self.rB[0]
+
+        # ---------- позиционная ошибка ----------
+        # φ = cA - cB = (pA + rA) - (pB + rB)
+        pA = self.bodyA.pose().lin
+        pB = self.bodyB.pose().lin
+
+        poserr[F[0]] += (pA[0] + self.rA[0]) - (pB[0] + self.rB[0])
+        poserr[F[1]] += (pA[1] + self.rA[1]) - (pB[1] + self.rB[1])
+
+
+    def contribute_for_constraints_correction(self, matrices, index_maps):
+        """Для позиционной и скоростной проекции"""
+        self.update_radii()
+        self.contribute(matrices, index_maps)
+
+
+class RevoluteJoint3D(Contribution):
+    """
+    3D револьвентный шарнир в смысле 2D-версии:
+    совпадение двух точек на двух телах.
+    
+    Ограничения: (pA + rA) - (pB + rB) = 0   (3 eq)
+    Не ограничивает ориентацию!
+    Даёт 3 степени свободы на вращение.
+    """
+
+    def __init__(self,
+                 bodyA,
+                 bodyB,
+                 joint_point_world: np.ndarray,
+                 assembler=None):
+
+        self.bodyA = bodyA
+        self.bodyB = bodyB
+
+        # Внутренняя реакция — вектор из 3 компонент
+        self.internal_force = Variable("F_rev3d", size=3,
+                                       tag="holonomic_constraint_force")
+
+        # локальные точки крепления
+        poseA = self.bodyA.pose()
+        poseB = self.bodyB.pose()
+
+        self.rA_local = poseA.inverse_transform_point(joint_point_world)
+        self.rB_local = poseB.inverse_transform_point(joint_point_world)
+
+        # обновляем мировую геометрию
+        self.update_kinematics()
+
+        super().__init__([bodyA.velocity, bodyB.velocity, self.internal_force],
+                         assembler)
+
+    # --------------------------------------------------------------
+
+    def update_kinematics(self):
+        poseA = self.bodyA.pose()
+        poseB = self.bodyB.pose()
+
+        self.pA = poseA.lin
+        self.pB = poseB.lin
+
+        self.rA = poseA.transform_vector(self.rA_local)
+        self.rB = poseB.transform_vector(self.rB_local)
+
+    # --------------------------------------------------------------
+
+    def contribute(self, matrices, index_maps):
+        self.update_kinematics()
+
+        H = matrices["holonomic"]
+        poserr = matrices["position_error"]
+
+        amap = index_maps["acceleration"]
+        cmap = index_maps["holonomic_constraint_force"]
+
+        vA = amap[self.bodyA.velocity]
+        vB = amap[self.bodyB.velocity]
+
+        F = cmap[self.internal_force]  # 3 строки
+
+        # Матрицы скосов радиусов
+        SA = skew(self.rA)
+        SB = skew(self.rB)
+
+        # dφ/dvA_lin = +I
+        H[np.ix_(F, vA[0:3])] += np.eye(3)
+
+        # dφ/dvA_ang = -skew(rA)
+        H[np.ix_(F, vA[3:6])] += -SA
+
+        # dφ/dvB_lin = -I
+        H[np.ix_(F, vB[0:3])] += -np.eye(3)
+
+        # dφ/dvB_ang = +skew(rB)
+        H[np.ix_(F, vB[3:6])] += SB
+
+        # позиционная ошибка: φ = (pA+rA) - (pB+rB)
+        err = (self.pA + self.rA) - (self.pB + self.rB)
+
+        poserr[F[0]] += err[0]
+        poserr[F[1]] += err[1]
+        poserr[F[2]] += err[2]
+
+    # --------------------------------------------------------------
+
+    def contribute_for_constraints_correction(self, matrices, index_maps):
+        self.update_kinematics()
+        self.contribute(matrices, index_maps)

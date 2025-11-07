@@ -11,6 +11,7 @@
 import numpy as np
 from typing import List, Dict, Tuple, Optional
 import numpy
+from termin.geombase.pose3 import Pose3
 
 import termin.linalg.subspaces
 
@@ -155,14 +156,17 @@ class RotationVariable(Variable):
         return np.zeros(3), self.value_dot
 
 class PoseVariable(Variable):
-    def __init__(self, name: str):
-        super().__init__(name, size=6)  # 3 pos + 3 quat
+    def __init__(self, name: str, tag = None):
+        super().__init__(name, size=6, tag=tag)  # 3 pos + 3 rot
         self.position = np.zeros(3)
         self.rotation = np.array([0, 0, 0, 1])
         self.linear_velocity = np.zeros(3)
         self.angular_velocity = np.zeros(3)
         self.linear_acceleration = np.zeros(3)
         self.angular_acceleration = np.zeros(3)
+
+    def pose(self) -> Pose3:
+        return Pose3(ang=self.rotation, lin=self.position)
 
     def integrate(self, dt: float):
         # линейная часть

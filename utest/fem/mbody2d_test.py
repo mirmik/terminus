@@ -6,7 +6,7 @@ import numpy as np
 import warnings
 from termin.fem.dynamic_assembler import DynamicMatrixAssembler
 from termin.fem.multibody2d_2 import (
-    RigidBody2D, ForceOnBody2D, FixedRotationJoint2D
+    RigidBody2D, ForceOnBody2D, FixedRotationJoint2D, RevoluteJoint2D
 )
 from numpy import linalg
 
@@ -179,45 +179,6 @@ class TestIntegrationMultibody2D(unittest.TestCase):
         assert np.isclose(body.velocity.value_ddot[1], 0.0)
         assert np.isclose(body.omega.value_ddot[0], 0.0)
 
-    # def test_stabilization_test(self):
-    #     """Создание простой системы с одним твердым телом и фиксированным шарниром"""
-    #     assembler = DynamicMatrixAssembler()
-        
-    #     body = RigidBody2D(
-    #         m=5.0,
-    #         J=5.0,
-    #         gravity=np.array([0.0, 0.00]),
-    #         assembler=assembler)
-
-    #     body.velocity.set_value(np.array([0.0, 0.0]))
-    #     body.omega.set_value(np.array([0.0]))
-
-    #     joint = FixedRotationJoint2D(
-    #         body=body,
-    #         assembler=assembler)
-
-    #     dt = 0.01  # временной шаг
-        
-    #     body.velocity.set_value(np.array([0.1, 0.0]))
-    #     body.omega.set_value(np.array([0.0]))
-
-    #     for step in range(20):
-    #         joint.update_radius_to_body()
-    #         print(f"Step {step}: radius to body = {joint.radius}")
-
-    #         matrices = assembler.assemble()
-    #         A_ext, b_ext = assembler.assemble_extended_system(matrices)
-    #         x = linalg.solve(A_ext, b_ext)
-    #         q_ddot, holonomic_lambdas, nonholonomic_lambdas = assembler.sort_results(x)
-            
-            
-    #         q_dot = assembler.integrate_velocities(matrices["old_q_dot"], q_ddot, dt)
-    #         q = assembler.integrate_positions(matrices["old_q"], q_dot, q_ddot, dt)
-            
-    #         assembler.upload_results(q_ddot, q_dot, q)
-    #         assembler.integrate_nonlinear(dt)
-            
-    #     assert np.linalg.norm(q[0] - joint.coords_of_joint[0]) < 1e-2
 
     def test_simple_pendulum(self):
         """Создание простой системы с одним твердым телом и фиксированным шарниром"""
@@ -247,4 +208,51 @@ class TestIntegrationMultibody2D(unittest.TestCase):
 
             print(f"Step {step}: position = {q[0:2]}, velocity = {q_dot[0:2]}, norm = {np.linalg.norm(q[0:2])}") 
 
-        assert 1-1e-12 < np.linalg.norm((q[0:2])) < 1+1e-12
+        eps = 1e-15
+        assert 1-eps < np.linalg.norm((q[0:2])) < 1+eps
+
+    def test_double_pendulum(self):
+        """Создание простой системы с двумя твердыми телами и фиксированными шарнирами"""
+        assembler = DynamicMatrixAssembler()
+        
+        body1 = RigidBody2D(
+            m=5.0,
+            J=5.0,
+            gravity=np.array([0.0, -10.00]),
+            assembler=assembler)
+
+        body1.velocity.set_value(np.array([1.0, 0.0]))
+        body1.omega.set_value(np.array([0.0]))
+
+        joint1 = FixedRotationJoint2D(
+            body=body1,
+            assembler=assembler)
+
+        body2 = RigidBody2D(
+            m=5.0,
+            J=5.0,
+            gravity=np.array([0.0, -10.00]),
+            assembler=assembler)
+
+        body2.velocity.set_value(np.array([2.0, 0.0]))
+        body2.omega.set_value(np.array([0.0]))
+
+        joint2 = RevoluteJoint2D(
+            bodyA=body1,
+            bodyB=body2,
+            coords_of_joint=np.array([1.0, 0.0]),
+            assembler=assembler)
+
+        dt = 0.01  # временной шаг
+
+        for step in range(500):
+            matrices = assembler.assemble()
+            A_ext, b_ext = assembler.assemble_extended_system(matrices)
+            x = linalg.solve(A_ext, b_ext)
+            q_ddot, holonomic_lambdas, nonholonomic_lambdas = assembler.sort_results(x)
+            q_dot, q = assembler.integrate_with_constraint_projection(q_ddot, matrices, dt)
+
+            print(f"Step {step}: position1 = {q[0:2]}, position2 = {q[3:5]}, norm1 = {np.linalg.norm(q[0:2])}, norm2 = {np.linalg.norm(q[0:2] - q[3:5])}")
+        eps = 1e-15
+        assert 1-eps < np.linalg.norm((q[0:2])) < 1+eps
+        assert 1-eps < np.linalg.norm((q[0:2] - q[3:5])) < 1+eps

@@ -1,5 +1,5 @@
 import numpy as np
-from termin.fem.inertia2d import SpatialInertia3D
+from termin.fem.inertia3d import SpatialInertia3D
 from termin.geombase.pose3 import Pose3
 
 def test_spatial_inertia3d_add():

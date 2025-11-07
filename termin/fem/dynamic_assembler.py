@@ -2,6 +2,7 @@ from termin.fem.assembler import MatrixAssembler, Variable, Contribution
 from typing import Dict, List, Tuple
 import numpy as np
 from termin.linalg.subspaces import project_onto_affine, metric_project_onto_constraints 
+from termin.geombase.pose3 import Pose3
 
 class DynamicMatrixAssembler(MatrixAssembler):
     def _build_index_maps(self) -> Dict[Variable, List[int]]:
@@ -159,12 +160,12 @@ class DynamicMatrixAssembler(MatrixAssembler):
             
         q = self.integrate_positions(matrices["old_q"], q_dot, q_ddot, dt)
             
-        self.upload_results(q_ddot, q_dot, q)
-        matrices = self.assemble_for_constraints_correction()
-            
-        q = self.coords_project_onto_constraints(q, matrices)
+        for _ in range(2):  # несколько итераций проекции положений
+            self.upload_results(q_ddot, q_dot, q)
+            matrices = self.assemble_for_constraints_correction()
+            q = self.coords_project_onto_constraints(q, matrices)
+            self.upload_result_values(q)
 
-        self.upload_result_values(q)
         #self.integrate_nonlinear(dt)
 
         return q_dot, q
