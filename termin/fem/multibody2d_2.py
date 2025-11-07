@@ -209,8 +209,8 @@ class FixedRotationJoint2D(Contribution):
         H = matrices["holonomic"]  # Матрица ограничений
         h = matrices["holonomic_load"]    # Вектор ограничений
         b = matrices["load"]  # Вектор нагрузок
-        old_q_dot = matrices["old_q_dot"]
-        old_q = matrices["old_q"]
+        #old_q_dot = matrices["old_q_dot"]
+        #old_q = matrices["old_q"]
         poserr = matrices["position_error"]
 
         index_map = index_maps["acceleration"]
@@ -228,8 +228,8 @@ class FixedRotationJoint2D(Contribution):
         H[F_indices[0], index_map[self.body.omega][0]] += -self.radius[1]
         H[F_indices[1], index_map[self.body.omega][0]] += self.radius[0]
 
-        x = old_q[v_indices[0]]
-        y = old_q[v_indices[1]]
+        x = self.body.pose().lin[0]
+        y = self.body.pose().lin[1]
 
         poserr[F_indices[0]] += x + self.radius[0] - self.coords_of_joint[0]
         poserr[F_indices[1]] += y + self.radius[1] - self.coords_of_joint[1]
