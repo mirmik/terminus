@@ -207,10 +207,6 @@ class FixedRotationJoint2D(Contribution):
         self.update_radius_to_body()
 
         H = matrices["holonomic"]  # Матрица ограничений
-        h = matrices["holonomic_load"]    # Вектор ограничений
-        b = matrices["load"]  # Вектор нагрузок
-        #old_q_dot = matrices["old_q_dot"]
-        #old_q = matrices["old_q"]
         poserr = matrices["position_error"]
 
         index_map = index_maps["acceleration"]
@@ -239,27 +235,4 @@ class FixedRotationJoint2D(Contribution):
         Добавить вклад в матрицы для коррекции ограничений на положения
         """
         self.update_radius_to_body()
-
-        H = matrices["holonomic"]  # Матрица ограничений
-        poserr = matrices["position_error"]
-        
-        index_map = index_maps["acceleration"]
-        constraint_map = index_maps["holonomic_constraint_force"]
-        v_indices = index_map[self.body.velocity]
-        F_indices = constraint_map[self.internal_force]
-        omega_idx = index_map[self.body.omega][0]
-
-        # Вклад в матрицу ограничений от связи шарнира
-        H[F_indices[0], v_indices[0]] += 1.0
-        H[F_indices[0], v_indices[1]] += 0.0
-        H[F_indices[1], v_indices[0]] += 0.0
-        H[F_indices[1], v_indices[1]] += 1.0
-        # Вращательное влияние
-        H[F_indices[0], omega_idx] += -self.radius[1]
-        H[F_indices[1], omega_idx] += self.radius[0]
-
-        # Ошибка положения
-        x = self.body.pose().lin[0]
-        y = self.body.pose().lin[1]
-        poserr[F_indices[0]] += x + self.radius[0] - self.coords_of_joint[0]
-        poserr[F_indices[1]] += y + self.radius[1] - self.coords_of_joint[1]
+        self.contribute(matrices, index_maps)
