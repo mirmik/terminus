@@ -1,4 +1,8 @@
-class Motor(Contribution):
+
+from termin.fem.assembler import Contribution, Variable
+from termin.fem.electrical_2 import ElectricalNode, CurrentVariable
+
+class DCMotor(Contribution):
     """
     Идеальный электродвигатель постоянного тока:
 
@@ -13,7 +17,7 @@ class Motor(Contribution):
             omega   — угловая скорость в механическом домене
     """
 
-    def __init__(self, node1, node2, omega_var, torque_var, k_e=0.1, k_t=0.1, assembler=None):
+    def __init__(self, node1, node2, omega_var, k_e=0.1, k_t=0.1, assembler=None):
         """
         Args:
             node1, node2:   электрические узлы
@@ -24,14 +28,16 @@ class Motor(Contribution):
         self.node1 = node1
         self.node2 = node2
         self.omega = omega_var
-        self.torque = Variable("torque_motor", size=1, tag="force")  # момент двигателя
+        #self.torque = Variable("torque_motor", size=1, tag="force")  # момент двигателя
         self.k_e = float(k_e)
         self.k_t = float(k_t)
 
         # ток двигателя — как у источников/индуктора
         self.i = CurrentVariable("i_motor")
 
-        super().__init__([node1, node2, self.i, omega_var, torque_var], assembler)
+        super().__init__([node1, node2, self.i, omega_var], 
+            domain="electromechanical", 
+            assembler=assembler)
 
     def contribute(self, matrices, index_maps):
         """
@@ -41,19 +47,21 @@ class Motor(Contribution):
         G   = matrices["conductance"]              # KCL
         H   = matrices["electric_holonomic"]       # KVL
         rhs = matrices["electric_holonomic_rhs"]   # KVL правая часть
+        EM = matrices["electromechanic_coupling"]  # электромеханическая связь
+        EM_damping = matrices["electromechanic_coupling_damping"]  # электромеханическая связь (в демпфирование)
 
-        Fm  = matrices["mechanical_forces"]        # силы/моменты для механики
-
+        b_rhs = matrices["load"]         # правая часть сил на ускорения
+        
         # Индексы
         vmap = index_maps["voltage"]
         cmap = index_maps["current"]
-        mmap = index_maps["mechanical"]
+        amap = index_maps["acceleration"]
 
         v1 = vmap[self.node1][0]
         v2 = vmap[self.node2][0]
         i  = cmap[self.i][0]
-        w  = mmap[self.omega][0]
-        tau_idx = mmap[self.torque][0]
+        w  = amap[self.omega][0]
+        #tau_idx = mmap[self.torque][0]
 
         # ---------------------------------------------------------
         # 1) Электрическое уравнение двигателя (KVL):
@@ -67,24 +75,25 @@ class Motor(Contribution):
         # ---------------------------------------------------------
         H[i, v1] +=  1.0
         H[i, v2] += -1.0
-        H[i, w ] += -self.k_e
+        EM_damping[w, i] += self.k_e
 
         # ---------------------------------------------------------
         # 2) KCL: ток через двигатель
         # ток входит в node1, выходит из node2
         # ---------------------------------------------------------
-        G[v1, i] +=  1.0
-        G[i, v1] +=  1.0
+        # G[v1, i] +=  1.0
+        # G[i, v1] +=  1.0
 
-        G[v2, i] += -1.0
-        G[i, v2] += -1.0
+        # G[v2, i] += -1.0
+        # G[i, v2] += -1.0
+        EM[w, i] += -self.k_t
 
         # ---------------------------------------------------------
         # 3) Механика: момент двигателя
         #       tau_motor = k_t * i
         # Просто добавляем момент в мех. RHS
         # ---------------------------------------------------------
-        Fm[tau_idx] += self.k_t * self.i.get_current()
+        # b_rhs[w] += (self.k_t * self.i.get_current()).item()
 
     def contribute_for_constraints_correction(self, matrices, index_maps):
         # та же логика (как у источника напряжения и индуктивности)

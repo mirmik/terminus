@@ -58,7 +58,7 @@ class Doll2D(Contribution):
         print("HERE!!!!")
         print(variables)
 
-        super().__init__(variables, assembler)
+        super().__init__(variables, assembler=assembler)
     
     def _collect_joints(self, link: 'DollLink2D'):
         """Рекурсивно собрать все звенья и шарниры из дерева."""

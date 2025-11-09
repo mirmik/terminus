@@ -81,9 +81,9 @@ class RotationalInertia3D(Contribution):
         
         if dt is not None and dt <= 0:
             raise ValueError("Шаг по времени должен быть положительным")
-        
-        super().__init__([omega], assembler)
-        
+
+        super().__init__([omega], assembler=assembler)
+
         self.omega = omega
         self.dt = dt
         self.include_gyroscopic = include_gyroscopic
@@ -171,7 +171,7 @@ class TorqueVector3D(Contribution):
         if self.torque.shape != (3,):
             raise ValueError("torque должен быть вектором размера 3")
         
-        super().__init__([omega], assembler)
+        super().__init__([omega], assembler=assembler)
         
         self.omega = omega
     
@@ -237,7 +237,7 @@ class LinearMass3D(Contribution):
         if dt is not None and dt <= 0:
             raise ValueError("Шаг по времени должен быть положительным")
         
-        super().__init__([velocity], assembler)
+        super().__init__([velocity], assembler=assembler)
         
         self.velocity = velocity
         self.m = m
@@ -331,7 +331,7 @@ class RigidBody3D(Contribution):
         if m <= 0:
             raise ValueError("Масса должна быть положительной")
         
-        super().__init__([velocity, omega], assembler)
+        super().__init__([velocity, omega], assembler=assembler)
         
         self.velocity = velocity
         self.omega = omega
@@ -392,7 +392,7 @@ class ForceVector3D(Contribution):
         if self.force.shape != (3,):
             raise ValueError("force должна быть вектором размера 3")
         
-        super().__init__([velocity], assembler)
+        super().__init__([velocity], assembler=assembler)
         
         self.velocity = velocity
     
@@ -459,7 +459,7 @@ class SphericalJoint3D(Constraint):
 
         self.lambdas = Variable(size=3, name="lambda_spherical_joint_3d")
         
-        super().__init__([velocity, omega], [self.lambdas], [], assembler)
+        super().__init__([velocity, omega], [self.lambdas], [], assembler=assembler)
         
         self.velocity = velocity
         self.omega = omega
@@ -536,7 +536,7 @@ class FixedPoint3D(Constraint):
 
         self.lambdas = Variable(size=3, name="lambda_fixed_point_3d")
 
-        super().__init__([velocity], [self.lambdas], [], assembler)
+        super().__init__([velocity], [self.lambdas], [], assembler=assembler)
 
         self.velocity = velocity
 
@@ -584,7 +584,7 @@ class FixedRotation3D(Constraint):
 
         self.lambdas = Variable(size=3, name="lambda_fixed_rotation_3d")
 
-        super().__init__([omega], [self.lambdas], [], assembler)
+        super().__init__([omega], [self.lambdas], [], assembler=assembler)
 
         self.omega = omega
 

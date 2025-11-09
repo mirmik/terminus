@@ -19,7 +19,7 @@ class RigidBody3D(Contribution):
                  assembler=None):
 
         self.velocity = PoseVariable("v_body3d", tag="acceleration") 
-        super().__init__([self.velocity], assembler)
+        super().__init__([self.velocity], assembler=assembler)
 
         self.gravity = np.asarray(gravity, float)
 
@@ -108,7 +108,7 @@ class ForceOnBody3D(Contribution):
         self.force = np.asarray(force, float)
         self.torque = np.asarray(torque, float)
 
-        super().__init__([], assembler)  # переменных нет
+        super().__init__([], assembler=assembler)  # переменных нет
 
 
     def contribute(self, matrices, index_maps):
@@ -173,7 +173,7 @@ class FixedPointJoint3D(Contribution):
         # актуализируем r в мировых
         self.update_radius()
 
-        super().__init__([self.body.velocity, self.internal_force], assembler)
+        super().__init__([self.body.velocity, self.internal_force], assembler=assembler)
 
     # -----------------------------------------------------------
 

@@ -35,10 +35,10 @@ class RigidBody2D(Contribution):
             assembler: MatrixAssembler для автоматической регистрации переменных
         """
         
-        self.velocity = Variable("v_body", size=2, tag="acceleration")
-        self.omega = Variable("omega_body", size=1, tag="acceleration")
+        self.velocity = Variable("acc", size=2, tag="acceleration")
+        self.omega = Variable("angacc", size=1, tag="acceleration")
 
-        super().__init__([self.velocity, self.omega], assembler)
+        super().__init__([self.velocity, self.omega], assembler=assembler)
         
         self.m = m
         self.J = J
@@ -107,7 +107,7 @@ class ForceOnBody2D(Contribution):
         self.omega = body.omega
         self.force = force
         self.torque = torque
-        super().__init__([], assembler)  # Нет переменных для этой нагрузки
+        super().__init__([], assembler=assembler)  # Нет переменных для этой нагрузки
 
     def contribute(self, matrices, index_maps: Dict[str, Dict[Variable, List[int]]]):
         """
@@ -193,7 +193,7 @@ class FixedRotationJoint2D(Contribution):
         self.radius_in_local = body_pose.inverse_transform_point(self.coords_of_joint)
 
         self.update_radius_to_body()
-        super().__init__([body.velocity, self.internal_force], assembler)
+        super().__init__([body.velocity, self.internal_force], assembler=assembler)
 
     def update_radius_to_body(self):
         """Обновить радиус до тела"""
@@ -207,7 +207,6 @@ class FixedRotationJoint2D(Contribution):
         self.update_radius_to_body()
 
         H = matrices["holonomic"]  # Матрица ограничений
-        poserr = matrices["position_error"]
 
         index_map = index_maps["acceleration"]
         constraint_map = index_maps["force"]
@@ -224,18 +223,22 @@ class FixedRotationJoint2D(Contribution):
         H[F_indices[0], index_map[self.body.omega][0]] += -self.radius[1]
         H[F_indices[1], index_map[self.body.omega][0]] += self.radius[0]
 
-        x = self.body.pose().lin[0]
-        y = self.body.pose().lin[1]
-
-        poserr[F_indices[0]] += x + self.radius[0] - self.coords_of_joint[0]
-        poserr[F_indices[1]] += y + self.radius[1] - self.coords_of_joint[1]
-
     def contribute_for_constraints_correction(self, matrices, index_maps: Dict[str, Dict[Variable, List[int]]]):
         """
         Добавить вклад в матрицы для коррекции ограничений на положения
         """
         self.update_radius_to_body()
         self.contribute(matrices, index_maps)
+
+        constraint_map = index_maps["force"]
+        poserr = matrices["position_error"]
+        F_indices = constraint_map[self.internal_force]
+
+        x = self.body.pose().lin[0]
+        y = self.body.pose().lin[1]
+
+        poserr[F_indices[0]] += x + self.radius[0] - self.coords_of_joint[0]
+        poserr[F_indices[1]] += y + self.radius[1] - self.coords_of_joint[1]
 
 class RevoluteJoint2D(Contribution):
     """
@@ -265,8 +268,7 @@ class RevoluteJoint2D(Contribution):
         # актуализируем глобальные вектор-радиусы
         self.update_radii()
 
-        super().__init__([bodyA.velocity, bodyB.velocity, self.internal_force], assembler)
-
+        super().__init__([bodyA.velocity, bodyB.velocity, self.internal_force], assembler=assembler)
 
     def update_radii(self):
         """Пересчитать глобальные радиусы до опорных точек"""
@@ -284,7 +286,6 @@ class RevoluteJoint2D(Contribution):
         self.update_radii()
 
         H = matrices["holonomic"]
-        poserr = matrices["position_error"]
 
         amap = index_maps["acceleration"]
         cmap = index_maps["force"]
@@ -316,6 +317,15 @@ class RevoluteJoint2D(Contribution):
         H[F[0], wB] +=  self.rB[1]
         H[F[1], wB] += -self.rB[0]
 
+
+    def contribute_for_constraints_correction(self, matrices, index_maps):
+        """Для позиционной и скоростной проекции"""
+        self.update_radii()
+        self.contribute(matrices, index_maps)
+        poserr = matrices["position_error"]
+        cmap = index_maps["force"]
+        F = cmap[self.internal_force]  # 2 строки ограничений
+
         # ---------- позиционная ошибка ----------
         # φ = cA - cB = (pA + rA) - (pB + rB)
         pA = self.bodyA.pose().lin
@@ -323,12 +333,6 @@ class RevoluteJoint2D(Contribution):
 
         poserr[F[0]] += (pA[0] + self.rA[0]) - (pB[0] + self.rB[0])
         poserr[F[1]] += (pA[1] + self.rA[1]) - (pB[1] + self.rB[1])
-
-
-    def contribute_for_constraints_correction(self, matrices, index_maps):
-        """Для позиционной и скоростной проекции"""
-        self.update_radii()
-        self.contribute(matrices, index_maps)
 
 
 class RevoluteJoint3D(Contribution):
@@ -365,7 +369,7 @@ class RevoluteJoint3D(Contribution):
         self.update_kinematics()
 
         super().__init__([bodyA.velocity, bodyB.velocity, self.internal_force],
-                         assembler)
+                         assembler=assembler)
 
     # --------------------------------------------------------------
 

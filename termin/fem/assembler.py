@@ -26,14 +26,14 @@ class Variable:
     - Температуру в узле тепловой задачи
     - И т.д.
     """
-    
+
     def __init__(self, name: str, size: int = 1, tag = None):
         """
         Args:
             name: Имя переменной (для отладки)
             size: Размерность (1 для скаляра, 2/3 для вектора)
         """
-        self.name = name
+        
         self.size = size
         self.global_indices = []  # будет заполнено при сборке
         self.tag = tag  # произвольный тег для пользователя
@@ -44,6 +44,27 @@ class Variable:
         #self.value = numpy.zeros(size) # текущее значение переменной (обновляется после решения)
         #self.value_dot = numpy.zeros(size) # скорость изменения переменной (если применимо)
         #self.value_ddot = numpy.zeros(size) # ускорение изменения переменной (если применимо)
+
+        self.name_list = []
+        if size == 1:
+            self.name_list.append(name)
+        else:
+            lst = ["x", "y", "z", "a", "b", "c"]
+            for i in range(size):
+                vname = name + "_" + lst[i]
+                self.name_list.append(vname)
+
+        print(self.name_list, self.size)
+
+    def __str__(self):
+        return f"{self.name_list}"
+
+    def __repr__(self):
+        return f"{self.name_list} (size={self.size})"
+
+    def names(self) -> List[str]:
+        """Вернуть список имен компонент переменной"""
+        return self.name_list
 
     # set и get для value, value_dot, value_ddot
     @property
@@ -98,9 +119,6 @@ class Variable:
         """Установить ускорение изменения переменной"""
         self.value_ddot = np.array(value_ddot)
         self._values_by_rank[0] = np.array(value_ddot)
-
-    def __repr__(self):
-        return f"Variable({self.name}, size={self.size})"
 
     def state_for_assembler(self) -> np.ndarray:
         """Вернуть текущее состояние переменной для сборки векторного решения"""
@@ -219,13 +237,17 @@ class Contribution:
     - Уравнение связи между переменными
     """
     
-    def __init__(self, variables: List[Variable], assembler=None):
+    def __init__(self, variables: List[Variable], domain = "mechanic", assembler=None):
         self.variables = variables
         self._assembler = assembler  # ссылка на assembler, в котором зарегистрирован вклад
         self.assembler = assembler
+        self.domain = domain
         if assembler is not None:
             assembler.add_contribution(self)
         self._rank = self._evaluate_rank()
+
+        if self.domain is None:
+            raise ValueError(f"Domain must be specified for {type(self)}")
 
     def _evaluate_rank(self) -> int:
         """Возвращает размерность вклада (число уравнений, которые он добавляет)"""
@@ -1164,10 +1186,13 @@ class MatrixAssembler:
         
         for i in range(A_ext.shape[0]):
             row_terms = []
+
+            count_of_nonzero = 0
             for j in range(A_ext.shape[1]):
                 coeff = A_ext[i, j]
                 if abs(coeff) > 1e-12:
                     var_name = variables[j]
+                    count_of_nonzero += 1
 
                     if (np.isclose(coeff, 1.0)):
                         row_terms.append(f"{var_name}")
@@ -1178,6 +1203,10 @@ class MatrixAssembler:
             row_str = " "
             row_str += " + ".join(row_terms)
             row_str += f" = {b_ext[i]}"
+
+            if count_of_nonzero == 0:
+                row_str = f" 0 = {b_ext[i]}"
+
             lines.append(row_str)
         
         return "\n".join(lines)
@@ -1194,6 +1223,7 @@ class MatrixAssembler:
             Строковое представление решения
         """
         lines = []
+
         for i, var in enumerate(variables):
             lines.append(f" {var} = {x_ext[i]}")
         return "\n".join(lines)

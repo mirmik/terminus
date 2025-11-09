@@ -3,6 +3,13 @@ from typing import List, Dict
 from .assembler import Contribution, Variable, Constraint   
 
 
+class ElectricalContribution(Contribution):
+    """
+    Базовый класс для электрических элементов.
+    """
+    def __init__(self, variables: List[Variable], assembler=None):
+        super().__init__(variables, domain="electric", assembler=assembler)
+
 class ElectricalNode(Variable):
     """
     Узел электрической цепи с потенциалом (напряжением).
@@ -35,7 +42,7 @@ class CurrentVariable(Variable):
         """
         self.set_value_by_rank(current, rank=0)
 
-class Resistor(Contribution):
+class Resistor(ElectricalContribution):
     """
     Резистор - линейный элемент.
     
@@ -98,7 +105,7 @@ class Resistor(Contribution):
                 G[gi, gj] += self.G_matrix[i, j]
 
 
-class VoltageSource(Contribution):
+class VoltageSource(ElectricalContribution):
     """
     Идеальный источник напряжения: V1 - V2 = U
     """
@@ -131,7 +138,7 @@ class VoltageSource(Contribution):
         rhs[row] += -self.U
 
 
-class Ground(Contribution):
+class Ground(ElectricalContribution):
     """
     Электрическая земля — фиксирует потенциал узла:
         V_node = 0
@@ -176,7 +183,7 @@ class Ground(Contribution):
         # rhs[row] += 0.0
     
 
-class Capacitor(Contribution):
+class Capacitor(ElectricalContribution):
     def __init__(self, node1, node2, C, assembler=None):
         super().__init__([node1, node2], assembler)
         self.node1 = node1
@@ -227,7 +234,7 @@ class Capacitor(Contribution):
         return self.node1.get_voltage() - self.node2.get_voltage()
 
 
-class Inductor(Contribution):
+class Inductor(ElectricalContribution):
     """
     Идеальная индуктивность (TRAP):
         v = L di/dt
@@ -296,7 +303,7 @@ class Inductor(Contribution):
         return self.i_var.get_current()
         
 
-class CurrentSource(Contribution):
+class CurrentSource(ElectricalContribution):
     """
     Идеальный источник тока: +I в node1, -I в node2
     """

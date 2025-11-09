@@ -1,241 +1,76 @@
-# #!/usr/bin/env python3
-# """
-# Тесты для электромеханических элементов (fem/electromechanical.py)
+#!/usr/bin/env python3
+"""
+Тесты для электромеханических элементов (fem/electromechanical.py)
 
-# Содержит тесты только для DCMotor - класса, связывающего электрическую
-# и механическую подсистемы.
-# """
+Содержит тесты только для DCMotor - класса, связывающего электрическую
+и механическую подсистемы.
+"""
 
-# import unittest
-# import numpy as np
-# import sys
-# import os
+import unittest
+import numpy as np
+import sys
+import os
 
-# # Добавить путь к модулю
-# sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+# Добавить путь к модулю
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-# from termin.fem.electromechanical import DCMotor
-# from termin.fem.multibody2d import RotationalInertia2D
-# from termin.fem.electrical import VoltageSource, Ground
-# from termin.fem.assembler import Variable, MatrixAssembler, LagrangeConstraint
-
-
-# def fixed_scalar(variable: Variable, value: float = 0.0):
-#     """
-#     Создать constraint для фиксации скалярной переменной
-    
-#     Args:
-#         variable: Переменная размера 1
-#         value: Целевое значение
-    
-#     Returns:
-#         LagrangeConstraint для фиксации переменной
-#     """
-#     return LagrangeConstraint(
-#         variables=[variable],
-#         coefficients=[np.array([[1.0]])],  # просто x = value
-#         rhs=np.array([value])
-#     )
+from termin.fem.electromechanic_2 import DCMotor
+from termin.fem.multibody2d_2 import RigidBody2D
+from termin.fem.electrical_2 import VoltageSource, Ground, ElectricalNode, Resistor
+from termin.fem.dynamic_assembler import Variable, DynamicMatrixAssembler
 
 
-# def solve_system(contributions, variables, constraints=None):
-#     """
-#     Вспомогательная функция для решения системы
-    
-#     Args:
-#         contributions: Список Contribution объектов
-#         variables: Список Variable объектов
-#         constraints: Список Constraint объектов (опционально)
-#     """
-#     assembler = MatrixAssembler()
-    
-#     for contrib in contributions:
-#         assembler.add_contribution(contrib)
+class TestDCMotor(unittest.TestCase):
+    def test_dc_motor_creation(self):
+        """Создание электромеханического двигателя постоянного тока"""
 
-#     if constraints:
-#         for constraint in constraints:
-#             assembler.add_constraint(constraint)
-    
-#     import warnings
-#     with warnings.catch_warnings():
-#         warnings.simplefilter("ignore")
-#         use_constraints = constraints is not None and len(constraints) > 0
-#         assembler.solve_stiffness_problem(use_least_squares=True)
+        assembler = DynamicMatrixAssembler()
 
+        body = RigidBody2D(
+            m=2.0,
+            J=0.5,
+            gravity=np.array([0.0, 0.0]),
+            assembler=assembler)
 
-# class TestDCMotor(unittest.TestCase):
-#     """Тесты для двигателя постоянного тока"""
-    
-#     def test_motor_static_no_load(self):
-#         """
-#         Двигатель без нагрузки в статике
+        body.omega.set_value_by_rank(np.array([1.0]), rank=1)
         
-#         10V -> Двигатель (R=1Ω, K_e=0.1 В/(рад/с)) -> GND
-#         ω фиксирована = 0
-        
-#         Ожидаем: I = V/R = 10А, τ = K_t*I
-#         """
-#         v_plus = Variable("V+", 1)
-#         v_gnd = Variable("GND", 1)
-#         omega = Variable("omega", 1)
-        
-#         R = 1.0
-#         L = 0.01
-#         K_e = 0.1
-#         K_t = 0.1
-        
-#         v_source = VoltageSource(v_plus, v_gnd, 10.0)
-#         motor = DCMotor(v_plus, v_gnd, omega, R, L, K_e, K_t)
-#         ground = Ground(v_gnd)
-#         fixed_rotation = fixed_scalar(omega, 0.0)  # зафиксировать ω=0
-        
-#         solve_system(
-#             [v_source, motor, ground],
-#             [v_plus, v_gnd, omega],
-#             constraints=[fixed_rotation]
-#         )
-        
-#         # Проверить напряжение
-#         self.assertAlmostEqual(v_plus.value, 10.0, places=4)
-#         self.assertAlmostEqual(omega.value, 0.0, places=4)
-        
-#         # Проверить ток
-#         I = motor.get_current(v_plus.value, v_gnd.value, omega.value)
-#         self.assertAlmostEqual(I, 10.0, places=4)
-        
-#         # Проверить момент
-#         torque = motor.get_torque(I=I)
-#         self.assertAlmostEqual(torque, K_t * 10.0, places=4)
-    
-#     def test_motor_with_back_emf(self):
-#         """
-#         Двигатель с ЭДС противодействия
-        
-#         10V -> Двигатель -> GND
-#         ω = 50 рад/с (зафиксирована)
-#         K_e = 0.1 В/(рад/с)
-        
-#         ЭДС = K_e*ω = 0.1*50 = 5В
-#         I = (V - EMF)/R = (10 - 5)/1 = 5А
-#         """
-#         v_plus = Variable("V+", 1)
-#         v_gnd = Variable("GND", 1)
-#         omega = Variable("omega", 1)
-        
-#         R = 1.0
-#         L = 0.01
-#         K_e = 0.1
-#         K_t = 0.1
-        
-#         v_source = VoltageSource(v_plus, v_gnd, 10.0)
-#         motor = DCMotor(v_plus, v_gnd, omega, R, L, K_e, K_t)
-#         ground = Ground(v_gnd)
-#         fixed_rotation = fixed_scalar(omega, 50.0)
-        
-#         solve_system(
-#             [v_source, motor, ground],
-#             [v_plus, v_gnd, omega],
-#             constraints=[fixed_rotation]
-#         )
-        
-#         self.assertAlmostEqual(omega.value, 50.0, places=4)
-        
-#         I = motor.get_current(v_plus.value, v_gnd.value, omega.value)
-#         expected_I = (10.0 - K_e * 50.0) / R
-#         self.assertAlmostEqual(I, expected_I, places=4)
+        v1 = ElectricalNode("V1")
+        v2 = ElectricalNode("V2")
+        v0 = ElectricalNode("V0")
 
+        vs = VoltageSource(v1, v0, U=12.0, assembler=assembler)
+        r = Resistor(v1, v2, R=5.0, assembler=assembler)
+        gnd = Ground(v0, assembler=assembler)
 
-# class TestMotorWithLoad(unittest.TestCase):
-#     """Тесты для двигателя с механической нагрузкой"""
-    
-#     def test_motor_steady_state(self):
-#         """
-#         Двигатель с инерционной нагрузкой в установившемся режиме
-        
-#         Электрическое уравнение: V = R*I + K_e*ω
-#         Механическое уравнение: K_t*I = B*ω (в установившемся режиме)
-        
-#         Решая систему:
-#         I = K_t*I*B/K_e  =>  ω = V/(K_e + R*B/K_t)
-#         """
-#         v_plus = Variable("V+", 1)
-#         v_gnd = Variable("GND", 1)
-#         omega = Variable("omega", 1)
-        
-#         V = 12.0
-#         R = 1.0
-#         L = 0.01
-#         K_e = 0.1
-#         K_t = 0.1
-#         J = 0.01
-#         B = 0.05
-        
-#         v_source = VoltageSource(v_plus, v_gnd, V)
-#         ground = Ground(v_gnd)
-#         motor = DCMotor(v_plus, v_gnd, omega, R, L, K_e, K_t)
-#         inertia = RotationalInertia2D(omega, J, B)
-        
-#         solve_system(
-#             [v_source, ground, motor, inertia],
-#             [v_plus, v_gnd, omega]
-#         )
-        
-#         # Проверить, что получили разумные значения
-#         self.assertGreater(omega.value, 0.0)
-#         self.assertLess(omega.value, 200.0)
-        
-#         # Проверить баланс: момент двигателя = момент трения
-#         I = motor.get_current(v_plus.value, v_gnd.value, omega.value)
-#         motor_torque = motor.get_torque(I=I)
-#         friction_torque = B * omega.value
-        
-#         self.assertAlmostEqual(motor_torque, friction_torque, places=2)
-    
-#     def test_motor_acceleration(self):
-#         """
-#         Разгон двигателя с инерционной нагрузкой
-#         """
-#         v_plus = Variable("V+", 1)
-#         v_gnd = Variable("GND", 1)
-#         omega = Variable("omega", 1)
-        
-#         V = 12.0
-#         R = 1.0
-#         L = 0.01
-#         K_e = 0.1
-#         K_t = 0.1
-#         J = 0.01
-#         B = 0.05
-#         dt = 0.001
-        
-#         v_source = VoltageSource(v_plus, v_gnd, V)
-#         ground = Ground(v_gnd)
-#         motor = DCMotor(v_plus, v_gnd, omega, R, L, K_e, K_t, dt=dt, I_old=0.0)
-#         inertia = RotationalInertia2D(omega, J, B, dt=dt)
-        
-#         omega_values = [0.0]
-#         I_values = [0.0]
-        
-#         # Симуляция разгона
-#         for step in range(100):
-#             solve_system(
-#                 [v_source, ground, motor, inertia],
-#                 [v_plus, v_gnd, omega]
-#             )
+        dcmotor = DCMotor(
+            node1=v2,
+            node2=v0,
+            omega_var=body.omega,
+            k_e=0.1,
+            k_t=0.1,
+            assembler=assembler)
             
-#             omega_values.append(omega.value)
-            
-#             I = motor.get_current(v_plus.value, v_gnd.value, omega.value)
-#             I_values.append(I)
-        
-#         # Проверить, что скорость растет
-#         self.assertGreater(omega_values[30], omega_values[10])
-#         self.assertGreater(omega_values[70], omega_values[30])
-        
-#         # Проверить, что система стабилизируется
-#         # (скорость не растет бесконечно)
-#         self.assertLess(omega_values[-1], 200.0)
+        matrices = assembler.assemble_electromechanic_domain()
+        A_ext, b_ext, variables = assembler.assemble_extended_system_for_electromechanic(matrices)
 
+        
+        print("A_ext:\n", A_ext)
+        print("b_ext:\n", b_ext)
+        print("variables:\n", variables)
+        
+        print("Matrix Diagnosis:")
+        diagnosis = assembler.matrix_diagnosis(A_ext)
+        for key, value in diagnosis.items():
+            print(f"  {key}: {value}")
 
-# if __name__ == '__main__':
-#     unittest.main()
+        print("Equations:")
+        equations = assembler.system_to_human_readable(A_ext, b_ext, variables)
+        print(equations)
+
+        x = np.linalg.solve(A_ext, b_ext)
+
+        print("result:")
+        result_str = assembler.result_to_human_readable(x, variables)
+        print(result_str)
+
+        assert False

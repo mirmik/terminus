@@ -104,6 +104,105 @@ class DynamicMatrixAssembler(MatrixAssembler):
 
         return matrices
 
+    def assemble_electromechanic_domain(self):
+        # Построить карту индексов
+        index_maps = {
+            "voltage": self.index_map_by_tag("voltage"),
+            "current": self.index_map_by_tag("current"),
+            "acceleration": self.index_map_by_tag("acceleration"),
+            "force": self.index_map_by_tag("force"),
+        }
+
+        # Создать глобальные матрицы и вектор
+        n_voltage = self.total_variables_by_tag(tag="voltage")
+        n_currents = self.total_variables_by_tag(tag="current")
+        n_acceleration = self.total_variables_by_tag(tag="acceleration")
+        n_force = self.total_variables_by_tag(tag="force")
+
+        matrices = {
+            "conductance": np.zeros((n_voltage, n_voltage)),
+            "mass": np.zeros((n_acceleration, n_acceleration)),
+            "load" : np.zeros(n_acceleration),
+            "electric_holonomic": np.zeros((n_currents, n_voltage)),
+            "electric_holonomic_rhs": np.zeros(n_currents),
+            "current_to_current": np.zeros((n_currents, n_currents)),
+            "holonomic": np.zeros((n_force, n_acceleration)),
+            "electromechanic_coupling": np.zeros((n_acceleration, n_currents)),
+            "electromechanic_coupling_damping": np.zeros((n_acceleration, n_currents)),
+            "holonomic_load": np.zeros(n_force),
+            "rhs": np.zeros(n_voltage),
+        }
+
+        for contribution in self.contributions:
+            contribution.contribute(matrices, index_maps)
+
+        return matrices
+
+    def names_from_variables(self, variables: List[Variable]) -> List[str]:
+        """Получить список имен переменных из списка Variable"""
+        names = []
+        for var in variables:
+            names.extend(var.names())
+        return names
+
+    def assemble_extended_system_for_electromechanic(self, matrices: Dict[str, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
+        n_voltage = self.total_variables_by_tag(tag="voltage")
+        n_currents = self.total_variables_by_tag(tag="current")
+        n_acceleration = self.total_variables_by_tag(tag="acceleration")
+        n_force = self.total_variables_by_tag(tag="force")
+
+        A_ext = np.zeros((n_voltage + n_currents + n_acceleration + n_force,
+                          n_voltage + n_currents + n_acceleration + n_force))
+
+        С_ext = np.zeros((n_voltage + n_currents + n_acceleration + n_force,
+                          n_voltage + n_currents + n_acceleration + n_force))
+        
+
+        b_ext = np.zeros(n_voltage + n_currents + n_acceleration + n_force)
+        variables = (
+            list(self.index_map_by_tag("voltage").keys()) +
+            list(self.index_map_by_tag("current").keys()) +
+            list(self.index_map_by_tag("acceleration").keys()) +
+            list(self.index_map_by_tag("force").keys())
+        )
+        variables = self.names_from_variables(variables)
+
+        r0 = n_voltage
+        r1 = n_voltage + n_currents
+        r2 = n_voltage + n_currents + n_acceleration
+        r3 = n_voltage + n_currents + n_acceleration + n_force
+
+        #v = [0:r0]
+        #c = [r0:r1]
+        #a = [r1:r2]
+        #f = [r2:r3]
+        print(r0, r1, r2, r3)
+        print(matrices["electromechanic_coupling"].shape)
+
+        A_ext[0:r0, 0:r0] = matrices["conductance"]
+        A_ext[r0:r1, 0:r0] = matrices["electric_holonomic"]
+        A_ext[0:r0, r0:r1] = matrices["electric_holonomic"].T
+        A_ext[r0:r1, r0:r1] = matrices["current_to_current"]
+
+        A_ext[r1:r2, r1:r2] = matrices["mass"]        
+        A_ext[r2:r3, r1:r2] = matrices["holonomic"]
+        A_ext[r1:r2, r2:r3] = matrices["holonomic"].T
+
+        A_ext[r1:r2, r0:r1] = matrices["electromechanic_coupling"]
+        #A_ext[r0:r1, r1:r2] = matrices["electromechanic_coupling"].T
+
+        b_ext[0:r0] = matrices["rhs"]
+        b_ext[r0:r1] = matrices["electric_holonomic_rhs"]
+        b_ext[r1:r2] = matrices["load"]
+        b_ext[r2:r3] = matrices["holonomic_load"]
+
+        EM_damping = matrices["electromechanic_coupling_damping"]
+        q_dot = self.collect_current_q_dot(self.index_map_by_tag("acceleration"))
+        b_em = EM_damping @ q_dot
+        b_ext[r0:r1] += b_em
+
+        return A_ext, b_ext, variables
+
     def assemble_extended_system_for_electric(self, matrices: Dict[str, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
         n_voltage = self.total_variables_by_tag(tag="voltage")
         n_currents = self.total_variables_by_tag(tag="current")
@@ -128,8 +227,7 @@ class DynamicMatrixAssembler(MatrixAssembler):
         b_ext[0:r0] = matrices["rhs"]
         b_ext[r0:r1] = matrices["electric_holonomic_rhs"]
 
-        return A_ext, b_ext, variables
-
+        return A_ext, b_ext, variables 
 
     def assemble(self):
         # Построить карту индексов
@@ -149,7 +247,6 @@ class DynamicMatrixAssembler(MatrixAssembler):
             "old_q": self.collect_current_q(index_maps["acceleration"]),
             "old_q_dot": self.collect_current_q_dot(index_maps["acceleration"]),
             "holonomic_velocity_rhs": np.zeros(n_constraints),
-            "position_error": np.zeros(n_constraints),
         }
 
         for contribution in self.contributions:

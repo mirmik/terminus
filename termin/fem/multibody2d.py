@@ -67,7 +67,7 @@ class RotationalInertia2D(Contribution):
         
         self.lambda_var = Variable("lambda_rot_inertia", size=1) 
 
-        super().__init__([omega], assembler)
+        super().__init__([omega], assembler=assembler)
         
         self.omega = omega
         self.J = J
@@ -138,7 +138,7 @@ class TorqueSource2D(Contribution):
         if omega.size != 1:
             raise ValueError("omega должна быть скаляром")
         
-        super().__init__([omega], assembler)
+        super().__init__([omega], assembler=assembler)
         
         self.omega = omega
         self.torque = torque
@@ -230,7 +230,7 @@ class RigidBody2D(Contribution):
         if B < 0:
             raise ValueError("Коэффициент углового демпфирования не может быть отрицательным")
         
-        super().__init__([velocity, omega], assembler)
+        super().__init__([velocity, omega], assembler=assembler)
         
         self.velocity = velocity
         self.omega = omega
@@ -378,9 +378,9 @@ class ForceOnBody2D(Contribution):
             vars_list.append(self.velocity)
         if self.torque is not None:
             vars_list.append(self.omega)
-        
-        super().__init__(vars_list, assembler)
-    
+
+        super().__init__(vars_list, assembler=assembler)
+
     def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         """Нагрузка не влияет на матрицу"""
         pass
@@ -434,7 +434,7 @@ class ForceVector2D(Contribution):
         if self.force.shape != (2,):
             raise ValueError("force должна быть вектором размера 2")
         
-        super().__init__([velocity], assembler)
+        super().__init__([velocity], assembler=assembler)
     
     def contribute_to_mass(self, A: np.ndarray, index_map: Dict[Variable, List[int]]):
         pass
@@ -630,7 +630,7 @@ class TwoBodyRevoluteJoint2D(Constraint):
         if self.r2.shape != (2,):
             raise ValueError("r2 должен быть вектором размера 2")
 
-        super().__init__([self.velocity1, self.omega1, self.velocity2, self.omega2], [self.lambdas], [], assembler)
+        super().__init__([self.velocity1, self.omega1, self.velocity2, self.omega2], [self.lambdas], [], assembler=assembler)
 
         self.r1x = r1[0]
         self.r1y = r1[1]
@@ -737,7 +737,7 @@ class FixedPoint2D(Constraint):
             if self.target.shape != (2,):
                 raise ValueError("target должен быть вектором размера 2")
 
-        super().__init__([self.velocity], [self.lambdas], assembler)
+        super().__init__([self.velocity], [self.lambdas], assembler=assembler)
 
     
     def contribute_to_damping(self, C: np.ndarray, 
