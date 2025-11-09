@@ -265,7 +265,6 @@ class TestIntegrationMultibody3D(unittest.TestCase):
         eqs = assembler.system_to_human_readable(A_ext, b_ext, variables)
         print(eqs)
         
-        assert False
             
         #assert np.isclose(x[0], 0.0)
         #assert np.isclose(x[1], 0.0)

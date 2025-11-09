@@ -121,15 +121,8 @@ class RigidBody3D(Contribution):
 
         pose = self.pose()
 
-        # 1) Transform spatial inertia to world frame
-        # I_origin = self.spatial_local.at_body_origin()
-        I_origin = self.spatial_local
-        Iw = I_origin.rotate_by(pose)
-
-        # 2) Add spatial inertia to mass matrix
-        A = matrices["mass"]
+        Iw=self.contribute_mass_matrix(matrices, index_maps)
         idx = index_maps["acceleration"][self.acc]
-        A[np.ix_(idx, idx)] += Iw.to_matrix_vw_order()
 
         # 3) Spatial gravity
         #gravity_local = pose.inverse_transform_vector(self.gravity)
@@ -142,6 +135,19 @@ class RigidBody3D(Contribution):
         b = matrices["load"]
         for i in range(6):
             b[idx[i]] += Fg[i]
+
+    def contribute_mass_matrix(self, matrices, index_maps):
+        pose = self.pose()
+        I_origin = self.spatial_local.at_body_origin()
+        Iw = I_origin.rotate_by(pose)
+
+        A = matrices["mass"]
+        idx = index_maps["acceleration"][self.acc]
+        A[np.ix_(idx, idx)] += Iw.to_matrix_vw_order()
+        return Iw
+
+    def contribute_for_constraints_correction(self, matrices, index_maps):
+        self.contribute_mass_matrix(matrices, index_maps)
         
 
 class ForceOnBody3D(Contribution):
