@@ -31,6 +31,12 @@ setup(
             "ga201/*",
             "physics/*",
             "colliders/*",
+            "fem/*",
+            "kinematics/*",
+            "geombase/*",
+            "utils/*",
+            "geomalgo/*",
+            "linalg/*",
         ]
     },
     include_package_data=True,

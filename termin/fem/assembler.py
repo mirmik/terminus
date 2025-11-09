@@ -190,6 +190,11 @@ class PoseVariable(Variable):
     def pose(self) -> Pose3:
         return Pose3(ang=self.rotation, lin=self.position)
 
+    def set_pose(self, pose: Pose3):
+        self.position = pose.lin.copy()
+        self.rotation = pose.ang.copy()
+        self.set_value(np.concatenate([self.position, np.zeros(3)]))
+
     def integrate(self, dt: float):
         # линейная часть
         self.linear_velocity += self.linear_acceleration * dt

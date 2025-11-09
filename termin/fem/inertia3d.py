@@ -14,29 +14,102 @@ def skew(v: np.ndarray) -> np.ndarray:
                      [-v[1], v[0], 0]])
 
 class SpatialInertia3D:
-    def __init__(self, mass, inertia, com: np.ndarray = np.zeros(3)):
-        """
-        mass         : масса тела
-        com          : 3-вектор центра масс в локальной системе
-        inertia (com)  : 3×3 тензор инерции относительно центра масс (в локальной системе)
-        """
+    def __init__(self, mass, inertia, com=np.zeros(3)):
         self.m = float(mass)
-        self.c = np.asarray(com).reshape(3)
-        self.I_com = np.asarray(inertia).reshape(3, 3)
+        self.c = np.asarray(com).reshape(3)     # COM
+        self.I_com = np.asarray(inertia).reshape(3,3)
 
-    def transform_by(self, pose : Pose3) -> "SpatialInertia3D":
-        # новый центр масс в новом фрейме
-        c_new = pose.transform_point(self.c)
-
-        # поворот тензора из локального фрейма в мировой
+    def transform_by(self, pose: Pose3):
         R = pose.rotation_matrix()
-        I_rot = R @ self.I_com @ R.T
+        c_new = pose.transform_point(self.c)   # перевод COM в мировой фрейм (с трансляцией)
+        I_rot = R @ self.I_com @ R.T           # всё ещё центральный тензор, только в мировом базисе
+        return SpatialInertia3D(self.m, I_rot, c_new)
 
-        # перенос оси из центра масс в новый фрейм
-        c_skew = skew(c_new)
-        I_new = I_rot + self.m * c_skew @ c_skew.T
+    def rotate_by(self, pose: Pose3) -> "SpatialInertia3D":
+        """
+        Повернуть spatial inertia согласно ориентации pose.
+        Трансляция pose игнорируется — spatial inertia зависит только от ориентации.
+        COM и inertia переносятся поворотом.
+        """
 
-        return SpatialInertia3D(self.m, I_new, c_new)
+        R = pose.rotation_matrix()
+
+        # 1) Поворот центра масс
+        c_new = R @ self.c
+
+        # 2) Поворот центрального тензора инерции
+        I_com_new = R @ self.I_com @ R.T
+
+        return SpatialInertia3D(self.m, I_com_new, c_new)
+
+    def at_body_origin(self) -> "SpatialInertia3D":
+        """
+        Возвращает spatial inertia, приведённую к origin тела.
+        COM становится (0,0,0).
+        Тензор инерции пересчитывается по формуле Штейнера.
+        """
+
+        c = self.c              # COM в локальной системе тела
+        m = self.m
+        S = skew(c)
+
+        # инерция относительно origin тела (а не COM)
+        I_origin = self.I_com + m * (S @ S.T)
+
+        # после переноса COM должен быть равен нулю
+        return SpatialInertia3D(m, I_origin, com=np.zeros(3))
+
+    def at_body_origin_wv_order(self):
+        c = self.c
+        m = self.m
+        S = skew(c)
+
+        I_com = self.I_com
+        I_origin = I_com + m * (S @ S.T)
+
+        upper_left  = I_origin
+        upper_right = m * S
+        lower_left  = -m * S.T
+        lower_right = m * np.eye(3)
+
+        return np.block([
+            [upper_left,  upper_right],
+            [lower_left,  lower_right]
+        ])
+
+    def at_body_origin_vw_order(self):
+        c = self.c
+        m = self.m
+        S = skew(c)
+
+        I_com = self.I_com
+        I_origin = I_com + m * (S @ S.T)
+
+        # WV-order blocks
+        A = I_origin
+        B = m * S
+        C = -m * S.T
+        D = m * np.eye(3)
+
+        # VW permutation
+        return np.block([
+            [D,  C],
+            [B,  A]
+        ])
+
+
+    def gravity_wrench(self, gravity_local: np.ndarray) -> Screw3:
+        """
+        Возвращает пространственный винт (сила+момент) от гравитации,
+        выраженный в ЛОКАЛЬНОЙ системе тела.
+
+        gravity_local — гравитация, выраженная в локальной системе.
+        """
+
+        F = self.m * gravity_local
+        τ = np.cross(self.c, F)  # self.c — локальный COM
+
+        return Screw3(ang=τ, lin=F)
 
     def __add__(self, other):
         """Сумма двух spatial inertia в одном фрейме."""
@@ -68,36 +141,41 @@ class SpatialInertia3D:
 
         return SpatialInertia3D(m, I, c)
 
+    def to_matrix_wv_order(self):
+        """
+        Spatial inertia matrix в порядке [ω; v].
+        """
+        csk = skew(self.c)
+        m = self.m
+        I = self.I_com
 
-    def to_matrix(self):
-        c_skew = skew(self.c)
-        upper_left  = self.I_com + self.m * (c_skew @ c_skew.T)
-        upper_right = self.m * c_skew
-        lower_left  = -self.m * c_skew.T
-        lower_right = self.m * np.eye(3)
+        upper_left  = I + m * (csk @ csk.T)
+        upper_right = m * csk
+        lower_left  = m * csk.T
+        lower_right = m * np.eye(3)
+
         return np.block([
             [upper_left,  upper_right],
             [lower_left,  lower_right]
         ])
 
-    def to_matrix_vw_order(self):
-        upper_left  = self.I_com + self.m * (skew(self.c) @ skew(self.c).T)
-        upper_right = self.m * skew(self.c)
-        lower_left  = -self.m * skew(self.c).T
-        lower_right = self.m * np.eye(3)
-        return np.block([
-            [lower_right,  lower_left],
-            [upper_right,  upper_left]
-        ])
-        
-    def gravity_wrench(self, inertia_pose: Pose3, gravity: np.ndarray) -> Screw3:
-        """
-        Вернуть гравитационный винт (сила и момент).
-        """
-        spatial_world = self.transform_by(inertia_pose)
-        m = spatial_world.m
-        c_world = spatial_world.c          # COM в мире
-        Fg = m * gravity                   # линейная сила
-        tau_g = np.cross(c_world, Fg)      # момент от тяжести
 
-        return Screw3(ang=tau_g, lin=Fg)
+    def to_matrix_vw_order(self):
+        """
+        Spatial inertia matrix в порядке [v; ω].
+        Это просто перестановка блоков wv-матрицы.
+        """
+        csk = skew(self.c)
+        m = self.m
+        I = self.I_com
+
+        # блоки те же самые
+        upper_left  = m * np.eye(3)            # v–v
+        upper_right = m * csk.T               # v–ω
+        lower_left  = m * csk                  # ω–v
+        lower_right = I + m * (csk @ csk.T)    # ω–ω
+
+        return np.block([
+            [upper_left,  upper_right],
+            [lower_left,  lower_right]
+        ])

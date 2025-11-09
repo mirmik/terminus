@@ -210,8 +210,8 @@ class DynamicMatrixAssembler(MatrixAssembler):
         A_ext = np.zeros((n_voltage + n_currents, n_voltage + n_currents))
         b_ext = np.zeros(n_voltage + n_currents)
         variables = (
-            list(self._index_map_by_tags["voltage"].keys()) + 
-            list(self._index_map_by_tags["current"].keys()))
+            list(self.index_map_by_tag("voltage").keys()) +
+            list(self.index_map_by_tag("current").keys()))
         variables = [var for var in variables]
 
         r0 = n_voltage
@@ -283,6 +283,11 @@ class DynamicMatrixAssembler(MatrixAssembler):
         H = matrices["holonomic"]
         h = matrices["holonomic_load"]
 
+        variables = (
+            list(self.index_map_by_tag("acceleration").keys()) + 
+            list(self.index_map_by_tag("force").keys()))
+        variables = self.names_from_variables(variables)
+
         size = self.total_variables_by_tag(tag="acceleration") + self.total_variables_by_tag(tag="force")
         n_dofs = self.total_variables_by_tag(tag="acceleration")
         n_holonomic = self.total_variables_by_tag(tag="force")
@@ -303,7 +308,7 @@ class DynamicMatrixAssembler(MatrixAssembler):
         b_ext[0:r0] = b - C @ old_q_dot - K @ old_q
         b_ext[r0:r1] = h
 
-        return A_ext, b_ext
+        return A_ext, b_ext, variables
 
     def velocity_project_onto_constraints(self, q_dot: np.ndarray, matrices: Dict[str, np.ndarray]) -> np.ndarray:
         """Проецировать скорости на ограничения"""

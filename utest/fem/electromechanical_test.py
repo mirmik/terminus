@@ -73,4 +73,3 @@ class TestDCMotor(unittest.TestCase):
         result_str = assembler.result_to_human_readable(x, variables)
         print(result_str)
 
-        assert False

@@ -66,6 +66,10 @@ class Pose3:
         """Transform a 3D point using the pose."""
         return qrot(self.ang, point) + self.lin
 
+    def rotate_point(self, point: numpy.ndarray) -> numpy.ndarray:
+        """Rotate a 3D point using the pose (ignoring translation)."""
+        return qrot(self.ang, point)
+
     def transform_vector(self, vector: numpy.ndarray) -> numpy.ndarray:
         """Transform a 3D vector using the pose (ignoring translation)."""
         return qrot(self.ang, vector)

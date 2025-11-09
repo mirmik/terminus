@@ -10,82 +10,103 @@ from termin.geombase.pose2 import Pose2
 
 class RigidBody2D(Contribution):
     """
-    Твердое тело в плоскости (3 степени свободы: x, y, θ).
+    Твердое тело в плоскости (3 СС: x, y, θ).
+    Неизвестные: [vx, vy, ω] — ускорения (VW-порядок).
+    Поддерживает внецентренную инерцию (смещённый ЦМ).
     """
-    
-    def __init__(self,
-                 m: float,                # масса [кг]
-                 J: float,                # момент инерции [кг·м²]
-                 C: float = 0.0,          # коэффициент линейного демпфирования [Н·с/м]
-                 B: float = 0.0,          # коэффициент углового демпфирования [Н·м·с]
-                 dt: float = None,        # шаг по времени [с]
-                 gravity: np.ndarray = None, # ускорение свободного падения [м/с²]
-                 velocity: Variable = None,  # переменная линейной скорости [vx, vy]
-                 omega: Variable = None,      # переменная угловой скорости ω
-                 assembler=None):             # ассемблер для автоматической регистрации
-        """
-        Args:
-            m: Масса [кг]
-            J: Момент инерции [кг·м²]
-            C: Коэффициент вязкого сопротивления для поступательного движения [Н·с/м]
-            B: Коэффициент вязкого трения для вращательного движения [Н·м·с]
-            dt: Шаг по времени [с]
-            velocity: Переменная линейной скорости (размер 2)
-            omega: Переменная угловой скорости (размер 1)
-            assembler: MatrixAssembler для автоматической регистрации переменных
-        """
-        
-        self.velocity = Variable("acc", size=2, tag="acceleration")
-        self.omega = Variable("angacc", size=1, tag="acceleration")
 
+    def __init__(self,
+                 m: float,                 # масса [кг]
+                 J: float,                 # момент инерции ВОКРУГ ЦМ [кг·м²]
+                 com: np.ndarray = None,   # ЦМ в локальной СК тела, shape=(2,)
+                 gravity: np.ndarray = None,  # g в МИРОВОЙ СК, shape=(2,)
+                 assembler=None,
+                 name="rbody2d"):
+
+        self.velocity = Variable(name+"_acc", size=2, tag="acceleration")  # [ax, ay]
+        self.omega    = Variable(name+"_angacc", size=1, tag="acceleration")  # [α]
         super().__init__([self.velocity, self.omega], assembler=assembler)
-        
-        self.m = m
-        self.J = J
-        #self.C = C
-        #self.B = B
-        self.dt = dt
-        self.gravity = gravity  # ускорение свободного падения [м/с²]
+
+        self.m    = float(m)
+        self.Jc   = float(J)  # ВОКРУГ ЦМ
+        self.com  = np.zeros(2) if com is None else np.asarray(com, float).reshape(2)
+        self.gravity = np.array([0.0, -9.81]) if gravity is None else np.asarray(gravity, float).reshape(2)
 
     def pose(self):
-        """Получить текущую позу тела (позиция и ориентация)"""
-        return Pose2(lin=self.velocity.value_by_rank(2), ang=self.omega.value_by_rank(2)[0])
+        # позиция и угол берутся из rank=2 переменных (как у тебя принято)
+        return Pose2(lin=self.velocity.value_by_rank(2),
+                     ang=float(self.omega.value_by_rank(2)[0]))
 
-    def contribute(self, matrices, index_maps: Dict[str, Dict[Variable, List[int]]]):
-        """
-        Добавить вклад в матрицы
-        """
-        A = matrices["mass"]  # Матрица масс
-        b = matrices["load"]  # Вектор нагрузок
-        index_map = index_maps["acceleration"]
+    # ---------- ВКЛАД В СИСТЕМУ ----------
+    def contribute(self, matrices, index_maps):
+        A = matrices["mass"]
+        b = matrices["load"]
 
-        v_indices = index_map[self.velocity]
-        omega_idx = index_map[self.omega][0]
+        amap = index_maps["acceleration"]
+        v_idx = amap[self.velocity]        # два индекса
+        w_idx = amap[self.omega][0]        # один индекс
 
-        # Вклад от массы и момента инерции
-        self.contribute_mass(A, v_indices, omega_idx)
+        # --- геометрия ---
+        pose = self.pose()
+        theta = pose.ang
+        c_local = self.com
+        R = np.array([[np.cos(theta), -np.sin(theta)],
+                      [np.sin(theta),  np.cos(theta)]])
+        # ЦМ в мировой СК, но относительно origin тела:
+        c_w = R @ c_local      # (cx, cy) в мире
+        cx, cy = float(c_w[0]), float(c_w[1])
 
-        # Вклад от гравитации
-        b[v_indices[0]] += self.m * self.gravity[0]
-        b[v_indices[1]] += self.m * self.gravity[1]
+        m  = self.m
+        Jc = self.Jc
 
-    def contribute_mass(self, A, v_indices, omega_idx):
-        """Добавить вклад массы в матрицу масс"""
-        A[v_indices[0], v_indices[0]] += self.m
-        A[v_indices[1], v_indices[1]] += self.m
-        A[omega_idx, omega_idx] += self.J
+        # ---------- МАССОВЫЙ БЛОК (VW-порядок: [vx, vy, ω]) ----------
+        # A_vv
+        A[v_idx[0], v_idx[0]] += m
+        A[v_idx[1], v_idx[1]] += m
 
-    def contribute_for_constraints_correction(self, matrices, index_maps: Dict[str, Dict[Variable, List[int]]]):
-        """
-        Добавить вклад в матрицы для коррекции ограничений на положения
-        """
-        A = matrices["mass"]  # Матрица масс
-        index_map = index_maps["acceleration"]
-        v_indices = index_map[self.velocity]
-        omega_idx = index_map[self.omega][0]
+        # A_vw
+        # [ -m*cy ;  +m*cx ]
+        A[v_idx[0], w_idx]    += -m * cy
+        A[v_idx[1], w_idx]    +=  m * cx
 
-        # Вклад от массы и момента инерции
-        self.contribute_mass(A, v_indices, omega_idx)
+        # A_wv = (A_vw)^T со знаком по spatial-алгебре
+        A[w_idx,   v_idx[0]]  +=  -m * cy
+        A[w_idx,   v_idx[1]]  +=  m * cx
+
+        # A_ww
+        A[w_idx,   w_idx]     += Jc + m * (cx*cx + cy*cy)
+
+        # ---------- НАГРУЗКА (гравитация в МИРЕ) ----------
+        Fx, Fy = (m * self.gravity[0], m * self.gravity[1])
+        b[v_idx[0]] += Fx
+        b[v_idx[1]] += Fy
+        # момент вокруг origin тела от веса через плечо c_w:
+        # τz = cx*Fy - cy*Fx
+        b[w_idx]    += cx * Fy - cy * Fx
+
+    def contribute_for_constraints_correction(self, matrices, index_maps):
+        # для коррекции ограничений нужна та же «метрика» (массовый блок)
+        A = matrices["mass"]
+        amap = index_maps["acceleration"]
+        v_idx = amap[self.velocity]
+        w_idx = amap[self.omega][0]
+
+        pose = self.pose()
+        theta = pose.ang
+        R = np.array([[np.cos(theta), -np.sin(theta)],
+                      [np.sin(theta),  np.cos(theta)]])
+        cx, cy = (R @ self.com).tolist()
+
+        m  = self.m
+        Jc = self.Jc
+
+        A[v_idx[0], v_idx[0]] += m
+        A[v_idx[1], v_idx[1]] += m
+        A[v_idx[0], w_idx]    += -m * cy
+        A[v_idx[1], w_idx]    +=  m * cx
+        A[w_idx,   v_idx[0]]  +=  m * cy
+        A[w_idx,   v_idx[1]]  += -m * cx
+        A[w_idx,   w_idx]     += Jc + m * (cx*cx + cy*cy)
 
 
 class ForceOnBody2D(Contribution):
@@ -334,96 +355,3 @@ class RevoluteJoint2D(Contribution):
         poserr[F[0]] += (pA[0] + self.rA[0]) - (pB[0] + self.rB[0])
         poserr[F[1]] += (pA[1] + self.rA[1]) - (pB[1] + self.rB[1])
 
-
-class RevoluteJoint3D(Contribution):
-    """
-    3D револьвентный шарнир в смысле 2D-версии:
-    совпадение двух точек на двух телах.
-    
-    Ограничения: (pA + rA) - (pB + rB) = 0   (3 eq)
-    Не ограничивает ориентацию!
-    Даёт 3 степени свободы на вращение.
-    """
-
-    def __init__(self,
-                 bodyA,
-                 bodyB,
-                 joint_point_world: np.ndarray,
-                 assembler=None):
-
-        self.bodyA = bodyA
-        self.bodyB = bodyB
-
-        # Внутренняя реакция — вектор из 3 компонент
-        self.internal_force = Variable("F_rev3d", size=3,
-                                       tag="force")
-
-        # локальные точки крепления
-        poseA = self.bodyA.pose()
-        poseB = self.bodyB.pose()
-
-        self.rA_local = poseA.inverse_transform_point(joint_point_world)
-        self.rB_local = poseB.inverse_transform_point(joint_point_world)
-
-        # обновляем мировую геометрию
-        self.update_kinematics()
-
-        super().__init__([bodyA.velocity, bodyB.velocity, self.internal_force],
-                         assembler=assembler)
-
-    # --------------------------------------------------------------
-
-    def update_kinematics(self):
-        poseA = self.bodyA.pose()
-        poseB = self.bodyB.pose()
-
-        self.pA = poseA.lin
-        self.pB = poseB.lin
-
-        self.rA = poseA.transform_vector(self.rA_local)
-        self.rB = poseB.transform_vector(self.rB_local)
-
-    # --------------------------------------------------------------
-
-    def contribute(self, matrices, index_maps):
-        self.update_kinematics()
-
-        H = matrices["holonomic"]
-        poserr = matrices["position_error"]
-
-        amap = index_maps["acceleration"]
-        cmap = index_maps["force"]
-
-        vA = amap[self.bodyA.velocity]
-        vB = amap[self.bodyB.velocity]
-
-        F = cmap[self.internal_force]  # 3 строки
-
-        # Матрицы скосов радиусов
-        SA = skew(self.rA)
-        SB = skew(self.rB)
-
-        # dφ/dvA_lin = +I
-        H[np.ix_(F, vA[0:3])] += np.eye(3)
-
-        # dφ/dvA_ang = -skew(rA)
-        H[np.ix_(F, vA[3:6])] += -SA
-
-        # dφ/dvB_lin = -I
-        H[np.ix_(F, vB[0:3])] += -np.eye(3)
-
-        # dφ/dvB_ang = +skew(rB)
-        H[np.ix_(F, vB[3:6])] += SB
-
-        # позиционная ошибка: φ = (pA+rA) - (pB+rB)
-        err = (self.pA + self.rA) - (self.pB + self.rB)
-
-        poserr[F[0]] += err[0]
-        poserr[F[1]] += err[1]
-        poserr[F[2]] += err[2]
-
-    # --------------------------------------------------------------
-
-    def contribute_for_constraints_correction(self, matrices, index_maps):
-        self.update_kinematics()
-        self.contribute(matrices, index_maps)

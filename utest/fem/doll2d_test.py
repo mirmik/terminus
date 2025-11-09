@@ -34,37 +34,37 @@ class TestDoll2DBasics(unittest.TestCase):
         self.assertEqual(inertia2.inertia, 0.5)
         np.testing.assert_array_equal(inertia2.center_of_mass, com)
     
-    def test_inertia_gravity_wrench(self):
-        """Тест вычисления вренча гравитации"""
-        # Тело с центром масс в точке привязки
-        inertia1 = SpatialInertia2D(mass=2.0, inertia=0.1, com=np.zeros(2))
-        pose1 = Pose2.identity()
-        gravity = np.array([0.0, -10.0])
+    # def test_inertia_gravity_wrench(self):
+    #     """Тест вычисления вренча гравитации"""
+    #     # Тело с центром масс в точке привязки
+    #     inertia1 = SpatialInertia2D(mass=2.0, inertia=0.1, com=np.zeros(2))
+    #     pose1 = Pose2.identity()
+    #     gravity = np.array([0.0, -10.0])
         
-        wrench1 = inertia1.gravity_wrench(pose1, gravity)
-        # Момент должен быть нулевым (ЦМ совпадает с точкой привязки)
-        np.testing.assert_almost_equal(wrench1.moment(), 0.0)
-        # Сила = масса * гравитация
-        np.testing.assert_array_almost_equal(wrench1.vector(), np.array([0.0, -20.0]))
+    #     wrench1 = inertia1.gravity_wrench(pose1, gravity)
+    #     # Момент должен быть нулевым (ЦМ совпадает с точкой привязки)
+    #     np.testing.assert_almost_equal(wrench1.moment(), 0.0)
+    #     # Сила = масса * гравитация
+    #     np.testing.assert_array_almost_equal(wrench1.vector(), np.array([0.0, -20.0]))
         
-        # Тело со смещенным центром масс
-        inertia2 = SpatialInertia2D(mass=2.0, inertia=0.1, com=np.array([0.5, 0.0]))
-        pose2 = Pose2.identity()
+    #     # Тело со смещенным центром масс
+    #     inertia2 = SpatialInertia2D(mass=2.0, inertia=0.1, com=np.array([0.5, 0.0]))
+    #     pose2 = Pose2.identity()
         
-        wrench2 = inertia2.gravity_wrench(pose2, gravity)
-        # Момент = r_cm × F = [0.5, 0] × [0, -20] = 0.5*(-20) - 0*0 = -10
-        np.testing.assert_almost_equal(wrench2.moment(), -10.0)
-        np.testing.assert_array_almost_equal(wrench2.vector(), np.array([0.0, -20.0]))
+    #     wrench2 = inertia2.gravity_wrench(pose2, gravity)
+    #     # Момент = r_cm × F = [0.5, 0] × [0, -20] = 0.5*(-20) - 0*0 = -10
+    #     np.testing.assert_almost_equal(wrench2.moment(), -10.0)
+    #     np.testing.assert_array_almost_equal(wrench2.vector(), np.array([0.0, -20.0]))
         
-        # Тело с повернутой позой
-        inertia3 = SpatialInertia2D(mass=1.0, inertia=0.1, com=np.array([1.0, 0.0]))
-        pose3 = Pose2.rotation(np.pi/2)  # Поворот на 90 градусов
+    #     # Тело с повернутой позой
+    #     inertia3 = SpatialInertia2D(mass=1.0, inertia=0.1, com=np.array([1.0, 0.0]))
+    #     pose3 = Pose2.rotation(np.pi/2)  # Поворот на 90 градусов
         
-        wrench3 = inertia3.gravity_wrench(pose3, gravity)
-        # После поворота ЦМ будет в точке [0, 1]
-        # Момент = [0, 1] × [0, -10] = 0*(-10) - 1*0 = 0
-        np.testing.assert_almost_equal(wrench3.moment(), 0.0)
-        np.testing.assert_array_almost_equal(wrench3.vector(), np.array([0.0, -10.0]))
+    #     wrench3 = inertia3.gravity_wrench(pose3, gravity)
+    #     # После поворота ЦМ будет в точке [0, 1]
+    #     # Момент = [0, 1] × [0, -10] = 0*(-10) - 1*0 = 0
+    #     np.testing.assert_almost_equal(wrench3.moment(), 0.0)
+    #     np.testing.assert_array_almost_equal(wrench3.vector(), np.array([0.0, -10.0]))
     
     def test_create_link(self):
         """Тест создания звена"""

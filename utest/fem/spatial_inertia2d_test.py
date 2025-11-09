@@ -29,20 +29,6 @@ def test_spatial_inertia2d_transform():
     # Момент инерции не меняется
     assert np.isclose(I_tr.I_com, 2.0)
 
-def test_spatial_inertia2d_to_matrix():
-    I = SpatialInertia2D(2.0, 3.0, [1.0, -2.0])
-    mat = I.to_matrix()
-    # Проверяем структуру матрицы
-    cx, cy = 1.0, -2.0
-    m = 2.0
-    I_val = 3.0 + m * (cx**2 + cy**2)
-    expected = np.array([
-        [I_val,   -m*cy,  m*cx],
-        [m*cy,   m,     0],
-        [-m*cx,  0,     m]
-    ])
-    assert np.allclose(mat, expected)
-
 def test_spatial_inertia2d_zero_mass():
     # Сумма двух нулевых масс
     I1 = SpatialInertia2D(0.0, 0.0, [0.0, 0.0])

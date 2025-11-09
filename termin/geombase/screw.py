@@ -151,6 +151,18 @@ class Screw3(Screw):
             lin=trans.transform_vector(self.lin)
         )
 
+    def rotate_by(self, rot):
+        return Screw3(
+            ang=rot.transform_vector(self.ang),
+            lin=rot.transform_vector(self.lin)
+        )
+
+    def inverse_rotate_by(self, rot):
+        return Screw3(
+            ang=rot.inverse_transform_vector(self.ang),
+            lin=rot.inverse_transform_vector(self.lin)
+        )
+
     def inverse_transform_by(self, trans):
         return Screw3(
             ang=trans.inverse_transform_vector(self.ang),
@@ -210,3 +222,11 @@ class Screw3(Screw):
 
     def __mul__(self, oth):
         return Screw3(self.ang * oth, self.lin * oth)
+
+    def to_vw_array(self) -> numpy.ndarray:
+        """Return the screw as a 6x1 array in [vx, vy, vz, wx, wy, wz] order."""
+        return numpy.hstack([self.lin, self.ang])
+
+    def to_wv_array(self) -> numpy.ndarray:
+        """Return the screw as a 6x1 array in [wx, wy, wz, vx, vy, vz] order."""
+        return numpy.hstack([self.ang, self.lin])
