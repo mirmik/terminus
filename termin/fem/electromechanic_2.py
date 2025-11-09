@@ -1,0 +1,91 @@
+class Motor(Contribution):
+    """
+    Идеальный электродвигатель постоянного тока:
+
+        Электрическая сторона:
+            V1 - V2 = k_e * omega
+
+        Механическая сторона:
+            torque = k_t * i_motor
+
+        Где:
+            i_motor — ток, протекающий через двигатель
+            omega   — угловая скорость в механическом домене
+    """
+
+    def __init__(self, node1, node2, omega_var, torque_var, k_e=0.1, k_t=0.1, assembler=None):
+        """
+        Args:
+            node1, node2:   электрические узлы
+            omega_var:      Variable(omega) — угловая скорость
+            k_e:            коэффициент обратной ЭДС (вольт на рад/с)
+            k_t:            коэффициент момента (ньютон-метр на ампер)
+        """
+        self.node1 = node1
+        self.node2 = node2
+        self.omega = omega_var
+        self.torque = Variable("torque_motor", size=1, tag="force")  # момент двигателя
+        self.k_e = float(k_e)
+        self.k_t = float(k_t)
+
+        # ток двигателя — как у источников/индуктора
+        self.i = CurrentVariable("i_motor")
+
+        super().__init__([node1, node2, self.i, omega_var, torque_var], assembler)
+
+    def contribute(self, matrices, index_maps):
+        """
+        Вкладывает уравнения в матрицы электрического и механического доменов.
+        """
+        # Матрицы
+        G   = matrices["conductance"]              # KCL
+        H   = matrices["electric_holonomic"]       # KVL
+        rhs = matrices["electric_holonomic_rhs"]   # KVL правая часть
+
+        Fm  = matrices["mechanical_forces"]        # силы/моменты для механики
+
+        # Индексы
+        vmap = index_maps["voltage"]
+        cmap = index_maps["current"]
+        mmap = index_maps["mechanical"]
+
+        v1 = vmap[self.node1][0]
+        v2 = vmap[self.node2][0]
+        i  = cmap[self.i][0]
+        w  = mmap[self.omega][0]
+        tau_idx = mmap[self.torque][0]
+
+        # ---------------------------------------------------------
+        # 1) Электрическое уравнение двигателя (KVL):
+        #       V1 - V2 = k_e * omega
+        #
+        # В матричной форме:
+        #       H[row, v1] +=  1
+        #       H[row, v2] += -1
+        #       H[row, w ] += -k_e
+        #       rhs[row] +=  0
+        # ---------------------------------------------------------
+        H[i, v1] +=  1.0
+        H[i, v2] += -1.0
+        H[i, w ] += -self.k_e
+
+        # ---------------------------------------------------------
+        # 2) KCL: ток через двигатель
+        # ток входит в node1, выходит из node2
+        # ---------------------------------------------------------
+        G[v1, i] +=  1.0
+        G[i, v1] +=  1.0
+
+        G[v2, i] += -1.0
+        G[i, v2] += -1.0
+
+        # ---------------------------------------------------------
+        # 3) Механика: момент двигателя
+        #       tau_motor = k_t * i
+        # Просто добавляем момент в мех. RHS
+        # ---------------------------------------------------------
+        Fm[tau_idx] += self.k_t * self.i.get_current()
+
+    def contribute_for_constraints_correction(self, matrices, index_maps):
+        # та же логика (как у источника напряжения и индуктивности)
+        self.contribute(matrices, index_maps)

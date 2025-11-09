@@ -5,6 +5,10 @@ from termin.linalg.subspaces import project_onto_affine, metric_project_onto_con
 from termin.geombase.pose3 import Pose3
 
 class DynamicMatrixAssembler(MatrixAssembler):
+    def __init__(self):
+        super().__init__()
+        self.time_step = 0.01
+
     def _build_index_maps(self) -> Dict[Variable, List[int]]:
         """
         Построить отображение: Variable -> глобальные индексы DOF
@@ -12,14 +16,17 @@ class DynamicMatrixAssembler(MatrixAssembler):
         Назначает каждой компоненте каждой переменной уникальный
         глобальный индекс в системе.
         """
-        acceleration_vars = [var for var in self.variables if var.tag == "acceleration"]
-        self._index_map = self._build_index_map(acceleration_vars)
+        self._index_map_by_tags = {}
+        tags = set(var.tag for var in self.variables)
 
-        holonomic_vars = [var for var in self.variables if var.tag == "holonomic_constraint_force"]
-        self._holonomic_index_map = self._build_index_map(holonomic_vars)
+        for tag in tags:
+            vars_with_tag = [var for var in self.variables if var.tag == tag]
+            index_map = self._build_index_map(vars_with_tag)
+            self._index_map_by_tags[tag] = index_map
 
-        #self.set_old_q(self.collect_current_q())
-        #self.set_old_q_dot(self.collect_current_q_dot())
+        self._index_map = self._index_map_by_tags.get("acceleration", {})
+        self._holonomic_index_map = self._index_map_by_tags.get("force", {})
+
         self._dirty_index_map = False
 
     def collect_current_q(self, index_map: Dict[Variable, List[int]]):
@@ -57,8 +64,72 @@ class DynamicMatrixAssembler(MatrixAssembler):
             self._build_index_maps()
         return {
             "acceleration": self._index_map,
-            "holonomic_constraint_force": self._holonomic_index_map
+            "force": self._holonomic_index_map
         }
+
+    def index_map_by_tag(self, tag: str) -> Dict[Variable, List[int]]:
+        """
+        Получить текущее отображение Variable -> глобальные индексы DOF
+        для переменных с заданным тегом
+        """
+        if self._dirty_index_map:
+            self._build_index_maps()
+        return self._index_map_by_tags.get(tag, {})
+
+    def assemble_electric_domain(self):
+        # Построить карту индексов
+        index_maps = {
+            "voltage": self.index_map_by_tag("voltage"),
+            "current": self.index_map_by_tag("current"),
+            #"charge": self.index_map_by_tag("charge"),
+        }
+
+        # Создать глобальные матрицы и вектор
+        n_voltage = self.total_variables_by_tag(tag="voltage")
+        n_currents = self.total_variables_by_tag(tag="current")
+        #n_charge = self.total_variables_by_tag(tag="charge")
+
+        matrices = {
+            "conductance": np.zeros((n_voltage, n_voltage)),
+            "electric_holonomic": np.zeros((n_currents, n_voltage)),
+            "electric_holonomic_rhs": np.zeros(n_currents),
+            "rhs": np.zeros(n_voltage),
+            "current_to_current": np.zeros((n_currents, n_currents)),
+            #"charge_constraint": np.zeros((n_charge, n_voltage)),
+            #"charge_constraint_rhs": np.zeros((n_charge)),
+        }
+
+        for contribution in self.contributions:
+            contribution.contribute(matrices, index_maps)
+
+        return matrices
+
+    def assemble_extended_system_for_electric(self, matrices: Dict[str, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
+        n_voltage = self.total_variables_by_tag(tag="voltage")
+        n_currents = self.total_variables_by_tag(tag="current")
+
+        A_ext = np.zeros((n_voltage + n_currents, n_voltage + n_currents))
+        b_ext = np.zeros(n_voltage + n_currents)
+        variables = (
+            list(self._index_map_by_tags["voltage"].keys()) + 
+            list(self._index_map_by_tags["current"].keys()))
+        variables = [var for var in variables]
+
+        r0 = n_voltage
+        r1 = n_voltage + n_currents
+        c0 = n_voltage
+        c1 = n_voltage + n_currents
+
+        A_ext[0:r0, 0:c0] = matrices["conductance"]
+        A_ext[r0:r1, 0:c0] = matrices["electric_holonomic"]
+        A_ext[0:r0, c0:c1] = matrices["electric_holonomic"].T
+        A_ext[c0:c1, c0:c1] = matrices["current_to_current"]
+
+        b_ext[0:r0] = matrices["rhs"]
+        b_ext[r0:r1] = matrices["electric_holonomic_rhs"]
+
+        return A_ext, b_ext, variables
+
 
     def assemble(self):
         # Построить карту индексов
@@ -66,7 +137,7 @@ class DynamicMatrixAssembler(MatrixAssembler):
 
         # Создать глобальные матрицы и вектор
         n_dofs = self.total_variables_by_tag(tag="acceleration")
-        n_constraints = self.total_variables_by_tag(tag="holonomic_constraint_force")
+        n_constraints = self.total_variables_by_tag(tag="force")
 
         matrices = {
             "mass": np.zeros((n_dofs, n_dofs)),
@@ -92,7 +163,7 @@ class DynamicMatrixAssembler(MatrixAssembler):
 
         # Создать глобальные матрицы и вектор
         n_dofs = self.total_variables_by_tag(tag="acceleration")
-        n_constraints = self.total_variables_by_tag(tag="holonomic_constraint_force")
+        n_constraints = self.total_variables_by_tag(tag="force")
 
         matrices = {
             "mass": np.zeros((n_dofs, n_dofs)),
@@ -115,9 +186,9 @@ class DynamicMatrixAssembler(MatrixAssembler):
         H = matrices["holonomic"]
         h = matrices["holonomic_load"]
 
-        size = self.total_variables_by_tag(tag="acceleration") + self.total_variables_by_tag(tag="holonomic_constraint_force")
+        size = self.total_variables_by_tag(tag="acceleration") + self.total_variables_by_tag(tag="force")
         n_dofs = self.total_variables_by_tag(tag="acceleration")
-        n_holonomic = self.total_variables_by_tag(tag="holonomic_constraint_force")
+        n_holonomic = self.total_variables_by_tag(tag="force")
 
         # Расширенная система
         A_ext = np.zeros((size, size))
@@ -154,11 +225,12 @@ class DynamicMatrixAssembler(MatrixAssembler):
         return metric_project_onto_constraints(q, H, M_inv, error=f)
 
     def integrate_with_constraint_projection(self, 
-                q_ddot: np.ndarray, matrices: Dict[str, np.ndarray], dt: float):
-        q_dot = self.integrate_velocities(matrices["old_q_dot"], q_ddot, dt)
+                q_ddot: np.ndarray, matrices: Dict[str, np.ndarray]):
+        dt = self.time_step
+        q_dot = self.integrate_velocities(matrices["old_q_dot"], q_ddot)
         q_dot = self.velocity_project_onto_constraints(q_dot, matrices)          
             
-        q = self.integrate_positions(matrices["old_q"], q_dot, q_ddot, dt)
+        q = self.integrate_positions(matrices["old_q"], q_dot, q_ddot)
             
         for _ in range(2):  # несколько итераций проекции положений
             self.upload_results(q_ddot, q_dot, q)
@@ -166,14 +238,14 @@ class DynamicMatrixAssembler(MatrixAssembler):
             q = self.coords_project_onto_constraints(q, matrices)
             self.upload_result_values(q)
 
-        #self.integrate_nonlinear(dt)
+        #self.integrate_nonlinear()
 
         return q_dot, q
 
     def sort_results(self, x_ext: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Разделить расширенное решение на ускорения и множители Лагранжа"""
         n_dofs = self.total_variables_by_tag(tag="acceleration")
-        n_holonomic = self.total_variables_by_tag(tag="holonomic_constraint_force")
+        n_holonomic = self.total_variables_by_tag(tag="force")
 
         q_ddot = x_ext[:n_dofs]
         holonomic_lambdas = x_ext[n_dofs:n_dofs + n_holonomic]
@@ -182,9 +254,9 @@ class DynamicMatrixAssembler(MatrixAssembler):
 
         return q_ddot, holonomic_lambdas, nonholonomic_lambdas
 
-    def integrate_velocities(self, old_q_dot: np.ndarray, q_ddot: np.ndarray, dt: float) -> np.ndarray:
+    def integrate_velocities(self, old_q_dot: np.ndarray, q_ddot: np.ndarray) -> np.ndarray:
         """Интегрировать ускорения для получения новых скоростей"""
-        return old_q_dot + q_ddot * dt
+        return old_q_dot + q_ddot * self.time_step
 
     def restore_velocity_constraints(self, q_dot: np.ndarray, HN: np.ndarray, hn: np.ndarray) -> np.ndarray:
         """Восстановить ограничения на скорости (например, для закрепленных тел)
@@ -193,9 +265,9 @@ class DynamicMatrixAssembler(MatrixAssembler):
         """
         return project_onto_affine(q_dot, HN, hn)
 
-    def integrate_positions(self, old_q: np.ndarray, q_dot: np.ndarray, q_ddot: np.ndarray, dt: float) -> np.ndarray:
+    def integrate_positions(self, old_q: np.ndarray, q_dot: np.ndarray, q_ddot: np.ndarray) -> np.ndarray:
         """Интегрировать скорости для получения новых положений"""
-        return old_q + q_dot * dt + 0.5 * q_ddot * dt**2
+        return old_q + q_dot * self.time_step + 0.5 * q_ddot * self.time_step**2
 
     # def restore_position_constraints(self, q: np.ndarray, H: np.ndarray, h: np.ndarray) -> np.ndarray:
     #     """Восстановить ограничения на положения (например, для закрепленных тел)"""
@@ -217,9 +289,9 @@ class DynamicMatrixAssembler(MatrixAssembler):
                 indices = index_map[var]
                 var.set_value(q[indices])
 
-    def integrate_nonlinear(self, dt: float):
+    def integrate_nonlinear(self):
         """Интегрировать нелинейные переменные (если есть)"""
         index_map = self.index_maps()["acceleration"]
         for var in self.variables:
             if var.tag == "acceleration":
-                var.integrate_nonlinear(dt)
+                var.integrate_nonlinear(self.time_step)

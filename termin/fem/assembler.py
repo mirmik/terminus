@@ -110,6 +110,10 @@ class Variable:
         """Вернуть значение переменной для заданного ранга (0 - ускорение, 1 - скорость, 2 - положение)"""
         return self._values_by_rank[rank]
 
+    def set_value_by_rank(self, value: np.ndarray, rank: int):
+        """Установить значение переменной для заданного ранга (0 - ускорение, 1 - скорость, 2 - положение)"""
+        self._values_by_rank[rank] = np.array(value)
+
     def integrate_nonlinear(self, dt: float):
         """Интегрировать нелинейность"""
         pass  # по умолчанию ничего не делаем
@@ -218,6 +222,7 @@ class Contribution:
     def __init__(self, variables: List[Variable], assembler=None):
         self.variables = variables
         self._assembler = assembler  # ссылка на assembler, в котором зарегистрирован вклад
+        self.assembler = assembler
         if assembler is not None:
             assembler.add_contribution(self)
         self._rank = self._evaluate_rank()
@@ -546,6 +551,26 @@ class MatrixAssembler:
             indices = index_map[var]
             self._q[indices] = var.value
             self._q_dot[indices] = var.value_dot
+
+    def set_solution(self, x: np.ndarray, variables: List[Variable], rank: int = 0):
+        """
+        Установить решение системы в переменные
+        
+        Args:
+            x: Вектор решения
+            variables: Список переменных, для которых устанавливается решение.
+        """
+        
+        # check sizes
+        if sum(var.size for var in variables) != x.size:
+            raise ValueError("Размер вектора решения не соответствует суммарному размеру переменных")
+
+        index = 0
+        for i in range(len(variables)):
+            var = variables[i]
+            size = var.size
+            var.set_value_by_rank(x[index:index+size], rank)
+            index += size
 
     def _build_index_map(self, variables) -> Dict[Variable, List[int]]:
         """
@@ -1118,6 +1143,84 @@ class MatrixAssembler:
         
         return info
     
+    @staticmethod
+    def system_to_human_readable(
+        A_ext: np.ndarray, 
+        b_ext: np.ndarray, 
+        variables: List[Variable]) -> str:
+        """
+        Преобразовать расширенную систему в человекочитаемый формат
+        
+        Args:
+            A_ext: Расширенная матрица системы
+            b_ext: Расширенный вектор правой части
+            variables: Список переменных системы
+            
+        Returns:
+            Строковое представление системы
+        """
+        lines = []
+        n_vars = len(variables)
+        
+        for i in range(A_ext.shape[0]):
+            row_terms = []
+            for j in range(A_ext.shape[1]):
+                coeff = A_ext[i, j]
+                if abs(coeff) > 1e-12:
+                    var_name = variables[j]
+
+                    if (np.isclose(coeff, 1.0)):
+                        row_terms.append(f"{var_name}")
+                    elif (np.isclose(coeff, -1.0)):
+                        row_terms.append(f"-{var_name}")
+                    else:
+                        row_terms.append(f"{coeff}*{var_name}")
+            row_str = " "
+            row_str += " + ".join(row_terms)
+            row_str += f" = {b_ext[i]}"
+            lines.append(row_str)
+        
+        return "\n".join(lines)
+
+    def result_to_human_readable(self, x_ext: np.ndarray, variables: List[Variable]) -> str:
+        """
+        Преобразовать вектор решения в человекочитаемый формат
+
+        Args:
+            x_ext: Вектор решения
+            variables: Список переменных системы
+
+        Returns:
+            Строковое представление решения
+        """
+        lines = []
+        for i, var in enumerate(variables):
+            lines.append(f" {var} = {x_ext[i]}")
+        return "\n".join(lines)
+
+    @staticmethod
+    def matrix_diagnosis(A, tol=1e-10):
+        """
+        Анализирует матрицу A_ext:
+        - вычисляет ранг
+        - определяет нулевое подпространство
+        - сообщает, какая часть системы линейно зависима
+        """
+        import numpy as np
+
+        U, S, Vt = np.linalg.svd(A)
+        rank = np.sum(S > tol)
+        nullity = A.shape[0] - rank
+
+        return {
+            "size": A.shape,
+            "rank": rank,
+            "nullity": nullity,
+            "singular": nullity > 0,
+            "small_singular_values": S[S < tol],
+            "condition_number": S.max() / S.min() if S.min() > 0 else np.inf
+        }
+
     def print_diagnose(self):
         """
         Print human-readable matrix diagnostics

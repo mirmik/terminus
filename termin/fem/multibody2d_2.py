@@ -185,7 +185,7 @@ class FixedRotationJoint2D(Contribution):
             coords_of_body_connection: Вектор координат точки соединения с телом [x, y]
         """
         self.body = body
-        self.internal_force = Variable("F_joint", size=2, tag="holonomic_constraint_force")
+        self.internal_force = Variable("F_joint", size=2, tag="force")
         
         body_pose = self.body.pose()
         
@@ -210,7 +210,7 @@ class FixedRotationJoint2D(Contribution):
         poserr = matrices["position_error"]
 
         index_map = index_maps["acceleration"]
-        constraint_map = index_maps["holonomic_constraint_force"]
+        constraint_map = index_maps["force"]
         v_indices = index_map[self.body.velocity]
         F_indices = constraint_map[self.internal_force]
 
@@ -253,7 +253,7 @@ class RevoluteJoint2D(Contribution):
         self.bodyB = bodyB
 
         # переменная внутренней силы (двухкомпонентная)
-        self.internal_force = Variable("F_rev", size=2, tag="holonomic_constraint_force")
+        self.internal_force = Variable("F_rev", size=2, tag="force")
 
         # вычисляем локальные точки для обоих тел
         poseA = self.bodyA.pose()
@@ -287,7 +287,7 @@ class RevoluteJoint2D(Contribution):
         poserr = matrices["position_error"]
 
         amap = index_maps["acceleration"]
-        cmap = index_maps["holonomic_constraint_force"]
+        cmap = index_maps["force"]
 
         # индексы вектора скоростей
         vA = amap[self.bodyA.velocity]
@@ -352,7 +352,7 @@ class RevoluteJoint3D(Contribution):
 
         # Внутренняя реакция — вектор из 3 компонент
         self.internal_force = Variable("F_rev3d", size=3,
-                                       tag="holonomic_constraint_force")
+                                       tag="force")
 
         # локальные точки крепления
         poseA = self.bodyA.pose()
@@ -388,7 +388,7 @@ class RevoluteJoint3D(Contribution):
         poserr = matrices["position_error"]
 
         amap = index_maps["acceleration"]
-        cmap = index_maps["holonomic_constraint_force"]
+        cmap = index_maps["force"]
 
         vA = amap[self.bodyA.velocity]
         vB = amap[self.bodyB.velocity]

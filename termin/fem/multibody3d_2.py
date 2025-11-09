@@ -163,7 +163,7 @@ class FixedPointJoint3D(Contribution):
         self.internal_force = Variable(
             "F_fixed3d",
             size=3,
-            tag="holonomic_constraint_force"
+            tag="force"
         )
 
         # вычисляем локальную точку (обратное преобразование)
@@ -196,7 +196,7 @@ class FixedPointJoint3D(Contribution):
         poserr = matrices["position_error"]
 
         amap = index_maps["acceleration"]
-        cmap = index_maps["holonomic_constraint_force"]
+        cmap = index_maps["force"]
 
         # индексы скоростей тела
         v_idx = amap[self.body.velocity]      # 6 индексов

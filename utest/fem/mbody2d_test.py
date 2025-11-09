@@ -128,15 +128,15 @@ class TestIntegrationMultibody2D(unittest.TestCase):
         assert joint.radius[0] == -1.0
         assert joint.radius[1] == 0.0
         assert assembler.total_variables_by_tag("acceleration") == 3
-        assert assembler.total_variables_by_tag("holonomic_constraint_force") == 2
+        assert assembler.total_variables_by_tag("force") == 2
 
         index_maps = assembler.index_maps()
         self.assertIn("acceleration", index_maps)
-        self.assertIn("holonomic_constraint_force", index_maps)
-        self.assertEqual(len(index_maps["holonomic_constraint_force"]), 1)
+        self.assertIn("force", index_maps)
+        self.assertEqual(len(index_maps["force"]), 1)
         self.assertEqual(len(index_maps["acceleration"]), 2)
         self.assertIn(body.velocity, index_maps["acceleration"])
-        self.assertIn(joint.internal_force, index_maps["holonomic_constraint_force"])
+        self.assertIn(joint.internal_force, index_maps["force"])
 
         matrices = assembler.assemble()
         A_ext, b_ext = assembler.assemble_extended_system(matrices)
@@ -163,17 +163,17 @@ class TestIntegrationMultibody2D(unittest.TestCase):
             body=body,
             assembler=assembler)
 
-        dt = 0.01  # временной шаг
+        assembler.time_step = 0.01  # временной шаг
 
         joint.update_radius_to_body()
         matrices = assembler.assemble()
         A_ext, b_ext = assembler.assemble_extended_system(matrices)
         x = linalg.solve(A_ext, b_ext)
         q_ddot, holonomic_lambdas, nonholonomic_lambdas = assembler.sort_results(x)
-        q_dot = assembler.integrate_velocities(matrices["old_q_dot"], q_ddot, dt)
-        q = assembler.integrate_positions(matrices["old_q"], q_dot, q_ddot, dt)
+        q_dot = assembler.integrate_velocities(matrices["old_q_dot"], q_ddot)
+        q = assembler.integrate_positions(matrices["old_q"], q_dot, q_ddot)
         assembler.upload_results(q_ddot, q_dot, q)
-        assembler.integrate_nonlinear(dt)
+        assembler.integrate_nonlinear()
 
         assert np.isclose(body.velocity.value_ddot[0], 0.0)
         assert np.isclose(body.velocity.value_ddot[1], 0.0)
@@ -197,14 +197,14 @@ class TestIntegrationMultibody2D(unittest.TestCase):
             body=body,
             assembler=assembler)
 
-        dt = 0.01  # временной шаг
+        assembler.time_step = 0.01  # временной шаг
 
         for step in range(500):
             matrices = assembler.assemble()
             A_ext, b_ext = assembler.assemble_extended_system(matrices)
             x = linalg.solve(A_ext, b_ext)
             q_ddot, holonomic_lambdas, nonholonomic_lambdas = assembler.sort_results(x)
-            q_dot, q = assembler.integrate_with_constraint_projection(q_ddot, matrices, dt)
+            q_dot, q = assembler.integrate_with_constraint_projection(q_ddot, matrices)
 
             print(f"Step {step}: position = {q[0:2]}, velocity = {q_dot[0:2]}, norm = {np.linalg.norm(q[0:2])}") 
 
@@ -243,14 +243,14 @@ class TestIntegrationMultibody2D(unittest.TestCase):
             coords_of_joint=np.array([1.0, 0.0]),
             assembler=assembler)
 
-        dt = 0.01  # временной шаг
+        assembler.time_step = 0.01  # временной шаг
 
         for step in range(500):
             matrices = assembler.assemble()
             A_ext, b_ext = assembler.assemble_extended_system(matrices)
             x = linalg.solve(A_ext, b_ext)
             q_ddot, holonomic_lambdas, nonholonomic_lambdas = assembler.sort_results(x)
-            q_dot, q = assembler.integrate_with_constraint_projection(q_ddot, matrices, dt)
+            q_dot, q = assembler.integrate_with_constraint_projection(q_ddot, matrices)
 
             print(f"Step {step}: position1 = {q[0:2]}, position2 = {q[3:5]}, norm1 = {np.linalg.norm(q[0:2])}, norm2 = {np.linalg.norm(q[0:2] - q[3:5])}")
         eps = 1e-15
