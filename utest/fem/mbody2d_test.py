@@ -26,7 +26,7 @@ class TestIntegrationMultibody2D(unittest.TestCase):
             assembler=assembler)
 
         index_map = assembler.index_map()
-        self.assertIn(body.acceleration, index_map)
+        self.assertIn(body.acceleration_var, index_map)
 
         matrices = assembler.assemble()
 
@@ -52,7 +52,7 @@ class TestIntegrationMultibody2D(unittest.TestCase):
             assembler=assembler)
 
         index_map = assembler.index_map()
-        self.assertIn(body.acceleration, index_map)
+        self.assertIn(body.acceleration_var, index_map)
 
         matrices = assembler.assemble()
 
@@ -106,7 +106,7 @@ class TestIntegrationMultibody2D(unittest.TestCase):
             assembler=assembler)
 
         index_map = assembler.index_map()
-        self.assertIn(body.acceleration, index_map)
+        self.assertIn(body.acceleration_var, index_map)
 
         matrices = assembler.assemble()
 
@@ -137,7 +137,7 @@ class TestIntegrationMultibody2D(unittest.TestCase):
             assembler=assembler)
 
         index_map = assembler.index_map()
-        self.assertIn(body.acceleration, index_map)
+        self.assertIn(body.acceleration_var, index_map)
 
         matrices = assembler.assemble()
 
@@ -162,7 +162,7 @@ class TestIntegrationMultibody2D(unittest.TestCase):
             gravity=np.array([0.0, -10.00]),
             assembler=assembler)
 
-        body.acceleration.set_value([1.0, 0.0, 0.0])
+        body.acceleration_var.set_value([1.0, 0.0, 0.0])
 
         joint = FixedRotationJoint2D(
             body=body,
@@ -179,7 +179,7 @@ class TestIntegrationMultibody2D(unittest.TestCase):
         self.assertIn("force", index_maps)
         self.assertEqual(len(index_maps["force"]), 1)
         self.assertEqual(len(index_maps["acceleration"]), 1)
-        self.assertIn(body.acceleration, index_maps["acceleration"])
+        self.assertIn(body.acceleration_var, index_maps["acceleration"])
         self.assertIn(joint.internal_force, index_maps["force"])
 
         matrices = assembler.assemble()
@@ -199,7 +199,7 @@ class TestIntegrationMultibody2D(unittest.TestCase):
             gravity=np.array([0.0, -10.00]),
             assembler=assembler)
 
-        body.acceleration.set_value([0.0, -1.0, 0.0])
+        body.acceleration_var.set_value([0.0, -1.0, 0.0])
 
         joint = FixedRotationJoint2D(
             body=body,
@@ -217,9 +217,9 @@ class TestIntegrationMultibody2D(unittest.TestCase):
         assembler.upload_results(q_ddot, q_dot, q)
         assembler.integrate_nonlinear()
 
-        assert np.isclose(body.acceleration.value_ddot[0], 0.0)
-        assert np.isclose(body.acceleration.value_ddot[1], 0.0)
-        assert np.isclose(body.acceleration.value_ddot[2], 0.0)
+        assert np.isclose(body.acceleration_var.value_ddot[0], 0.0)
+        assert np.isclose(body.acceleration_var.value_ddot[1], 0.0)
+        assert np.isclose(body.acceleration_var.value_ddot[2], 0.0)
 
 
     def test_simple_pendulum(self):
@@ -231,7 +231,7 @@ class TestIntegrationMultibody2D(unittest.TestCase):
             gravity=np.array([0.0, -10.00]),
             assembler=assembler)
 
-        body.acceleration.set_value([1.0, 0.0, 0.0]) # это установка позиции (хотя может показаться, что это скорость. но это позиция)
+        body.acceleration_var.set_value([1.0, 0.0, 0.0]) # это установка позиции (хотя может показаться, что это скорость. но это позиция)
 
         joint = FixedRotationJoint2D(
             body=body,
@@ -285,7 +285,7 @@ class TestIntegrationMultibody2D(unittest.TestCase):
             gravity=np.array([0.0, -10.00]),
             assembler=assembler)
 
-        body.acceleration.set_value([0.75, 0.0, 0.0]) # это установка позиции (хотя может показаться, что это скорость. но это позиция)
+        body.acceleration_var.set_value([0.75, 0.0, 0.0]) # это установка позиции (хотя может показаться, что это скорость. но это позиция)
 
         joint = FixedRotationJoint2D(
             body=body,
@@ -338,7 +338,7 @@ class TestIntegrationMultibody2D(unittest.TestCase):
             assembler=assembler,
             name="body1")
 
-        body1.acceleration.set_value([5.0, 0.0, 0.0])
+        body1.acceleration_var.set_value([5.0, 0.0, 0.0])
 
         joint1 = FixedRotationJoint2D(
             body=body1,
@@ -350,7 +350,7 @@ class TestIntegrationMultibody2D(unittest.TestCase):
             assembler=assembler,
             name="body2")
 
-        body2.acceleration.set_value([10.0, 0.0, 0.0])
+        body2.acceleration_var.set_value([10.0, 0.0, 0.0])
 
         joint2 = RevoluteJoint2D(
             bodyA=body1,
@@ -406,7 +406,7 @@ class TestIntegrationMultibody2D(unittest.TestCase):
             assembler=assembler,
             name="body1")
 
-        body1.acceleration.set_value([0.0, -2.0, 0.0])
+        body1.acceleration_var.set_value([0.0, -2.0, 0.0])
 
         joint1 = FixedRotationJoint2D(
             body=body1,
@@ -418,7 +418,7 @@ class TestIntegrationMultibody2D(unittest.TestCase):
             assembler=assembler,
             name="body2")
 
-        body2.acceleration.set_value([0.0, -4.0, 0.0])
+        body2.acceleration_var.set_value([0.0, -4.0, 0.0])
 
         joint2 = RevoluteJoint2D(
             bodyA=body1,

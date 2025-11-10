@@ -23,17 +23,17 @@ class RigidBody2D(Contribution):
                  gravity: np.ndarray = None,  # g в ГЛОБАЛЬНОЙ СК, shape=(2,)
                  assembler=None,
                  name="rbody2d"):
-        self.acceleration = Variable(name+"_acc", size=3, tag="acceleration")  # [vx, vy, ω] в глобальной СК
-        #self.velocity = Variable(name+"_vel", size=3, tag="velocity")  # [vx, vy, ω] в глобальной СК
-        #self._pose = Variable(name+"_pos", size=3, tag="position")  # [x, y, θ] в глобальной СК
+        self.acceleration_var = Variable(name+"_acc", size=3, tag="acceleration")  # [vx, vy, ω] в глобальной СК
+        self.velocity_var = Variable(name+"_vel", size=3, tag="velocity")  # [vx, vy, ω] в глобальной СК
+        self.pose_var = Variable(name+"_pos", size=3, tag="position")  # [x, y, θ] в глобальной СК
         self.inertia = inertia
         self.gravity = np.array([0.0, -9.81]) if gravity is None else np.asarray(gravity, float).reshape(2)
-        super().__init__([self.acceleration, 
+        super().__init__([self.acceleration_var, 
         #    self.velocity, self._pose
         ], assembler=assembler)
 
     def pose(self):
-        return Pose2(lin=self.acceleration.value[0:2], ang=float(self.acceleration.value[2]))
+        return Pose2(lin=self.acceleration_var.value[0:2], ang=float(self.acceleration_var.value[2]))
         #return Pose2(lin=self.pose.value[0:2], ang=float(self.pose.value[2]))
         
     # ---------- ВКЛАД В СИСТЕМУ ----------
@@ -41,7 +41,7 @@ class RigidBody2D(Contribution):
         self.contribute_to_mass_matrix(matrices, index_maps)
 
         # ---------- НАГРУЗКА (гравитация в ГЛОБАЛЬНОЙ СК) ----------
-        a_idx = index_maps["acceleration"][self.acceleration]
+        a_idx = index_maps["acceleration"][self.acceleration_var]
         b = matrices["load"]
         b[a_idx[0]:a_idx[2]+1] += self.inertia.gravity_wrench(self.gravity).to_vector_vw_order()
 
@@ -51,7 +51,7 @@ class RigidBody2D(Contribution):
     def contribute_to_mass_matrix(self, matrices, index_maps):
         A = matrices["mass"]
         amap = index_maps["acceleration"]
-        a_idx = amap[self.acceleration]
+        a_idx = amap[self.acceleration_var]
         IM = self.inertia.to_matrix_vw_order()
         A[a_idx[0]:a_idx[2]+1, a_idx[0]:a_idx[2]+1] += IM
 
@@ -72,7 +72,7 @@ class ForceOnBody2D(Contribution):
             torque_local: Внешний момент τ в ЛОКАЛЬНОЙ СК
         """
         self.body = body
-        self.acceleration = body.acceleration
+        self.acceleration = body.acceleration_var
         self.wrench = wrench
         self.in_local_frame = in_local_frame
         super().__init__([], assembler=assembler)  # Нет переменных для этой нагрузки
@@ -162,7 +162,7 @@ class FixedRotationJoint2D(Contribution):
         self.radius_in_local = body_pose.inverse_transform_point(self.coords_of_joint)
 
         self.update_radius_to_body()
-        super().__init__([body.acceleration, self.internal_force], assembler=assembler)
+        super().__init__([body.acceleration_var, self.internal_force], assembler=assembler)
 
     def update_radius_to_body(self):
         """Обновить радиус до тела"""
@@ -179,7 +179,7 @@ class FixedRotationJoint2D(Contribution):
 
         index_map = index_maps["acceleration"]
         constraint_map = index_maps["force"]
-        v_indices = index_map[self.body.acceleration]
+        v_indices = index_map[self.body.acceleration_var]
         F_indices = constraint_map[self.internal_force]
 
         # Вклад в матрицу ограничений от связи шарнира
@@ -189,8 +189,8 @@ class FixedRotationJoint2D(Contribution):
         H[F_indices[1], v_indices[1]] += 1.0
 
         # Вращательное влияние
-        H[F_indices[0], index_map[self.body.acceleration][2]] += -self.radius[1]
-        H[F_indices[1], index_map[self.body.acceleration][2]] += self.radius[0]
+        H[F_indices[0], index_map[self.body.acceleration_var][2]] += -self.radius[1]
+        H[F_indices[1], index_map[self.body.acceleration_var][2]] += self.radius[0]
 
     def contribute_for_constraints_correction(self, matrices, index_maps: Dict[str, Dict[Variable, List[int]]]):
         """
@@ -237,7 +237,7 @@ class RevoluteJoint2D(Contribution):
         # актуализируем глобальные вектор-радиусы
         self.update_radii()
 
-        super().__init__([bodyA.acceleration, bodyB.acceleration, self.internal_force], assembler=assembler)
+        super().__init__([bodyA.acceleration_var, bodyB.acceleration_var, self.internal_force], assembler=assembler)
 
     def update_radii(self):
         """Пересчитать глобальные радиусы до опорных точек"""
@@ -260,8 +260,8 @@ class RevoluteJoint2D(Contribution):
         cmap = index_maps["force"]
 
         # индексы вектора скоростей
-        vA = amap[self.bodyA.acceleration]
-        vB = amap[self.bodyB.acceleration]
+        vA = amap[self.bodyA.acceleration_var]
+        vB = amap[self.bodyB.acceleration_var]
 
         F = cmap[self.internal_force]  # 2 строки ограничений
 

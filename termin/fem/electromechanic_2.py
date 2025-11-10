@@ -34,7 +34,7 @@ class DCMotor(Contribution):
         # ток двигателя — как у источников/индуктора
         self.i = CurrentVariable("i_motor")
 
-        super().__init__([node1, node2, self.i, self.connected_body.acceleration], 
+        super().__init__([node1, node2, self.i, self.connected_body.acceleration_var], 
             domain="electromechanical", 
             assembler=assembler)
 
@@ -59,7 +59,7 @@ class DCMotor(Contribution):
         v1 = vmap[self.node1][0]
         v2 = vmap[self.node2][0]
         i  = cmap[self.i][0]
-        angaccel  = amap[self.connected_body.acceleration][2]
+        angaccel  = amap[self.connected_body.acceleration_var][2]
         #tau_idx = mmap[self.torque][0]
 
         # ---------------------------------------------------------
