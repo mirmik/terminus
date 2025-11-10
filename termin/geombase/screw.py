@@ -33,6 +33,9 @@ class Screw2(Screw):
     """A 2D Screw specialized for planar motions."""
     def __init__(self, ang: numpy.ndarray, lin: numpy.ndarray):
 
+        if not isinstance(ang, numpy.ndarray):
+            ang = numpy.array(ang)
+
         # check shapes
         if ang.shape != (1,) and ang.shape != ():
             raise Exception("ang must be a scalar or shape (1,) ndarray")
@@ -73,6 +76,9 @@ class Screw2(Screw):
     def transform_by(self, trans):
         return Screw2(ang=self.ang, lin=trans.transform_vector(self.lin))
 
+    def rotated_by(self, trans):
+        return Screw2(ang=self.ang, lin=trans.rotate_vector(self.lin))
+
     def inverse_transform_by(self, trans):
         return Screw2(ang=self.ang, lin=trans.inverse_transform_vector(self.lin))
 
@@ -111,6 +117,14 @@ class Screw2(Screw):
 
     def __sub__(self, oth):
         return Screw2(self.ang - oth.ang, self.lin - oth.lin)
+
+    def to_vector_vw_order(self) -> numpy.ndarray:
+        """Return the screw as a 3x1 array in [vx, vy, w] order."""
+        return numpy.array([self.lin[0], self.lin[1], self.moment()], float)
+
+    def to_vector_wv_order(self) -> numpy.ndarray:
+        """Return the screw as a 3x1 array in [w, vx, vy] order."""
+        return numpy.array([self.moment(), self.lin[0], self.lin[1]], float)
 
 class Screw3(Screw):
     """A 3D Screw specialized for spatial motions."""

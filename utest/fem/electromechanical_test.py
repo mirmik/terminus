@@ -18,6 +18,7 @@ from termin.fem.multibody2d_2 import RigidBody2D
 from termin.fem.electromechanic_2 import DCMotor
 from termin.fem.electrical_2 import VoltageSource, Ground, ElectricalNode, Resistor
 from termin.fem.dynamic_assembler import Variable, DynamicMatrixAssembler
+from termin.fem.inertia2d import SpatialInertia2D
 
 
 class TestDCMotor(unittest.TestCase):
@@ -27,12 +28,11 @@ class TestDCMotor(unittest.TestCase):
         assembler = DynamicMatrixAssembler()
 
         body = RigidBody2D(
-            m=2.0,
-            J=0.5,
+            SpatialInertia2D(mass=2.0, inertia=0.5, com=np.array([0.0, 0.0])),
             gravity=np.array([0.0, 0.0]),
             assembler=assembler)
 
-        body.omega.set_value_by_rank(np.array([1.0]), rank=1)
+        body.acceleration.set_value_by_rank(np.array([0, 0, 1.0]), rank=1)
         
         v1 = ElectricalNode("V1")
         v2 = ElectricalNode("V2")
@@ -45,7 +45,7 @@ class TestDCMotor(unittest.TestCase):
         dcmotor = DCMotor(
             node1=v2,
             node2=v0,
-            omega_var=body.omega,
+            connected_body=body,
             k_e=0.1,
             k_t=0.1,
             assembler=assembler)

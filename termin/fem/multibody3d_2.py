@@ -12,91 +12,6 @@ def skew(v: np.ndarray) -> np.ndarray:
                      [v[2], 0, -v[0]],
                      [-v[1], v[0], 0]])
 
-# class RigidBody3D(Contribution):
-#     """
-#     Твердое тело в 3D (6 СС: x,y,z и ориентация q).
-#     Скорости: v=[vx,vy,vz], ω=[ωx,ωy,ωz].
-#     Поза хранится как (lin, quat).
-#     """
-
-#     def __init__(self,
-#                  inertia: SpatialInertia3D,
-#                  gravity: np.ndarray = np.array([0.0, 0.0, -9.81]),
-#                  assembler=None, name: str = "rbody3d"):
-
-#         self.velocity = PoseVariable(name+"_acc", tag="acceleration")
-#         super().__init__([self.velocity], assembler=assembler)
-
-#         self.gravity = np.asarray(gravity, float)
-
-#         # Базовая (локальная) пространственная инерция тела
-#         self.spatial_local = inertia
-
-#     # ---------- Геометрия/поза ----------
-
-#     def pose(self) -> Pose3:
-#         """
-#         Возвращает текущую позу.
-#         Позиция берётся из rank=2 у self.velocity (аналог твоего 2D),
-#         ориентация — из self.quat (ранг «позиции»).
-#         """
-#         return self.velocity.pose()
-
-#     def contribute(self, matrices, index_maps: Dict[str, Dict[Variable, List[int]]]):
-#         """
-#         Вклады в mass (A) и load (b).
-#         Массовая матрица — полный 6x6 блок с учётом COM и поворота (через SpatialInertia3D).
-#         Порядок неизвестных: [v, ω] — как в твоём 2D.
-#         """
-        
-
-#         pose = self.pose()
-#         spatial_world = self.spatial_local.rotated_spatial_inertia(pose)
-#         print(spatial_world.I_com)
-#         print(spatial_world.c)
-
-#         self.contribute_mass_matrix(spatial_world, matrices, index_maps)
-
-#         b = matrices["load"]
-#         amap = index_maps["acceleration"]
-#         v_idx = amap[self.velocity]
-        
-#         gravity_wrench = spatial_world.gravity_wrench(pose, self.gravity)
-#         Fg = gravity_wrench.lin
-#         tau_g = gravity_wrench.ang
-
-#         b[v_idx[0]] += Fg[0]
-#         b[v_idx[1]] += Fg[1]
-#         b[v_idx[2]] += Fg[2]
-
-#         b[v_idx[3]] += tau_g[0]
-#         b[v_idx[4]] += tau_g[1]
-#         b[v_idx[5]] += tau_g[2]
-
-#         # TODO: добавить гироскопические силы 
-
-#     def contribute_mass_matrix(self, spatial_world, matrices, index_maps: Dict[str, Dict[Variable, List[int]]]):
-#         """
-#         Для позиционной коррекции нужна только «масса» (как метрика).
-#         Кладём тот же 6x6 блок, что и в contribute(), но без сил.
-#         """
-#         A = matrices["mass"]
-#         amap = index_maps["acceleration"]
-
-#         v_idx = amap[self.velocity]
-
-#         S_vw = spatial_world.to_matrix_vw_order()
-#         print(S_vw)
-#         A[np.ix_(v_idx, v_idx)] += S_vw
-
-#     def contribute_for_constraints_correction(self, matrices, index_maps: Dict[str, Dict[Variable, List[int]]]):
-#         """
-#         Вклад в массовую матрицу для коррекции ограничений.
-#         """
-#         pose = self.pose()
-#         spatial_world = self.spatial_local.transform_by(pose)
-#         self.contribute_mass_matrix(spatial_world, matrices, index_maps)
-
 class RigidBody3D(Contribution):
 
     def __init__(self, inertia: SpatialInertia3D,
@@ -181,8 +96,8 @@ class ForceOnBody3D(Contribution):
 
         # v_idx: три индекса линейной части
         # w_idx: три индекса угловой части
-        v_idx = amap[self.velocity][0:3]
-        w_idx = amap[self.velocity][3:6]
+        v_idx = amap[self.acceleration][0:3]
+        w_idx = amap[self.acceleration][3:6]
 
         # Линейная сила
         b[v_idx[0]] += self.force[0]

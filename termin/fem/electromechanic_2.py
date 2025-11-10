@@ -17,7 +17,7 @@ class DCMotor(Contribution):
             omega   — угловая скорость в механическом домене
     """
 
-    def __init__(self, node1, node2, omega_var, k_e=0.1, k_t=0.1, assembler=None):
+    def __init__(self, node1, node2, connected_body, k_e=0.1, k_t=0.1, assembler=None):
         """
         Args:
             node1, node2:   электрические узлы
@@ -27,15 +27,14 @@ class DCMotor(Contribution):
         """
         self.node1 = node1
         self.node2 = node2
-        self.omega = omega_var
-        #self.torque = Variable("torque_motor", size=1, tag="force")  # момент двигателя
+        self.connected_body = connected_body
         self.k_e = float(k_e)
         self.k_t = float(k_t)
 
         # ток двигателя — как у источников/индуктора
         self.i = CurrentVariable("i_motor")
 
-        super().__init__([node1, node2, self.i, omega_var], 
+        super().__init__([node1, node2, self.i, self.connected_body.acceleration], 
             domain="electromechanical", 
             assembler=assembler)
 
@@ -60,7 +59,7 @@ class DCMotor(Contribution):
         v1 = vmap[self.node1][0]
         v2 = vmap[self.node2][0]
         i  = cmap[self.i][0]
-        w  = amap[self.omega][0]
+        angaccel  = amap[self.connected_body.acceleration][2]
         #tau_idx = mmap[self.torque][0]
 
         # ---------------------------------------------------------
@@ -75,7 +74,7 @@ class DCMotor(Contribution):
         # ---------------------------------------------------------
         H[i, v1] +=  1.0
         H[i, v2] += -1.0
-        EM_damping[w, i] += self.k_e
+        EM_damping[angaccel, i] += self.k_e # Тут должна быть угловая скорость
 
         # ---------------------------------------------------------
         # 2) KCL: ток через двигатель
@@ -86,7 +85,7 @@ class DCMotor(Contribution):
 
         # G[v2, i] += -1.0
         # G[i, v2] += -1.0
-        EM[w, i] += -self.k_t
+        EM[angaccel, i] += -self.k_t
 
         # ---------------------------------------------------------
         # 3) Механика: момент двигателя

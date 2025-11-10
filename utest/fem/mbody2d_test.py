@@ -9,6 +9,8 @@ from termin.fem.multibody2d_2 import (
     RigidBody2D, ForceOnBody2D, FixedRotationJoint2D, RevoluteJoint2D
 )
 from numpy import linalg
+from termin.geombase.screw import Screw2
+from termin.fem.inertia2d import SpatialInertia2D
 
 
 class TestIntegrationMultibody2D(unittest.TestCase):
@@ -19,13 +21,12 @@ class TestIntegrationMultibody2D(unittest.TestCase):
         assembler = DynamicMatrixAssembler()
         
         body = RigidBody2D(
-            m=2.0,
-            J=1.0,
+            inertia=SpatialInertia2D(mass=2.0, inertia=1.0, com=np.zeros(2)),
             gravity=np.array([0.0, -9.81]),
             assembler=assembler)
 
         index_map = assembler.index_map()
-        self.assertIn(body.velocity, index_map)
+        self.assertIn(body.acceleration, index_map)
 
         matrices = assembler.assemble()
 
@@ -46,14 +47,12 @@ class TestIntegrationMultibody2D(unittest.TestCase):
         assembler = DynamicMatrixAssembler()
         
         body = RigidBody2D(
-            m=2.0,
-            J=1.0,
-            com=np.array([0.5, 0.0]),
+            inertia=SpatialInertia2D(mass=2.0, inertia=1.0, com=np.array([0.5, 0.0])),
             gravity=np.array([0.0, -9.81]),
             assembler=assembler)
 
         index_map = assembler.index_map()
-        self.assertIn(body.velocity, index_map)
+        self.assertIn(body.acceleration, index_map)
 
         matrices = assembler.assemble()
 
@@ -97,19 +96,17 @@ class TestIntegrationMultibody2D(unittest.TestCase):
         assembler = DynamicMatrixAssembler()
         
         body = RigidBody2D(
-            m=3.0,
-            J=2.0,
+            inertia=SpatialInertia2D(mass=3.0, inertia=2.0, com=np.zeros(2)),
             gravity=np.array([0.0, 0.0]),
             assembler=assembler)
 
         force = ForceOnBody2D(
             body=body,
-            force=np.array([6.0, 0.0]),
-            torque=0.0,
+            wrench=Screw2(ang=0.0, lin=np.array([6.0, 0.0])),
             assembler=assembler)
 
         index_map = assembler.index_map()
-        self.assertIn(body.velocity, index_map)
+        self.assertIn(body.acceleration, index_map)
 
         matrices = assembler.assemble()
 
@@ -130,19 +127,17 @@ class TestIntegrationMultibody2D(unittest.TestCase):
         assembler = DynamicMatrixAssembler()
         
         body = RigidBody2D(
-            m=4.0,
-            J=8.0,
+            inertia=SpatialInertia2D(mass=4.0, inertia=8.0, com=np.zeros(2)),
             gravity=np.array([0.0, 0.0]),
             assembler=assembler)
 
         force = ForceOnBody2D(
             body=body,
-            force=np.array([0.0, 0.0]),
-            torque=16.0,
+            wrench=Screw2(ang=16.0, lin=np.array([0.0, 0.0])),
             assembler=assembler)
 
         index_map = assembler.index_map()
-        self.assertIn(body.velocity, index_map)
+        self.assertIn(body.acceleration, index_map)
 
         matrices = assembler.assemble()
 
@@ -163,13 +158,11 @@ class TestIntegrationMultibody2D(unittest.TestCase):
         assembler = DynamicMatrixAssembler()
         
         body = RigidBody2D(
-            m=5.0,
-            J=5.0,
+            inertia=SpatialInertia2D(mass=5.0, inertia=5.0, com=np.zeros(2)),
             gravity=np.array([0.0, -10.00]),
             assembler=assembler)
 
-        body.velocity.set_value(np.array([1.0, 0.0]))
-        body.omega.set_value(np.array([0.0]))
+        body.acceleration.set_value([1.0, 0.0, 0.0])
 
         joint = FixedRotationJoint2D(
             body=body,
@@ -185,8 +178,8 @@ class TestIntegrationMultibody2D(unittest.TestCase):
         self.assertIn("acceleration", index_maps)
         self.assertIn("force", index_maps)
         self.assertEqual(len(index_maps["force"]), 1)
-        self.assertEqual(len(index_maps["acceleration"]), 2)
-        self.assertIn(body.velocity, index_maps["acceleration"])
+        self.assertEqual(len(index_maps["acceleration"]), 1)
+        self.assertIn(body.acceleration, index_maps["acceleration"])
         self.assertIn(joint.internal_force, index_maps["force"])
 
         matrices = assembler.assemble()
@@ -202,13 +195,11 @@ class TestIntegrationMultibody2D(unittest.TestCase):
         assembler = DynamicMatrixAssembler()
         
         body = RigidBody2D(
-            m=5.0,
-            J=5.0,
+            inertia=SpatialInertia2D(mass=5.0, inertia=5.0, com=np.zeros(2)),
             gravity=np.array([0.0, -10.00]),
             assembler=assembler)
 
-        body.velocity.set_value(np.array([0.0, -1.0]))
-        body.omega.set_value(np.array([0.0]))
+        body.acceleration.set_value([0.0, -1.0, 0.0])
 
         joint = FixedRotationJoint2D(
             body=body,
@@ -226,9 +217,9 @@ class TestIntegrationMultibody2D(unittest.TestCase):
         assembler.upload_results(q_ddot, q_dot, q)
         assembler.integrate_nonlinear()
 
-        assert np.isclose(body.velocity.value_ddot[0], 0.0)
-        assert np.isclose(body.velocity.value_ddot[1], 0.0)
-        assert np.isclose(body.omega.value_ddot[0], 0.0)
+        assert np.isclose(body.acceleration.value_ddot[0], 0.0)
+        assert np.isclose(body.acceleration.value_ddot[1], 0.0)
+        assert np.isclose(body.acceleration.value_ddot[2], 0.0)
 
 
     def test_simple_pendulum(self):
@@ -236,12 +227,11 @@ class TestIntegrationMultibody2D(unittest.TestCase):
         assembler = DynamicMatrixAssembler()
         
         body = RigidBody2D(
-            m=5.0,
-            J=5.0,
+            inertia=SpatialInertia2D(mass=5.0, inertia=5.0, com=np.zeros(2)),
             gravity=np.array([0.0, -10.00]),
             assembler=assembler)
 
-        body.velocity.set_value(np.array([1.0, 0.0])) # это установка позиции (хотя может показаться, что это скорость. но это позиция)
+        body.acceleration.set_value([1.0, 0.0, 0.0]) # это установка позиции (хотя может показаться, что это скорость. но это позиция)
 
         joint = FixedRotationJoint2D(
             body=body,
@@ -291,13 +281,11 @@ class TestIntegrationMultibody2D(unittest.TestCase):
         assembler = DynamicMatrixAssembler()
         
         body = RigidBody2D(
-            m=5.0,
-            J=5.0,
+            inertia=SpatialInertia2D(mass=5.0, inertia=5.0, com=np.array([0.25, 0.0])),
             gravity=np.array([0.0, -10.00]),
-            com =np.array([0.25, 0.0]),
             assembler=assembler)
 
-        body.velocity.set_value(np.array([0.75, 0.0])) # это установка позиции (хотя может показаться, что это скорость. но это позиция)
+        body.acceleration.set_value([0.75, 0.0, 0.0]) # это установка позиции (хотя может показаться, что это скорость. но это позиция)
 
         joint = FixedRotationJoint2D(
             body=body,
@@ -345,28 +333,24 @@ class TestIntegrationMultibody2D(unittest.TestCase):
         assembler = DynamicMatrixAssembler()
         
         body1 = RigidBody2D(
-            m=6.0,
-            J=7.0,
+            inertia=SpatialInertia2D(mass=6.0, inertia=7.0, com=np.array([0.0, 0.0])),
             gravity=np.array([0.0, -9.81]),
             assembler=assembler,
             name="body1")
 
-        body1.velocity.set_value(np.array([5.0, 0.0]))
-        body1.omega.set_value(np.array([0.0]))
+        body1.acceleration.set_value([5.0, 0.0, 0.0])
 
         joint1 = FixedRotationJoint2D(
             body=body1,
             assembler=assembler)
 
         body2 = RigidBody2D(
-            m=8.0,
-            J=9.0,
+            inertia=SpatialInertia2D(mass=8.0, inertia=9.0, com=np.zeros(2)),
             gravity=np.array([0.0, -9.81]),
             assembler=assembler,
             name="body2")
 
-        body2.velocity.set_value(np.array([10.0, 0.0]))
-        body2.omega.set_value(np.array([0.0]))
+        body2.acceleration.set_value([10.0, 0.0, 0.0])
 
         joint2 = RevoluteJoint2D(
             bodyA=body1,
@@ -417,28 +401,24 @@ class TestIntegrationMultibody2D(unittest.TestCase):
         assembler = DynamicMatrixAssembler()
         
         body1 = RigidBody2D(
-            m=6.0,
-            J=7.0,
+            inertia=SpatialInertia2D(mass=6.0, inertia=7.0, com=np.zeros(2)),
             gravity=np.array([0.0, -9.81]),
             assembler=assembler,
             name="body1")
 
-        body1.velocity.set_value(np.array([0.0, -2.0]))
-        body1.omega.set_value(np.array([0.0]))
+        body1.acceleration.set_value([0.0, -2.0, 0.0])
 
         joint1 = FixedRotationJoint2D(
             body=body1,
             assembler=assembler)
 
         body2 = RigidBody2D(
-            m=8.0,
-            J=9.0,
+            inertia=SpatialInertia2D(mass=8.0, inertia=9.0, com=np.zeros(2)),
             gravity=np.array([0.0, -9.81]),
             assembler=assembler,
             name="body2")
 
-        body2.velocity.set_value(np.array([0.0, -4.0]))
-        body2.omega.set_value(np.array([0.0]))
+        body2.acceleration.set_value([0.0, -4.0, 0.0])
 
         joint2 = RevoluteJoint2D(
             bodyA=body1,

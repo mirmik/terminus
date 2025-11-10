@@ -54,23 +54,6 @@ class SpatialInertia2D:
         return SpatialInertia2D(self.m, self.I_com, c_new)
 
     # ------------------------------
-    #      Перенос инерции
-    # ------------------------------
-    def at_origin(self):
-        """
-        Перенос spatial inertia в фрейм, чей origin совпадает с self.c.
-        То есть перенос COM → origin тела.
-        """
-        cx, cy = self.c
-        m = self.m
-        J = self.Jc
-
-        # формула параллельного переноса
-        J0 = J + m * (cx*cx + cy*cy)
-
-        return SpatialInertia2D(m, J0, np.zeros(2))
-
-    # ------------------------------
     #       Поворот инерции
     # ------------------------------
     def rotated(self, theta):
@@ -91,16 +74,31 @@ class SpatialInertia2D:
     # ------------------------------
     #       Spatial inertia matrix
     # ------------------------------
-    def to_matrix(self):
+    def to_matrix_vw_order(self):
         m = self.m
         cx, cy = self.c
         J = self.Jc
 
-        # spatial inertia в 2D (VW-порядок)
+        upper_left = m * np.eye(2)
+        lower_left = m * np.array([[-cy, cx]])
+        upper_right = lower_left.T
+        lower_right = np.array([[J + m * (cx*cx + cy*cy)]])
+
+        return np.block([
+            [upper_left,    upper_right],
+            [lower_left,    lower_right]
+        ])
+
+    def to_matrix_wv_order(self):
+        m = self.m
+        cx, cy = self.c
+        J = self.Jc
+
+        # spatial inertia в 2D (WV-порядок)
         return np.array([
-            [m,     0,    -m*cy],
-            [0,     m,     m*cx],
-            [m*cy, -m*cx,  J + m*(cx*cx + cy*cy)]
+            [J + m*(cx*cx + cy*cy),  m*cy,   -m*cx],
+            [m*cy,                    m,      0    ],
+            [-m*cx,                   0,      m    ]
         ], float)
 
     # ------------------------------
@@ -117,7 +115,7 @@ class SpatialInertia2D:
         F = m * g
         τ = cx * F[1] - cy * F[0]
 
-        return np.array([F[0], F[1], τ], float)
+        return Screw2(ang=τ, lin=F)
 
     def __add__(self, other):
         if not isinstance(other, SpatialInertia2D):
