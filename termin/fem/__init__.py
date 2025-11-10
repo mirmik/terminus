@@ -40,23 +40,6 @@ from .electrical import (
     Ground,
 )
 
-# Многотельная динамика (2D - планарное движение)
-from .multibody2d import (
-    RotationalInertia2D,
-    TorqueSource2D,
-    RigidBody2D,
-    ForceVector2D,
-    ForceOnBody2D,
-    FixedRevoluteJoint2D,
-    TwoBodyRevoluteJoint2D,
-    FixedPoint2D,
-)
-
-
-# Электромеханика
-from .electromechanical import (
-    DCMotor,
-)
 
 __all__ = [
     # Assembler
@@ -81,26 +64,6 @@ __all__ = [
     'VoltageSource',
     'CurrentSource',
     'Ground',
-    
-    # Multibody
-    'RotationalInertia',
-    'TorqueSource',
-    'RotationalSpring',
-    'RotationalDamper',
-    'FixedRotation',
-    'LinearMass',
-    'ForceSource',
-    'LinearSpring',
-    
-    # Multibody 2D
-    'RotationalInertia2D',
-    'TorqueSource2D',
-    'RigidBody2D',
-    'ForceVector2D',
-    'ForceOnBody2D',
-    'FixedRevoluteJoint2D',
-    'TwoBodyRevoluteJoint2D',
-    'FixedPoint2D',
     
     # Electromechanical
     'DCMotor',

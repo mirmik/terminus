@@ -14,8 +14,8 @@ import os
 # Добавить путь к модулю
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from termin.fem.electromechanic_2 import DCMotor
 from termin.fem.multibody2d_2 import RigidBody2D
+from termin.fem.electromechanic_2 import DCMotor
 from termin.fem.electrical_2 import VoltageSource, Ground, ElectricalNode, Resistor
 from termin.fem.dynamic_assembler import Variable, DynamicMatrixAssembler
 
