@@ -30,15 +30,6 @@ from .mechanic import (
     BodyForce,
 )
 
-# Электрические элементы
-from .electrical import (
-    Resistor,
-    Capacitor,
-    Inductor,
-    VoltageSource,
-    CurrentSource,
-    Ground,
-)
 
 
 __all__ = [
@@ -56,14 +47,6 @@ __all__ = [
     'DistributedLoad',
     'Triangle3Node',
     'BodyForce',
-    
-    # Electrical
-    'Resistor',
-    'Capacitor',
-    'Inductor',
-    'VoltageSource',
-    'CurrentSource',
-    'Ground',
     
     # Electromechanical
     'DCMotor',
