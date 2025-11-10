@@ -32,7 +32,7 @@ class TestDCMotor(unittest.TestCase):
             gravity=np.array([0.0, 0.0]),
             assembler=assembler)
 
-        body.acceleration_var.set_value_by_rank(np.array([0, 0, 1.0]), rank=1)
+        body.velocity_var.set_value(np.array([0, 0, 1.0]))
         
         v1 = ElectricalNode("V1")
         v2 = ElectricalNode("V2")

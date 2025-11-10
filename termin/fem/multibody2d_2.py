@@ -28,13 +28,10 @@ class RigidBody2D(Contribution):
         self.pose_var = Variable(name+"_pos", size=3, tag="position")  # [x, y, θ] в глобальной СК
         self.inertia = inertia
         self.gravity = np.array([0.0, -9.81]) if gravity is None else np.asarray(gravity, float).reshape(2)
-        super().__init__([self.acceleration_var, 
-        #    self.velocity, self._pose
-        ], assembler=assembler)
+        super().__init__([self.acceleration_var, self.velocity_var, self.pose_var], assembler=assembler)
 
     def pose(self):
-        return Pose2(lin=self.acceleration_var.value[0:2], ang=float(self.acceleration_var.value[2]))
-        #return Pose2(lin=self.pose.value[0:2], ang=float(self.pose.value[2]))
+        return Pose2(lin=self.pose_var.value[0:2], ang=float(self.pose_var.value[2]))
         
     # ---------- ВКЛАД В СИСТЕМУ ----------
     def contribute(self, matrices, index_maps):
@@ -54,6 +51,12 @@ class RigidBody2D(Contribution):
         a_idx = amap[self.acceleration_var]
         IM = self.inertia.to_matrix_vw_order()
         A[a_idx[0]:a_idx[2]+1, a_idx[0]:a_idx[2]+1] += IM
+
+    def finish_timestep(self, dt):
+        old_velocity = self.velocity_var.value.copy()
+        self.velocity_var.value += self.acceleration_var.value * dt
+        self.pose_var.value[0:2] += old_velocity[0:2] * dt + 0.5 * self.acceleration_var.value[0:2] * dt * dt
+
 
 
 

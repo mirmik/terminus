@@ -29,23 +29,23 @@ class DynamicMatrixAssembler(MatrixAssembler):
 
         self._dirty_index_map = False
 
-    def collect_current_q(self, index_map: Dict[Variable, List[int]]):
-        """Собрать текущее значение q из всех переменных"""
-        old_q = np.zeros(self.total_variables_by_tag("acceleration"))
-        for var in self.variables:
-            if var.tag == "acceleration":
-                indices = index_map[var]
-                old_q[indices] = var.value_by_rank(2)  # текущее значение
-        return old_q
+    # def collect_current_q(self, index_map: Dict[Variable, List[int]]):
+    #     """Собрать текущее значение q из всех переменных"""
+    #     old_q = np.zeros(self.total_variables_by_tag("acceleration"))
+    #     for var in self.variables:
+    #         if var.tag == "acceleration":
+    #             indices = index_map[var]
+    #             old_q[indices] = var.value_by_rank(2)  # текущее значение
+    #     return old_q
 
-    def collect_current_q_dot(self, index_map: Dict[Variable, List[int]]):
-        """Собрать текущее значение q_dot из всех переменных"""
-        old_q_dot = np.zeros(self.total_variables_by_tag("acceleration"))
-        for var in self.variables:
-            if var.tag == "acceleration":
-                indices = index_map[var]
-                old_q_dot[indices] = var.value_by_rank(1)  # текущее значение скорости
-        return old_q_dot
+    # def collect_current_q_dot(self, index_map: Dict[Variable, List[int]]):
+    #     """Собрать текущее значение q_dot из всех переменных"""
+    #     old_q_dot = np.zeros(self.total_variables_by_tag("acceleration"))
+    #     for var in self.variables:
+    #         if var.tag == "acceleration":
+    #             indices = index_map[var]
+    #             old_q_dot[indices] = var.value_by_rank(1)  # текущее значение скорости
+    #     return old_q_dot
 
     # def set_old_q(self, q: np.ndarray):
     #     """Установить старое значение q"""
@@ -197,7 +197,7 @@ class DynamicMatrixAssembler(MatrixAssembler):
         b_ext[r2:r3] = matrices["holonomic_load"]
 
         EM_damping = matrices["electromechanic_coupling_damping"]
-        q_dot = self.collect_current_q_dot(self.index_map_by_tag("acceleration"))
+        q_dot = self.collect_variables("velocity")
         b_em = EM_damping @ q_dot
         b_ext[r0:r1] += b_em
 
@@ -235,18 +235,19 @@ class DynamicMatrixAssembler(MatrixAssembler):
 
         # Создать глобальные матрицы и вектор
         n_dofs = self.total_variables_by_tag(tag="acceleration")
+        n_positions = self.total_variables_by_tag(tag="position")
         n_constraints = self.total_variables_by_tag(tag="force")
 
         matrices = {
             "mass": np.zeros((n_dofs, n_dofs)),
             "damping": np.zeros((n_dofs, n_dofs)),
-            "stiffness": np.zeros((n_dofs, n_dofs)),
+            "stiffness": np.zeros((n_dofs, n_positions)),
             "load": np.zeros(n_dofs),
             "holonomic": np.zeros((n_constraints, n_dofs)),
             "holonomic_load": np.zeros(n_constraints),
-            "old_q": self.collect_current_q(index_maps["acceleration"]),
-            "old_q_dot": self.collect_current_q_dot(index_maps["acceleration"]),
-            "holonomic_velocity_rhs": np.zeros(n_constraints),
+            #"old_q": self.collect_variables(index_maps["acceleration"]),
+            #"old_q_dot": self.collect_current_q_dot(index_maps["acceleration"]),
+            #"holonomic_velocity_rhs": np.zeros(n_constraints),
         }
 
         for contribution in self.contributions:
@@ -266,6 +267,7 @@ class DynamicMatrixAssembler(MatrixAssembler):
             "mass": np.zeros((n_dofs, n_dofs)),
             "holonomic": np.zeros((n_constraints, n_dofs)),
             "position_error": np.zeros(n_constraints),
+            "holonomic_velocity_rhs": np.zeros(n_constraints),
         }
 
         for contribution in self.contributions:
@@ -278,8 +280,8 @@ class DynamicMatrixAssembler(MatrixAssembler):
         C = matrices["damping"]
         K = matrices["stiffness"]
         b = matrices["load"]
-        old_q = matrices["old_q"]
-        old_q_dot = matrices["old_q_dot"]
+        old_q_dot = self.collect_variables("velocity")
+        old_q = self.collect_variables("position")
         H = matrices["holonomic"]
         h = matrices["holonomic_load"]
 
@@ -326,21 +328,56 @@ class DynamicMatrixAssembler(MatrixAssembler):
         M_inv = np.linalg.inv(M)
         return metric_project_onto_constraints(q, H, M_inv, error=f)
 
+    def collect_variables(self, tag: str) -> np.ndarray:
+        """Собрать текущее значение переменных с заданным тегом из всех переменных"""
+        q = np.zeros(self.total_variables_by_tag(tag))
+        index_map = self.index_map_by_tag(tag)
+        for var in self.variables:
+            if var.tag == tag:
+                indices = index_map[var]
+                q[indices] = var.value  # текущее значение
+        return q
+
+    def upload_variables(self, tag: str, values: np.ndarray):
+        """Загрузить значения переменных с заданным тегом обратно в переменные"""
+        index_map = self.index_map_by_tag(tag)
+        count = 0
+        for var in self.variables:
+            if var.tag == tag:
+                indices = index_map[var]
+                var.set_value(values[indices])
+                count += var.size
+        if count != len(values):
+            raise ValueError("Количество загруженных значений не соответствует количеству переменных с заданным тегом")
+
+    def upload_solution(self, variables: List[Variable], values: np.ndarray):
+        """Загрузить значения обратно в переменные по списку Variable"""
+        index = 0
+        for var in variables:
+            size = var.size
+            var.set_value(values[index:index + size])
+            index += size
+        if index != len(values):
+            raise ValueError("Количество загруженных значений не соответствует количеству переменных")
+
     def integrate_with_constraint_projection(self, 
                 q_ddot: np.ndarray, matrices: Dict[str, np.ndarray]):
         dt = self.time_step
-        q_dot = self.integrate_velocities(matrices["old_q_dot"], q_ddot)
-        q_dot = self.velocity_project_onto_constraints(q_dot, matrices)          
-            
-        q = self.integrate_positions(matrices["old_q"], q_dot, q_ddot)
-            
+
+        for contribution in self.contributions:
+            contribution.finish_timestep(dt)
+
+        q = self.collect_variables("position")
+        q_dot = self.collect_variables("velocity")
+
         for _ in range(2):  # несколько итераций проекции положений
-            self.upload_results(q_ddot, q_dot, q)
             matrices = self.assemble_for_constraints_correction()
             q = self.coords_project_onto_constraints(q, matrices)
-            self.upload_result_values(q)
-
-        #self.integrate_nonlinear()
+            self.upload_variables("position", q)
+        
+        matrices = self.assemble_for_constraints_correction()
+        q_dot = self.velocity_project_onto_constraints(q_dot, matrices)   
+        self.upload_variables("velocity", q_dot)
 
         return q_dot, q
 

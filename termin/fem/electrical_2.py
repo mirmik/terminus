@@ -21,7 +21,7 @@ class ElectricalNode(Variable):
         """
         Получить текущее значение потенциала узла.
         """
-        return self.value_by_rank(0)
+        return self.value
 
 class CurrentVariable(Variable):
     """
@@ -34,7 +34,7 @@ class CurrentVariable(Variable):
         """
         Получить текущее значение тока.
         """
-        return self.value_by_rank(0)
+        return self.value
 
     def set_current(self, current: np.ndarray):
         """

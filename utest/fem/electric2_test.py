@@ -133,7 +133,7 @@ class TestCapacitor(unittest.TestCase):
             matrices = assembler.assemble_electric_domain()        
             A_ext, b_ext, variables = assembler.assemble_extended_system_for_electric(matrices)
             x = np.linalg.solve(A_ext, b_ext)
-            assembler.set_solution(x, variables)
+            assembler.upload_solution(variables, x)
 
             real = c.voltage_difference()
             
@@ -220,7 +220,7 @@ class TestInductor(unittest.TestCase):
             matrices = assembler.assemble_electric_domain()        
             A_ext, b_ext, variables = assembler.assemble_extended_system_for_electric(matrices)
             x = np.linalg.solve(A_ext, b_ext)
-            assembler.set_solution(x, variables)
+            assembler.upload_solution(variables, x)
 
             real = l.current()
             

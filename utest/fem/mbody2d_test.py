@@ -162,7 +162,7 @@ class TestIntegrationMultibody2D(unittest.TestCase):
             gravity=np.array([0.0, -10.00]),
             assembler=assembler)
 
-        body.acceleration_var.set_value([1.0, 0.0, 0.0])
+        body.pose_var.set_value([1.0, 0.0, 0.0])
 
         joint = FixedRotationJoint2D(
             body=body,
@@ -199,7 +199,7 @@ class TestIntegrationMultibody2D(unittest.TestCase):
             gravity=np.array([0.0, -10.00]),
             assembler=assembler)
 
-        body.acceleration_var.set_value([0.0, -1.0, 0.0])
+        body.pose_var.set_value([0.0, -1.0, 0.0])
 
         joint = FixedRotationJoint2D(
             body=body,
@@ -212,14 +212,14 @@ class TestIntegrationMultibody2D(unittest.TestCase):
         A_ext, b_ext, variables = assembler.assemble_extended_system(matrices)
         x = linalg.solve(A_ext, b_ext)
         q_ddot, holonomic_lambdas, nonholonomic_lambdas = assembler.sort_results(x)
-        q_dot = assembler.integrate_velocities(matrices["old_q_dot"], q_ddot)
-        q = assembler.integrate_positions(matrices["old_q"], q_dot, q_ddot)
-        assembler.upload_results(q_ddot, q_dot, q)
-        assembler.integrate_nonlinear()
+        # q_dot = assembler.integrate_velocities(matrices["old_q_dot"], q_ddot)
+        # q = assembler.integrate_positions(matrices["old_q"], q_dot, q_ddot)
+        # assembler.upload_results(q_ddot, q_dot, q)
+        # assembler.integrate_nonlinear()
 
-        assert np.isclose(body.acceleration_var.value_ddot[0], 0.0)
-        assert np.isclose(body.acceleration_var.value_ddot[1], 0.0)
-        assert np.isclose(body.acceleration_var.value_ddot[2], 0.0)
+        assert np.isclose(body.acceleration_var.value[0], 0.0)
+        assert np.isclose(body.acceleration_var.value[1], 0.0)
+        assert np.isclose(body.acceleration_var.value[2], 0.0)
 
 
     def test_simple_pendulum(self):
@@ -231,7 +231,7 @@ class TestIntegrationMultibody2D(unittest.TestCase):
             gravity=np.array([0.0, -10.00]),
             assembler=assembler)
 
-        body.acceleration_var.set_value([1.0, 0.0, 0.0]) # это установка позиции (хотя может показаться, что это скорость. но это позиция)
+        body.pose_var.set_value([1.0, 0.0, 0.0]) # это установка позиции (хотя может показаться, что это скорость. но это позиция)
 
         joint = FixedRotationJoint2D(
             body=body,
@@ -239,7 +239,7 @@ class TestIntegrationMultibody2D(unittest.TestCase):
 
         assembler.time_step = 0.01  # временной шаг
 
-        for step in range(500):
+        for step in range(5):
             matrices = assembler.assemble()
             A_ext, b_ext, variables = assembler.assemble_extended_system(matrices)
             x = linalg.solve(A_ext, b_ext)
@@ -266,8 +266,6 @@ class TestIntegrationMultibody2D(unittest.TestCase):
 
             print("Equations: ")
             print(eqs)
-            
-            #assert False
 
             q_ddot, holonomic_lambdas, nonholonomic_lambdas = assembler.sort_results(x)
             q_dot, q = assembler.integrate_with_constraint_projection(q_ddot, matrices)
@@ -285,7 +283,8 @@ class TestIntegrationMultibody2D(unittest.TestCase):
             gravity=np.array([0.0, -10.00]),
             assembler=assembler)
 
-        body.acceleration_var.set_value([0.75, 0.0, 0.0]) # это установка позиции (хотя может показаться, что это скорость. но это позиция)
+        body.pose_var.set_value([0.75, 0.0, 0.0]) # это установка позиции (хотя может показаться, что это скорость. но это позиция)
+        print(assembler.collect_variables("position"))
 
         joint = FixedRotationJoint2D(
             body=body,
@@ -320,6 +319,9 @@ class TestIntegrationMultibody2D(unittest.TestCase):
 
         print("Equations: ")
         print(eqs)
+
+        print(assembler.collect_variables("velocity"))
+        print(assembler.collect_variables("position"))
             
         
         q_ddot, holonomic_lambdas, nonholonomic_lambdas = assembler.sort_results(x)

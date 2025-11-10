@@ -26,7 +26,7 @@ class TestIntegrationMultibody3D(unittest.TestCase):
             assembler=assembler)
 
         index_map = assembler.index_map()
-        self.assertIn(body.acc, index_map)
+        self.assertIn(body.acceleration_var, index_map)
 
         matrices = assembler.assemble()
 
@@ -52,7 +52,7 @@ class TestIntegrationMultibody3D(unittest.TestCase):
             assembler=assembler)
 
         index_map = assembler.index_map()
-        self.assertIn(body.acc, index_map)
+        self.assertIn(body.acceleration_var, index_map)
 
         matrices = assembler.assemble()
 
@@ -105,7 +105,7 @@ class TestIntegrationMultibody3D(unittest.TestCase):
             assembler=assembler)
 
         index_map = assembler.index_map()
-        self.assertIn(body.acc, index_map)
+        self.assertIn(body.acceleration_var, index_map)
 
         matrices = assembler.assemble()
 
@@ -155,7 +155,7 @@ class TestIntegrationMultibody3D(unittest.TestCase):
             gravity=np.array([0.0, 0.0, -10.00]),
             assembler=assembler)
 
-        body.acc.set_pose(Pose3(lin=np.array([1.0, 0.0, 0.0])))
+        body.set_pose(Pose3(lin=np.array([1.0, 0.0, 0.0])))
 
         joint = FixedRotationJoint3D(
             body=body,
@@ -175,7 +175,7 @@ class TestIntegrationMultibody3D(unittest.TestCase):
         self.assertIn("force", index_maps)
         self.assertEqual(len(index_maps["force"]), 1)
         self.assertEqual(len(index_maps["acceleration"]), 1)
-        self.assertIn(body.acc, index_maps["acceleration"])
+        self.assertIn(body.acceleration_var, index_maps["acceleration"])
         self.assertIn(joint.internal_force, index_maps["force"])
 
         matrices = assembler.assemble()
@@ -217,8 +217,8 @@ class TestIntegrationMultibody3D(unittest.TestCase):
             gravity=np.array([0.0, 0.0, -10.00]),
             assembler=assembler)
 
-        body.acc.set_pose(Pose3(lin=np.array([0.25, 0.0, 0.0])))
-        #body.acc.set_value_by_rank(np.array([0.0, 0.0, 1.0, 0.0, 0.0, 0.0]), rank=1)
+        body.set_pose(Pose3(lin=np.array([0.25, 0.0, 0.0])))
+        #body.acceleration_var.set_value_by_rank(np.array([0.0, 0.0, 1.0, 0.0, 0.0, 0.0]), rank=1)
 
         joint = FixedRotationJoint3D(
             body=body,
@@ -238,7 +238,7 @@ class TestIntegrationMultibody3D(unittest.TestCase):
         self.assertIn("force", index_maps)
         self.assertEqual(len(index_maps["force"]), 1)
         self.assertEqual(len(index_maps["acceleration"]), 1)
-        self.assertIn(body.acc, index_maps["acceleration"])
+        self.assertIn(body.acceleration_var, index_maps["acceleration"])
         self.assertIn(joint.internal_force, index_maps["force"])
 
         matrices = assembler.assemble()

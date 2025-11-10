@@ -328,3 +328,19 @@ class Pose3:
         self.lin[2] = value
         self._mat = None
         self._mat34 = None
+
+    @staticmethod
+    def from_vector_vw_order(vec: numpy.ndarray) -> 'Pose3':
+        """Create Pose3 from a 7D vector in (vx, vy, vz, wx, wy, wz, w) order."""
+        if vec.shape != (7,):
+            raise ValueError("Input vector must be of shape (7,)")
+        ang = vec[3:7]
+        lin = vec[0:3]
+        return Pose3(ang=ang, lin=lin)
+
+    def to_vector_vw_order(self) -> numpy.ndarray:
+        """Convert Pose3 to a 7D vector in (vx, vy, vz, wx, wy, wz, w) order."""
+        vec = numpy.zeros(7)
+        vec[0:3] = self.lin
+        vec[3:7] = self.ang
+        return vec

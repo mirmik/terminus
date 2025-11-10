@@ -31,25 +31,20 @@ class Variable:
         """
         Args:
             name: Имя переменной (для отладки)
-            size: Размерность (1 для скаляра, 2/3 для вектора)
+            size: Размерность
         """
         
         self.size = size
         self.global_indices = []  # будет заполнено при сборке
         self.tag = tag  # произвольный тег для пользователя
         self._assembler = None  # ссылка на assembler, в котором зарегистрирована переменная
-
-        self._values_by_rank = [numpy.zeros(size), numpy.zeros(size), numpy.zeros(size)]  # для хранения значений по рангам
-        
-        #self.value = numpy.zeros(size) # текущее значение переменной (обновляется после решения)
-        #self.value_dot = numpy.zeros(size) # скорость изменения переменной (если применимо)
-        #self.value_ddot = numpy.zeros(size) # ускорение изменения переменной (если применимо)
+        self.value = np.zeros(size)         # текущее значение переменной (обновляется после решения)
 
         self.name_list = []
         if size == 1:
             self.name_list.append(name)
         else:
-            lst = ["x", "y", "z", "a", "b", "c"]
+            lst = ["x", "y", "z", "a", "b", "c", "w"]
             for i in range(size):
                 vname = name + "_" + lst[i]
                 self.name_list.append(vname)
@@ -66,169 +61,26 @@ class Variable:
         """Вернуть список имен компонент переменной"""
         return self.name_list
 
-    # set и get для value, value_dot, value_ddot
-    @property
-    def value(self) -> np.ndarray:
-        """Текущее значение переменной"""
-        return self._values_by_rank[2]
-
-    @value.setter
-    def value(self, val: np.ndarray):
-        self._values_by_rank[2] = val
-
-    @property
-    def value_dot(self) -> np.ndarray:
-        """Скорость изменения переменной"""
-        return self._values_by_rank[1]
-   
-    @value_dot.setter
-    def value_dot(self, val: np.ndarray):
-        self._values_by_rank[1] = val
-
-    @property
-    def value_ddot(self) -> np.ndarray:
-        """Ускорение изменения переменной"""
-        return self._values_by_rank[0]
-
-    @value_ddot.setter
-    def value_ddot(self, val: np.ndarray):
-        self._values_by_rank[0] = val
-
-    def set_values(self, value_ddot: np.ndarray, value_dot: np.ndarray, value: np.ndarray):
-        """Установить все значения переменной"""
-        self.value_ddot = np.array(value_ddot)
-        self.value_dot = np.array(value_dot)
-        self.value = np.array(value)
-
-    def integrate(self, dt: float):
-        """Обновить значение переменной по скорости и ускорению за шаг dt"""
-        self.value += self.value_dot * dt + 0.5 * self.value_ddot * dt * dt
-        self.value_dot += self.value_ddot * dt
-
     def set_value(self, value: np.ndarray):
-        """Установить текущее значение переменной"""
-        self.value = np.array(value)
-        self._values_by_rank[2] = np.array(value)
+        """
+        Установить значение переменной
+        
+        Args:
+            value: Значение для установки
+        """
 
-    def set_value_dot(self, value_dot: np.ndarray):
-        """Установить скорость изменения переменной"""
-        self.value_dot = np.array(value_dot)
-        self._values_by_rank[1] = np.array(value_dot)
-
-    def set_value_ddot(self, value_ddot: np.ndarray):
-        """Установить ускорение изменения переменной"""
-        self.value_ddot = np.array(value_ddot)
-        self._values_by_rank[0] = np.array(value_ddot)
-
-    def state_for_assembler(self) -> np.ndarray:
-        """Вернуть текущее состояние переменной для сборки векторного решения"""
-        return self.value, self.value_dot
-
-    def value_by_rank(self, rank: int) -> np.ndarray:
-        """Вернуть значение переменной для заданного ранга (0 - ускорение, 1 - скорость, 2 - положение)"""
-        return self._values_by_rank[rank]
-
-    def set_value_by_rank(self, value: np.ndarray, rank: int):
-        """Установить значение переменной для заданного ранга (0 - ускорение, 1 - скорость, 2 - положение)"""
-        self._values_by_rank[rank] = np.array(value)
-
-    def integrate_nonlinear(self, dt: float):
-        """Интегрировать нелинейность"""
-        pass  # по умолчанию ничего не делаем
+        if isinstance(value, list):
+            self.value = np.array(value)
+        elif isinstance(value, (int, float)):
+            self.value = np.array([value])
+        else:
+            if value.shape != (self.size,):
+                raise ValueError(f"Размер входного значения {value.shape} не соответствует размеру переменной {self.size}")
+            self.value = value 
+            
     
 
-class RotationVariable(Variable):
-    def __init__(self, name: str):
-        super().__init__(name, size=3)  # Вращение в 2D - скалярный угол
-        self.rotation = np.array([0.0,0.0,0.0,1.0]) # кватернион по умолчанию
 
-    def integrate(self, dt: float):
-        self.value_dot += self.value_ddot * dt
-        omega = self.value_dot
-        omega_norm = np.linalg.norm(omega)
-        if omega_norm < 1e-12:
-            return  # нет вращения
-
-        axis = omega / omega_norm
-        theta = omega_norm * dt
-        dq = np.array([
-            axis[0] * np.sin(theta / 2),
-            axis[1] * np.sin(theta / 2),
-            axis[2] * np.sin(theta / 2),
-            np.cos(theta / 2)
-        ])
-
-        self.rotation = self.quat_multiply(self.rotation, dq)
-        self.rotation /= np.linalg.norm(self.rotation)
-
-    @staticmethod
-    def quat_multiply(q1, q2):
-        x1, y1, z1, w1 = q1
-        x2, y2, z2, w2 = q2
-        return np.array([
-            w1*x2 + x1*w2 + y1*z2 - z1*y2,
-            w1*y2 - x1*z2 + y1*w2 + z1*x2,
-            w1*z2 + x1*y2 - y1*x2 + z1*w2,
-            w1*w2 - x1*x2 - y1*y2 - z1*z2
-        ])
-
-    def state_for_assembler(self) -> np.ndarray:
-        """Вернуть текущее состояние переменной для сборки векторного решения
-        Предпологается, что матрица не зависит от углового положения, только от угловой скорости"""
-        return np.zeros(3), self.value_dot
-
-class PoseVariable(Variable):
-    def __init__(self, name: str, tag = None):
-        super().__init__(name, size=6, tag=tag)  # 3 pos + 3 rot
-        self.position = np.zeros(3)
-        self.rotation = np.array([0, 0, 0, 1])
-        self.linear_velocity = np.zeros(3)
-        self.angular_velocity = np.zeros(3)
-        self.linear_acceleration = np.zeros(3)
-        self.angular_acceleration = np.zeros(3)
-
-    def pose(self) -> Pose3:
-        return Pose3(ang=self.rotation, lin=self.position)
-
-    def set_pose(self, pose: Pose3):
-        self.position = pose.lin.copy()
-        self.rotation = pose.ang.copy()
-        self.set_value(np.concatenate([self.position, np.zeros(3)]))
-
-    def integrate(self, dt: float):
-        # линейная часть
-        self.linear_velocity += self.linear_acceleration * dt
-        self.position += self.linear_velocity * dt + 0.5 * self.linear_acceleration * dt**2
-        # вращательная часть — через RotationVariable
-        rot_var = RotationVariable("tmp")
-        rot_var.value = self.rotation.copy()
-        rot_var.value_dot = self.angular_velocity.copy()
-        rot_var.value_ddot = self.angular_acceleration.copy()
-        rot_var.integrate(dt)
-        self.rotation = rot_var.value
-
-    def integrate_rotation(self, quat, angvel, dt: float):
-        qdiff = np.array([0.5 * angvel[0], 0.5 * angvel[1], 0.5 * angvel[2], 0.0])
-        dq = quat + qdiff * dt
-        dq /= np.linalg.norm(dq)
-        self.rotation = dq
-
-    def internal_update(self, dt: float):
-        """ Разбирает значение и скорость из value и value_dot """
-        self.angular_velocity = self.value_dot[:3]
-        self.linear_velocity = self.value_dot[3:]
-        self.position = self.value[3:]
-        self.integrate_rotation(self.rotation, self.angular_velocity, dt)
-
-    def set_value_ddot(self, value: np.ndarray):
-        """Установить ускорение изменения переменной"""
-        self.linear_acceleration = np.array(value[:3])
-        self.angular_acceleration = np.array(value[3:])
-
-    def state_for_assembler(self) -> np.ndarray:
-        """Вернуть текущее состояние переменной для сборки векторного решения
-        Вращение обнуляется. Предполагается, что матрица не зависит от ориентации, только от скоростей."""
-        return np.concatenate([np.zeros(3), self.position]), np.concatenate([self.angular_velocity, self.linear_velocity])
 
 class Contribution:
     """
@@ -309,6 +161,15 @@ class Contribution:
             index_map: Отображение Variable -> список глобальных индексов
         """
         return np.zeros(self._rank)
+
+    def finish_timestep(self, dt: float):
+        """
+        Завершить шаг по времени (обновить внутренние состояния, если нужно)
+        
+        Args:
+            dt: Шаг по времени
+        """
+        pass
 
 
 class Constraint:
@@ -567,37 +428,6 @@ class MatrixAssembler:
 
         constraint._assembler = self  # регистрируем assembler
         self.constraints.append(constraint)
-    
-    def _rebuild_state_vectors(self):
-        """Пересобрать внутренние векторы состояния q и q_dot"""
-        n_dofs = self.total_dofs()
-        self._q = np.zeros(n_dofs)
-        self._q_dot = np.zeros(n_dofs)
-        index_map = self.index_map()
-        for var in self.variables:
-            indices = index_map[var]
-            self._q[indices] = var.value
-            self._q_dot[indices] = var.value_dot
-
-    def set_solution(self, x: np.ndarray, variables: List[Variable], rank: int = 0):
-        """
-        Установить решение системы в переменные
-        
-        Args:
-            x: Вектор решения
-            variables: Список переменных, для которых устанавливается решение.
-        """
-        
-        # check sizes
-        if sum(var.size for var in variables) != x.size:
-            raise ValueError("Размер вектора решения не соответствует суммарному размеру переменных")
-
-        index = 0
-        for i in range(len(variables)):
-            var = variables[i]
-            size = var.size
-            var.set_value_by_rank(x[index:index+size], rank)
-            index += size
 
     def _build_index_map(self, variables) -> Dict[Variable, List[int]]:
         """
@@ -647,7 +477,7 @@ class MatrixAssembler:
         self._full_index_map = self._build_full_index_map()
 
         self._dirty_index_map = False
-        self._rebuild_state_vectors()
+        #self._rebuild_state_vectors()
     
     def index_map(self) -> Dict[Variable, List[int]]:
         """
@@ -840,49 +670,6 @@ class MatrixAssembler:
         b_ext[r1:r2] = dN
 
         return A_ext, b_ext
-    
-    def solve_dynamic_problem_with_constraints(self,
-            check_conditioning: bool = True, 
-              use_least_squares: bool = False,
-              set_solution_to_variables: bool = False) -> np.ndarray:
-        """
-        Собрать и решить систему Ad·x'' + C·x' + K·x = b с учетом связей
-        
-        Returns:
-            x: Вектор решения
-        """
-        A, C, K, b = self.assemble_dynamic_problem()
-        H, N, dH, dN = self.assemble_constraints()
-        q, q_d = self._q, self._q_dot
-
-        self._A = A
-        self._C = C
-        self._K = K
-        self._b = b
-        self._H = H
-        self._N = N
-        self._dH = dH
-        self._dN = dN
-
-        A_ext, b_ext = self.make_extended_system(A, C, K, b, H, N, dH, dN, q, q_d)
-
-        self._A_ext = A_ext
-        self._b_ext = b_ext
-
-        # Решение расширенной системы
-        x_ext = self._solve_system(
-            A=A_ext, b=b_ext, 
-                                   check_conditioning=check_conditioning, 
-                                   use_least_squares=use_least_squares)
-
-        self._x_ext = x_ext
-        q_ext = x_ext[:self.total_dofs()]
-
-        # Для тестов:
-        if set_solution_to_variables:
-            self.set_solution_to_variables(q_ext)
-
-        return x_ext, A, C, K, b, H, N, dH, dN
 
     def extended_dynamic_system_size(self) -> int:
         """
@@ -931,14 +718,14 @@ class MatrixAssembler:
         self._update_variables_from_state_vectors()
 
 
-    def _update_variables_from_state_vectors(self):
-        """Обновить значения переменных из внутренних векторов состояния q и q_dot"""
-        index_map = self.index_map()
-        for var in self.variables:
-            indices = index_map[var]
-            var.value = self._q[indices]
-            var.value_dot = self._q_dot[indices]
-            var.nonlinear_integral()
+    # def _update_variables_from_state_vectors(self):
+    #     """Обновить значения переменных из внутренних векторов состояния q и q_dot"""
+    #     index_map = self.index_map()
+    #     for var in self.variables:
+    #         indices = index_map[var]
+    #         var.value = self._q[indices]
+    #         var.value_dot = self._q_dot[indices]
+    #         var.nonlinear_integral()
 
 
     def _solve_system(self, A, b, 
@@ -1004,28 +791,28 @@ class MatrixAssembler:
         
         return x
 
-    def state_vectors(self) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Собрать векторы состояния x и x_dot из текущих значений переменных
+    # def state_vectors(self) -> Tuple[np.ndarray, np.ndarray]:
+    #     """
+    #     Собрать векторы состояния x и x_dot из текущих значений переменных
         
-        Returns:
-            x: Вектор состояний
-            x_dot: Вектор скоростей состояний
-        """
-        if self._index_map is None:
-            raise RuntimeError("Система не собрана. Вызовите assemble() перед получением векторов состояния.")
+    #     Returns:
+    #         x: Вектор состояний
+    #         x_dot: Вектор скоростей состояний
+    #     """
+    #     if self._index_map is None:
+    #         raise RuntimeError("Система не собрана. Вызовите assemble() перед получением векторов состояния.")
         
-        n_dofs = self.total_dofs()
-        x = np.zeros(n_dofs)
-        x_dot = np.zeros(n_dofs)
+    #     n_dofs = self.total_dofs()
+    #     x = np.zeros(n_dofs)
+    #     x_dot = np.zeros(n_dofs)
         
-        for var in self.variables:
-            indices = self._index_map[var]
-            value, value_dot = var.state_for_assembler()
-            x[indices] = value
-            x_dot[indices] = value_dot
+    #     for var in self.variables:
+    #         indices = self._index_map[var]
+    #         value, value_dot = var.state_for_assembler()
+    #         x[indices] = value
+    #         x_dot[indices] = value_dot
         
-        return x, x_dot
+    #     return x, x_dot
 
     def solve_Adxx_Cdx_Kx_b(self, x_dot: np.ndarray, x: np.ndarray,
                             check_conditioning: bool = True,

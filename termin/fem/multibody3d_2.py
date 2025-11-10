@@ -1,7 +1,7 @@
 
 from typing import List, Dict
 import numpy as np
-from termin.fem.assembler import Variable, PoseVariable, Contribution
+from termin.fem.assembler import Variable, Contribution
 from termin.geombase.pose3 import Pose3
 from termin.geombase.screw import Screw3
 from termin.fem.inertia3d import SpatialInertia3D
@@ -21,15 +21,20 @@ class RigidBody3D(Contribution):
         print("Creating RigidBody3D:", name)
 
         # spatial acceleration variable: 6 components
-        self.acc = PoseVariable(name+"_acc", tag="acceleration")
+        self.acceleration_var = Variable(name+"_acc", size=6, tag="acceleration")
+        self.velocity_var = Variable(name+"_vel", size=6, tag="velocity")
+        self.pose_var = Variable(name+"_pose", size=7, tag="position")
 
-        super().__init__([self.acc], assembler=assembler)
+        super().__init__([self.acceleration_var, self.velocity_var, self.pose_var], assembler=assembler)
 
         self.gravity = gravity
         self.spatial_local = inertia   # spatial inertia in body frame
 
     def pose(self):
-        return self.acc.pose()
+        return Pose3.from_vector_vw_order(self.pose_var.value)
+
+    def set_pose(self, pose: Pose3):
+        self.pose_var.value = pose.to_vector_vw_order()
 
     def contribute(self, matrices, index_maps):
         print("CONTRIBUTE")
@@ -37,7 +42,7 @@ class RigidBody3D(Contribution):
         pose = self.pose()
 
         Iw=self.contribute_mass_matrix(matrices, index_maps)
-        idx = index_maps["acceleration"][self.acc]
+        idx = index_maps["acceleration"][self.acceleration_var]
 
         # 3) Spatial gravity
         #gravity_local = pose.inverse_transform_vector(self.gravity)
@@ -57,13 +62,21 @@ class RigidBody3D(Contribution):
         Iw = I_origin.rotate_by(pose)
 
         A = matrices["mass"]
-        idx = index_maps["acceleration"][self.acc]
+        idx = index_maps["acceleration"][self.acceleration_var]
         A[np.ix_(idx, idx)] += Iw.to_matrix_vw_order()
         return Iw
 
     def contribute_for_constraints_correction(self, matrices, index_maps):
         self.contribute_mass_matrix(matrices, index_maps)
         
+    def finish_timestep(self, dt):
+        old_velocity = self.velocity_var.value.copy()
+        self.velocity_var.value += self.acceleration_var.value * dt
+        scr = Screw3(lin=old_velocity[0:3], ang=old_velocity[3:6])
+        delta_pose = scr.to_pose(dt)
+        curpose = self.pose_var.value
+        newpose = curpose * delta_pose
+        self.pose_var.value = newpose.to_vector_vw_order()
 
 class ForceOnBody3D(Contribution):
     """
@@ -149,7 +162,7 @@ class FixedRotationJoint3D(Contribution):
         # актуализируем r в мировых
         self.update_radius()
 
-        super().__init__([self.body.acc, self.internal_force], assembler=assembler)
+        super().__init__([self.body.acceleration_var, self.internal_force], assembler=assembler)
 
     # -----------------------------------------------------------
 
@@ -175,7 +188,7 @@ class FixedRotationJoint3D(Contribution):
         cmap = index_maps["force"]
 
         # индексы скоростей тела
-        v_idx = amap[self.body.acc]      # 6 индексов
+        v_idx = amap[self.body.acceleration_var]      # 6 индексов
         # индексы внутренних сил
         f_idx = cmap[self.internal_force]     # 3 индексов
 
