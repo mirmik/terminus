@@ -201,7 +201,7 @@ class TestIntegrationMultibody2D(unittest.TestCase):
             assembler=assembler)
 
         body.pose_var.set_value([1.0, 0.0, 0.0])
-        body.velocity_var.set_value([0.0, 0.0, 5.0])  # угловая скорость 5 рад/с
+        body.velocity_var.set_value([0.0, 6.0, 6.0]) 
 
         joint = FixedRotationJoint2D(
             body=body,
@@ -234,10 +234,12 @@ class TestIntegrationMultibody2D(unittest.TestCase):
         print("Equations: ")
         print(eqs)
 
-        assert np.isclose(x[0], -25.0)
+        # assert False
+
+        assert np.isclose(x[0], -36.0)
         assert np.isclose(x[1], 0.0)
         assert np.isclose(x[2], 0.0)
-        assert np.isclose(x[3], -125)
+        assert np.isclose(x[3], -360)
         assert np.isclose(x[4], 0.0)
 
     def test_simple_pendulum_in_bottom_position(self):

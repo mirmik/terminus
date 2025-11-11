@@ -126,6 +126,26 @@ class Screw2(Screw):
         """Return the screw as a 3x1 array in [w, vx, vy] order."""
         return numpy.array([self.moment(), self.lin[0], self.lin[1]], float)
 
+    def from_vector_vw_order(vec: numpy.ndarray) -> "Screw2":
+        """Create a Screw2 from a 3x1 array in [vx, vy, w] order."""
+        if vec.shape != (3,):
+            raise Exception("Input vector must be of shape (3,)")
+
+        return Screw2(
+            ang=numpy.array([vec[2]]),
+            lin=numpy.array([vec[0], vec[1]])
+        )
+
+    def from_vector_wv_order(vec: numpy.ndarray) -> "Screw2":
+        """Create a Screw2 from a 3x1 array in [w, vx, vy] order."""
+        if vec.shape != (3,):
+            raise Exception("Input vector must be of shape (3,)")
+
+        return Screw2(
+            ang=numpy.array([vec[0]]),
+            lin=numpy.array([vec[1], vec[2]])
+        )
+
 class Screw3(Screw):
     """A 3D Screw specialized for spatial motions."""
     def __init__(self, ang: numpy.ndarray = numpy.array([0,0,0]), lin: numpy.ndarray = numpy.array([0,0,0])):

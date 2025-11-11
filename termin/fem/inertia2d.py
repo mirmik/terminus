@@ -146,3 +146,15 @@ class SpatialInertia2D:
     def get_kinetic_energy(self, velocity: np.ndarray, omega: float) -> float:
         v_squared = np.dot(velocity, velocity)
         return 0.5 * self.m * v_squared + 0.5 * self.I_com * omega**2
+
+    def bias_wrench(self, velocity : Screw2) -> Screw2:
+        vx, vy, omega = velocity.lin[0], velocity.lin[1], velocity.ang
+        m = self.m
+        cx, cy = self.c
+
+        Fx =  m * (omega * vy + omega**2 * cx)
+        Fy = -m * (omega * vx) + m * (omega**2 * cy)
+
+        τz = 0.0  # В 2D кориолисового момента нет
+
+        return Screw2(ang=τz, lin=np.array([Fx, Fy]))

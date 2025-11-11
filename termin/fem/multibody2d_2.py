@@ -55,7 +55,20 @@ class RigidBody2D(Contribution):
         # Гравитация в глобальной СК
         a_idx = index_maps["acceleration"][self.acceleration_var]
         b = matrices["load"]
-        b[a_idx] += self.inertia.gravity_wrench(self.gravity).to_vector_vw_order()
+
+        # 1) Инерционный скоростной bias, она же сила Кориолиса: v×* (I v)
+        v = self.velocity_var.value
+        velscr = Screw2(lin=v[0:2], ang=v[2])
+        velscr_local = velscr.rotated_by(self.pose().inverse())
+        bias_wrench = self.inertia.bias_wrench(velscr_local) 
+        bw_world = bias_wrench.rotated_by(self.pose())
+        b[a_idx] += bw_world.to_vector_vw_order()
+
+        # 2) Гравитационная сила
+        gravity_local = self.pose().inverse().rotate_vector(self.gravity)
+        gr_wrench_local = self.inertia.gravity_wrench(gravity_local).to_vector_vw_order()
+        gr_wrench_world = Screw2.from_vector_vw_order(gr_wrench_local).rotated_by(self.pose())
+        b[a_idx] += gr_wrench_world.to_vector_vw_order()
 
     def contribute_for_constraints_correction(self, matrices, index_maps):
         self.contribute_to_mass_matrix(matrices, index_maps)
@@ -164,9 +177,9 @@ class FixedRotationJoint2D(Contribution):
         constraints_map = index_maps["force"]
         F_indices = constraints_map[self.internal_force]
 
-        bias = (omega**2) * radius
-        h[F_indices[0]] += -bias[0]
-        h[F_indices[1]] += -bias[1]
+        bias = - (omega**2) * radius
+        h[F_indices[0]] += bias[0]
+        h[F_indices[1]] += bias[1]
 
 
     def contribute_to_holonomic_matrix(self, matrices, index_maps: Dict[str, Dict[Variable, List[int]]]):
@@ -236,10 +249,8 @@ class RevoluteJoint2D(Contribution):
         """Пересчитать глобальные радиусы до опорных точек"""
         poseA = self.bodyA.pose()
         poseB = self.bodyB.pose()
-
-        self.rA = poseA.transform_point(self.rA_local) - poseA.lin
-        self.rB = poseB.transform_point(self.rB_local) - poseB.lin
-
+        self.rA = poseA.rotate_vector(self.rA_local)
+        self.rB = poseB.rotate_vector(self.rB_local)
 
     def contribute(self, matrices, index_maps: Dict[str, Dict[Variable, List[int]]]):
         """Добавляет вклад в матрицы для ускорений"""
