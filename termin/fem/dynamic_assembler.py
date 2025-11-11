@@ -244,7 +244,7 @@ class DynamicMatrixAssembler(MatrixAssembler):
             "stiffness": np.zeros((n_dofs, n_positions)),
             "load": np.zeros(n_dofs),
             "holonomic": np.zeros((n_constraints, n_dofs)),
-            "holonomic_load": np.zeros(n_constraints),
+            "holonomic_rhs": np.zeros(n_constraints),
             #"old_q": self.collect_variables(index_maps["acceleration"]),
             #"old_q_dot": self.collect_current_q_dot(index_maps["acceleration"]),
             #"holonomic_velocity_rhs": np.zeros(n_constraints),
@@ -283,7 +283,7 @@ class DynamicMatrixAssembler(MatrixAssembler):
         old_q_dot = self.collect_variables("velocity")
         old_q = self.collect_variables("position")
         H = matrices["holonomic"]
-        h = matrices["holonomic_load"]
+        h = matrices["holonomic_rhs"]
 
         variables = (
             list(self.index_map_by_tag("acceleration").keys()) + 

@@ -166,11 +166,12 @@ class TestIntegrationMultibody2D(unittest.TestCase):
 
         joint = FixedRotationJoint2D(
             body=body,
+            coords_of_joint=np.array([0.0, 0.0]),
             assembler=assembler)
 
         assert joint.radius is not None
-        assert joint.radius[0] == -1.0
-        assert joint.radius[1] == 0.0
+        assert joint.radius()[0] == -1.0
+        assert joint.radius()[1] == 0.0
         assert assembler.total_variables_by_tag("acceleration") == 3
         assert assembler.total_variables_by_tag("force") == 2
 
@@ -190,6 +191,55 @@ class TestIntegrationMultibody2D(unittest.TestCase):
         assert np.isclose(x[1], -5.0)
         assert np.isclose(x[2], -5.0)
 
+    def test_rigid_body_with_fixed_rotation_joint_nonnull_angvel(self):
+        """Создание простой системы с одним твердым телом и фиксированным шарниром"""
+        assembler = DynamicMatrixAssembler()
+        
+        body = RigidBody2D(
+            inertia=SpatialInertia2D(mass=5.0, inertia=5.0, com=np.zeros(2)),
+            gravity=np.array([0.0, 0.0]),
+            assembler=assembler)
+
+        body.pose_var.set_value([1.0, 0.0, 0.0])
+        body.velocity_var.set_value([0.0, 0.0, 5.0])  # угловая скорость 5 рад/с
+
+        joint = FixedRotationJoint2D(
+            body=body,
+            coords_of_joint=np.array([0.0, 0.0]),
+            assembler=assembler)
+
+        matrices = assembler.assemble()
+        A_ext, b_ext, variables = assembler.assemble_extended_system(matrices)
+        x = linalg.solve(A_ext, b_ext)
+
+        print("A_ext: \n")
+        print(A_ext)
+
+        print("b_ext: \n")
+        print(b_ext)
+
+        print ("variables: \n")
+        print(variables)
+
+        print("Result: \n")
+        print(x)
+
+        diagnosis = assembler.matrix_diagnosis(A_ext)
+        print("Matrix Diagnosis: ")
+        for key, value in diagnosis.items():
+            print(f"  {key}: {value}")
+
+        eqs = assembler.system_to_human_readable(A_ext, b_ext, variables)
+
+        print("Equations: ")
+        print(eqs)
+
+        assert np.isclose(x[0], -25.0)
+        assert np.isclose(x[1], 0.0)
+        assert np.isclose(x[2], 0.0)
+        assert np.isclose(x[3], -125)
+        assert np.isclose(x[4], 0.0)
+
     def test_simple_pendulum_in_bottom_position(self):
         """Создание простой системы с одним твердым телом и фиксированным шарниром"""
         assembler = DynamicMatrixAssembler()
@@ -207,7 +257,6 @@ class TestIntegrationMultibody2D(unittest.TestCase):
 
         assembler.time_step = 0.01  # временной шаг
 
-        joint.update_radius_to_body()
         matrices = assembler.assemble()
         A_ext, b_ext, variables = assembler.assemble_extended_system(matrices)
         x = linalg.solve(A_ext, b_ext)
@@ -288,6 +337,7 @@ class TestIntegrationMultibody2D(unittest.TestCase):
 
         joint = FixedRotationJoint2D(
             body=body,
+            coords_of_joint=np.array([0.0, 0.0]),
             assembler=assembler)
 
         assembler.time_step = 0.01  # временной шаг

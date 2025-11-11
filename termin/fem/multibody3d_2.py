@@ -17,18 +17,12 @@ class RigidBody3D(Contribution):
     def __init__(self, inertia: SpatialInertia3D,
                  gravity=np.array([0,0,-9.81]),
                  assembler=None, name="rbody3d"):
-
-        print("Creating RigidBody3D:", name)
-
-        # spatial acceleration variable: 6 components
         self.acceleration_var = Variable(name+"_acc", size=6, tag="acceleration")
         self.velocity_var = Variable(name+"_vel", size=6, tag="velocity")
         self.pose_var = Variable(name+"_pose", size=7, tag="position")
-
-        super().__init__([self.acceleration_var, self.velocity_var, self.pose_var], assembler=assembler)
-
         self.gravity = gravity
         self.spatial_local = inertia   # spatial inertia in body frame
+        super().__init__([self.acceleration_var, self.velocity_var, self.pose_var], assembler=assembler)
 
     def pose(self):
         return Pose3.from_vector_vw_order(self.pose_var.value)
@@ -37,21 +31,13 @@ class RigidBody3D(Contribution):
         self.pose_var.value = pose.to_vector_vw_order()
 
     def contribute(self, matrices, index_maps):
-        print("CONTRIBUTE")
-
         pose = self.pose()
 
         Iw=self.contribute_mass_matrix(matrices, index_maps)
+
         idx = index_maps["acceleration"][self.acceleration_var]
-
-        # 3) Spatial gravity
-        #gravity_local = pose.inverse_transform_vector(self.gravity)
-        #Fg_screw = self.spatial_local.gravity_wrench(gravity_local)   # 6×1 vector
         Fg_screw = Iw.gravity_wrench(self.gravity)   # 6×1 vector
-
         Fg = Fg_screw.to_vw_array()  # in world frame
-        print("Gravity wrench:", Fg)
-
         b = matrices["load"]
         for i in range(6):
             b[idx[i]] += Fg[i]
