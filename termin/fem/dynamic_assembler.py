@@ -364,16 +364,21 @@ class DynamicMatrixAssembler(MatrixAssembler):
                 q_ddot: np.ndarray, matrices: Dict[str, np.ndarray]):
         dt = self.time_step
 
+        self.upload_variables("acceleration", q_ddot)
+
         for contribution in self.contributions:
             contribution.finish_timestep(dt)
 
-        q = self.collect_variables("position")
         q_dot = self.collect_variables("velocity")
 
         for _ in range(2):  # несколько итераций проекции положений
+            q = self.collect_variables("position")
             matrices = self.assemble_for_constraints_correction()
             q = self.coords_project_onto_constraints(q, matrices)
             self.upload_variables("position", q)
+            for contribution in self.contributions:
+                if hasattr(contribution, "finish_correction_step"):
+                    contribution.finish_correction_step()
         
         matrices = self.assemble_for_constraints_correction()
         q_dot = self.velocity_project_onto_constraints(q_dot, matrices)   

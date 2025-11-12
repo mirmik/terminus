@@ -58,11 +58,15 @@ class RigidBody3D(Contribution):
     def finish_timestep(self, dt):
         old_velocity = self.velocity_var.value.copy()
         self.velocity_var.value += self.acceleration_var.value * dt
-        scr = Screw3(lin=old_velocity[0:3], ang=old_velocity[3:6])
-        delta_pose = scr.to_pose(dt)
-        curpose = self.pose_var.value
+        delta_scr = Screw3(lin=old_velocity[0:3]*dt, ang=old_velocity[3:6]*dt)
+        delta_pose = delta_scr.to_pose()
+        curpose = Pose3.from_vector_vw_order(self.pose_var.value)
         newpose = curpose * delta_pose
         self.pose_var.value = newpose.to_vector_vw_order()
+
+    def matrix_of_transform_from_minimal_coordinates(self) -> np.ndarray:
+        """Матрица перехода от минимальных координат, где повот выражен в углах в собственной системе координат, к спатиал позе с кватернионом. Матрица 7×6 ."""
+        
 
 class ForceOnBody3D(Contribution):
     """

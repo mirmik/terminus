@@ -86,8 +86,7 @@ class Pose2:
     def inverse_transform_point(self, point: numpy.ndarray) -> numpy.ndarray:
         """Transform a 2D point using the inverse of the pose."""
         point = numpy.asarray(point)
-        if point.shape != (2,):
-            raise ValueError("point must be a 2D vector")
+        point = point.reshape(2)
         R = self.rotation_matrix()
         return R.T @ (point - self.lin)
 
@@ -109,6 +108,10 @@ class Pose2:
         R = self.rotation_matrix()
         new_lin = self.lin + R @ other.lin
         return Pose2(ang=new_ang, lin=new_lin)
+
+    def __matmul__(self, other):
+        """Compose this pose with another pose using @ operator."""
+        return self * other
 
     def compose(self, other: 'Pose2') -> 'Pose2':
         """Compose this pose with another pose."""

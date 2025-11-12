@@ -36,12 +36,15 @@ class Screw2(Screw):
         if not isinstance(ang, numpy.ndarray):
             ang = numpy.array(ang)
 
-        # check shapes
-        if ang.shape != (1,) and ang.shape != ():
-            raise Exception("ang must be a scalar or shape (1,) ndarray")
+        # # check shapes
+        # if ang.shape != (1,) and ang.shape != ():
+        #     raise Exception("ang must be a scalar or shape (1,) ndarray")
 
-        if lin.shape != (2,):
-            raise Exception("lin must be shape (2,) ndarray")
+        # if lin.shape != (2,):
+        #     raise Exception(f"lin must be shape (2,) ndarray, got {lin.shape}")
+
+        ang = ang.reshape(1)
+        lin = lin.reshape(2)
 
         super().__init__(ang=ang, lin=lin)
 
@@ -144,6 +147,13 @@ class Screw2(Screw):
         return Screw2(
             ang=numpy.array([vec[0]]),
             lin=numpy.array([vec[1], vec[2]])
+        )
+
+    def to_pose(self):
+        """Convert the screw to a Pose2 representation (for small motions)."""
+        return Pose2(
+            ang=self.moment(),
+            lin=self.lin
         )
 
 class Screw3(Screw):
@@ -264,3 +274,47 @@ class Screw3(Screw):
     def to_wv_array(self) -> numpy.ndarray:
         """Return the screw as a 6x1 array in [wx, wy, wz, vx, vy, vz] order."""
         return numpy.hstack([self.ang, self.lin])
+
+    def from_vw_array(vec: numpy.ndarray) -> "Screw3":
+        """Create a Screw3 from a 6x1 array in [vx, vy, vz, wx, wy, wz] order."""
+        if vec.shape != (6,):
+            raise Exception("Input vector must be of shape (6,)")
+
+        return Screw3(
+            ang=vec[3:6],
+            lin=vec[0:3]
+        )
+    def from_wv_array(vec: numpy.ndarray) -> "Screw3":
+        """Create a Screw3 from a 6x1 array in [wx, wy, wz, vx, vy, vz] order."""
+        if vec.shape != (6,):
+            raise Exception("Input vector must be of shape (6,)")
+
+        return Screw3(
+            ang=vec[0:3],
+            lin=vec[3:6]
+        )
+
+    def to_pose(self):
+        """Convert the screw to a Pose3 representation (for small motions)."""
+        lin = self.lin
+
+        #exponential map for rotation
+        theta = numpy.linalg.norm(self.ang)
+        if theta < 1e-8:
+            # Pure translation
+            return Pose3(
+                ang=numpy.array([0.0, 0.0, 0.0, 1.0]),
+                lin=lin
+            )
+        axis = self.ang / theta
+        half_angle = theta / 2.0
+        q = numpy.array([
+            axis[0] * math.sin(half_angle),
+            axis[1] * math.sin(half_angle),
+            axis[2] * math.sin(half_angle),
+            math.cos(half_angle)
+        ])
+        return Pose3(
+            ang=q,
+            lin=lin
+        )
