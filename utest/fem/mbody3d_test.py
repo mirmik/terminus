@@ -5,7 +5,7 @@ import unittest
 import numpy as np
 import warnings
 from termin.fem.dynamic_assembler import DynamicMatrixAssembler
-from termin.fem.multibody3d_2 import (
+from termin.fem.multibody3d_3 import (
     RigidBody3D, FixedRotationJoint3D #ForceOnBody3D, , RevoluteJoint3D
 )
 from termin.geombase.pose3 import Pose3
@@ -160,13 +160,12 @@ class TestIntegrationMultibody3D(unittest.TestCase):
         joint = FixedRotationJoint3D(
             body=body,
             assembler=assembler,
-            joint_point = np.array([0.0, 0.0, 0.0]))
+            coords_of_joint = np.array([0.0, 0.0, 0.0]))
 
-        joint.update_radius()
-
+        
         assert joint.radius is not None
-        assert joint.radius[0] == -1.0
-        assert joint.radius[1] == 0.0
+        assert joint.radius()[0] == -1.0
+        assert joint.radius()[1] == 0.0
         assert assembler.total_variables_by_tag("acceleration") == 6
         assert assembler.total_variables_by_tag("force") == 3
 
@@ -223,9 +222,9 @@ class TestIntegrationMultibody3D(unittest.TestCase):
         joint = FixedRotationJoint3D(
             body=body,
             assembler=assembler,
-            joint_point = np.array([0.0, 0.0, 0.0]))
+            coords_of_joint = np.array([0.0, 0.0, 0.0]))
 
-        joint.update_radius()
+        #joint.update_radius()
 
         assert joint.radius is not None
         #assert joint.radius[0] == -1.0

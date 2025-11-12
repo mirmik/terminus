@@ -251,7 +251,7 @@ class TestIntegrationMultibody2D(unittest.TestCase):
             gravity=np.array([0.0, -10.00]),
             assembler=assembler)
 
-        body.pose_var.set_value([0.0, -1.0, 0.0])
+        body.set_pose(Pose2(lin=[0.0, -1.0], ang=0.0))
 
         joint = FixedRotationJoint2D(
             body=body,
@@ -277,7 +277,7 @@ class TestIntegrationMultibody2D(unittest.TestCase):
             gravity=np.array([0.0, -10.00]),
             assembler=assembler)
 
-        body.pose_var.set_value([0.0, -1.0, 0.0])
+        body.set_pose(Pose2(lin=[0.0, -1.0], ang=0.0))
 
         joint = FixedRotationJoint2D(
             body=body,
@@ -298,10 +298,10 @@ class TestIntegrationMultibody2D(unittest.TestCase):
             gravity=np.array([-10.0, 0.00]),
             assembler=assembler2)
 
-        body2.pose_var.set_value([-1.0, 0.0, 0.0])
+        body2.set_pose(Pose2(lin=[-1.0, 0.0], ang=0.0))
 
         joint2 = FixedRotationJoint2D(
-            body=body,
+            body=body2,
             assembler=assembler2)
 
         assembler2.time_step = 0.01  # временной шаг

@@ -1,181 +1,172 @@
 #!/usr/bin/env python3
-"""
-Инерционные характеристики для 3D многотельной динамики.
-"""
 
 import numpy as np
 from termin.geombase.pose3 import Pose3
 from termin.geombase.screw import Screw3
 
-def skew(v: np.ndarray) -> np.ndarray:
-    """Возвращает кососимметричную матрицу для вектора v."""
-    return np.array([[0, -v[2], v[1]],
-                     [v[2], 0, -v[0]],
-                     [-v[1], v[0], 0]])
+
+def skew3(v):
+    """3D skew matrix: v×x = skew3(v) @ x."""
+    vx, vy, vz = v
+    return np.array([
+        [ 0,   -vz,  vy ],
+        [ vz,   0,  -vx ],
+        [-vy,  vx,   0  ],
+    ], float)
+
 
 class SpatialInertia3D:
-    def __init__(self, mass, inertia, com=np.zeros(3)):
+    def __init__(self, mass=0.0, inertia=None, com=np.zeros(3)):
+        """
+        mass    : масса
+        inertia : 3×3 матрица тензора инерции в центре масс
+        com     : 3-вектор центра масс (в локальной системе)
+        """
         self.m = float(mass)
-        self.c = np.asarray(com).reshape(3)     # COM
-        self.I_com = np.asarray(inertia).reshape(3,3)
+        if inertia is None:
+            self.Ic = np.zeros((3,3), float)
+        else:
+            self.Ic = np.asarray(inertia, float).reshape(3,3)
+        self.c = np.asarray(com, float).reshape(3)
 
-    def transform_by(self, pose: Pose3):
-        R = pose.rotation_matrix()
-        c_new = pose.transform_point(self.c)   # перевод COM в мировой фрейм (с трансляцией)
-        I_rot = R @ self.I_com @ R.T           # всё ещё центральный тензор, только в мировом базисе
-        return SpatialInertia3D(self.m, I_rot, c_new)
+    @property
+    def mass(self):
+        return self.m
 
-    def rotate_by(self, pose: Pose3) -> "SpatialInertia3D":
+    @property
+    def inertia_matrix(self):
+        return self.Ic
+
+    @property
+    def center_of_mass(self):
+        return self.c
+
+    # ------------------------------------------------------------
+    #     transform / rotated
+    # ------------------------------------------------------------
+    def transform_by(self, pose: Pose3) -> "SpatialInertia3D":
         """
-        Повернуть spatial inertia согласно ориентации pose.
-        Трансляция pose игнорируется — spatial inertia зависит только от ориентации.
-        COM и inertia переносятся поворотом.
+        Преобразование spatial inertia в новую СК.
+        Как и в 2D: COM просто переносится.
+        Тензор инерции переносится с помощью правила для тензора.
         """
-
         R = pose.rotation_matrix()
+        cW = pose.transform_point(self.c)
 
-        # 1) Поворот центра масс
+        # I_com_new = R * I_com * R^T
+        Ic_new = R @ self.Ic @ R.T
+        return SpatialInertia3D(self.m, Ic_new, cW)
+
+    def rotated(self, ang):
+        """
+        Повернуть spatial inertia в локале.
+        ang — 3-вектор, интерпретируем как ось-угол через экспоненту.
+        """
+        # Pose3 умеет делать экспоненту
+        R = Pose3(lin=np.zeros(3), ang=ang).rotation_matrix()
+
         c_new = R @ self.c
+        Ic_new = R @ self.Ic @ R.T
+        return SpatialInertia3D(self.m, Ic_new, c_new)
 
-        # 2) Поворот центрального тензора инерции
-        I_com_new = R @ self.I_com @ R.T
-
-        return SpatialInertia3D(self.m, I_com_new, c_new)
-
-    def at_body_origin(self) -> "SpatialInertia3D":
+    # ------------------------------------------------------------
+    #     Spatial inertia matrix (VW order)
+    # ------------------------------------------------------------
+    def to_matrix_vw_order(self):
         """
-        Возвращает spatial inertia, приведённую к origin тела.
-        COM становится (0,0,0).
-        Тензор инерции пересчитывается по формуле Штейнера.
+        Возвращает spatial inertia в порядке:
+        [ v, ω ]  (первые 3 — линейные, вторые 3 — угловые).
         """
-
-        c = self.c              # COM в локальной системе тела
         m = self.m
-        S = skew(c)
-
-        # инерция относительно origin тела (а не COM)
-        I_origin = self.I_com + m * (S @ S.T)
-
-        # после переноса COM должен быть равен нулю
-        return SpatialInertia3D(m, I_origin, com=np.zeros(3))
-
-    def at_body_origin_wv_order(self):
         c = self.c
-        m = self.m
-        S = skew(c)
+        S = skew3(c)
 
-        I_com = self.I_com
-        I_origin = I_com + m * (S @ S.T)
-
-        upper_left  = I_origin
-        upper_right = m * S
-        lower_left  = -m * S.T
-        lower_right = m * np.eye(3)
+        upper_left  = m * np.eye(3)
+        upper_right = -m * S
+        lower_left  = m * S
+        lower_right = self.Ic + m * (S @ S.T)
 
         return np.block([
             [upper_left,  upper_right],
             [lower_left,  lower_right]
         ])
 
-    def at_body_origin_vw_order(self):
-        c = self.c
+    # ------------------------------------------------------------
+    #     Gravity wrench
+    # ------------------------------------------------------------
+    def gravity_wrench(self, g_local: np.ndarray) -> Screw3:
+        """
+        Возвращает винт (F, τ) в локальной системе.
+        g_local — гравитация в ЛОКАЛЕ.
+        """
         m = self.m
-        S = skew(c)
-
-        I_com = self.I_com
-        I_origin = I_com + m * (S @ S.T)
-
-        # WV-order blocks
-        A = I_origin
-        B = m * S
-        C = -m * S.T
-        D = m * np.eye(3)
-
-        # VW permutation
-        return np.block([
-            [D,  C],
-            [B,  A]
-        ])
-
-
-    def gravity_wrench(self, gravity_local: np.ndarray) -> Screw3:
-        """
-        Возвращает пространственный винт (сила+момент) от гравитации,
-        выраженный в ЛОКАЛЬНОЙ системе тела.
-
-        gravity_local — гравитация, выраженная в локальной системе.
-        """
-
-        F = self.m * gravity_local
-        τ = np.cross(self.c, F)  # self.c — локальный COM
-
+        c = self.c
+        F = m * g_local
+        τ = np.cross(c, F)
         return Screw3(ang=τ, lin=F)
 
+    # ------------------------------------------------------------
+    #     Bias wrench
+    # ------------------------------------------------------------
+    def bias_wrench(self, velocity: Screw3) -> Screw3:
+        """
+        Пространственный bias-винт: v ×* (I v).
+        Полный 3D аналог твоего 2D-кода.
+        """
+        m = self.m
+        c = self.c
+        Ic = self.Ic
+
+        v_lin = velocity.lin
+        v_ang = velocity.ang
+
+        S = skew3(c)
+
+        # spatial inertia * v:
+        h_lin = m * (v_lin + np.cross(v_ang, c))
+        h_ang = Ic @ v_ang + m * np.cross(c, v_lin)
+
+        # теперь bias = v ×* h
+        # линейная часть:
+        b_lin = np.cross(v_ang, h_lin) + np.cross(v_lin, h_ang)*0.0  # линейная от линейной не даёт
+        # угловая часть:
+        b_ang = np.cross(v_ang, h_ang)
+
+        return Screw3(ang=b_ang, lin=b_lin)
+
+    # ------------------------------------------------------------
+    #     Сложение spatial inertia
+    # ------------------------------------------------------------
     def __add__(self, other):
-        """Сумма двух spatial inertia в одном фрейме."""
         if not isinstance(other, SpatialInertia3D):
             return NotImplemented
 
         m1, m2 = self.m, other.m
         c1, c2 = self.c, other.c
-        I1, I2 = self.I_com, other.I_com
+        I1, I2 = self.Ic, other.Ic
 
-        # общая масса
         m = m1 + m2
         if m == 0.0:
             return SpatialInertia3D(0.0, np.zeros((3,3)), np.zeros(3))
 
-        # общий центр масс
         c = (m1 * c1 + m2 * c2) / m
-
-        # смещения от индивидуальных COM до общего
         d1 = c1 - c
         d2 = c2 - c
 
-        # перенос инерций к общему центру масс
-        I = (
-            I1 + I2
-            + m1 * skew(d1) @ skew(d1).T
-            + m2 * skew(d2) @ skew(d2).T
-        )
+        S1 = skew3(d1)
+        S2 = skew3(d2)
 
-        return SpatialInertia3D(m, I, c)
+        Ic = I1 + m1 * (S1 @ S1.T) + I2 + m2 * (S2 @ S2.T)
 
-    def to_matrix_wv_order(self):
+        return SpatialInertia3D(m, Ic, c)
+
+    # ------------------------------------------------------------
+    #     Kinetic energy
+    # ------------------------------------------------------------
+    def get_kinetic_energy(self, velocity: np.ndarray, omega: np.ndarray) -> float:
         """
-        Spatial inertia matrix в порядке [ω; v].
+        velocity — линейная скорость
+        omega    — угловая скорость
         """
-        csk = skew(self.c)
-        m = self.m
-        I = self.I_com
-
-        upper_left  = I + m * (csk @ csk.T)
-        upper_right = m * csk
-        lower_left  = m * csk.T
-        lower_right = m * np.eye(3)
-
-        return np.block([
-            [upper_left,  upper_right],
-            [lower_left,  lower_right]
-        ])
-
-
-    def to_matrix_vw_order(self):
-        """
-        Spatial inertia matrix в порядке [v; ω].
-        Это просто перестановка блоков wv-матрицы.
-        """
-        csk = skew(self.c)
-        m = self.m
-        I = self.I_com
-
-        # блоки те же самые
-        upper_left  = m * np.eye(3)            # v–v
-        upper_right = m * csk.T               # v–ω
-        lower_left  = m * csk                  # ω–v
-        lower_right = I + m * (csk @ csk.T)    # ω–ω
-
-        return np.block([
-            [upper_left,  upper_right],
-            [lower_left,  lower_right]
-        ])
+        v2 = np.dot(velocity, velocity)
+        return 0.5 * self.m * v2 + 0.5 * (omega @ (self.Ic @ omega))

@@ -1,6 +1,10 @@
 """
-Вторая версия модели многотельной системы в 2D
-(локальные расчёты, сборка в глобальной СК)
+Соглашение о уравнениях такого, что все уравнения собираются в локальной СК тела.
+Глобальная поза тела хранится отдельно и используется только для обновления геометрии.
+
+Преобразования следуют конвенции локальная система -> мировая система:
+    p_world = P(q) @ p_local
+    p_world = R(θ) @ p_local
 """
 
 from typing import List, Dict
@@ -27,7 +31,7 @@ class RigidBody2D(Contribution):
     ):
         self.acceleration_var = Variable(name + "_acc", size=3, tag="acceleration")  # [ax, ay, α]_local
         self.velocity_var = Variable(name + "_vel", size=3, tag="velocity")          # [vx, vy, ω]_local
-        self.pose_var = Variable(name + "_pos", size=3, tag="position")              # [x, y, θ]_local (для интеграции лок. движения)
+        self.local_pose_var = Variable(name + "_pos", size=3, tag="position")              # [x, y, θ]_local (для интеграции лок. движения)
 
         # глобальная поза тела (Pose2)
         self.global_pose = Pose2(lin=np.zeros(2), ang=0.0)
@@ -38,7 +42,7 @@ class RigidBody2D(Contribution):
         # сила тяжести задаётся в мировых координатах
         self.gravity = np.array([0.0, -9.81]) if gravity is None else np.asarray(gravity, float).reshape(2)
 
-        super().__init__([self.acceleration_var, self.velocity_var, self.pose_var], assembler=assembler)
+        super().__init__([self.acceleration_var, self.velocity_var, self.local_pose_var], assembler=assembler)
 
     # ---------- геттеры ----------
     def pose(self) -> Pose2:
@@ -86,8 +90,6 @@ class RigidBody2D(Contribution):
         затем обновляем глобальную позу, используя локальное смещение.
         После этого локальная поза обнуляется (тело возвращается в свою СК).
         """
-       # print(f"Finish timestep for body at pose {self.global_pose}, dt={dt}, vel={self.velocity_var.value}, acc={self.acceleration_var.value}")
-
         v = self.velocity_var.value
         a = self.acceleration_var.value
         v += a * dt
@@ -103,7 +105,7 @@ class RigidBody2D(Contribution):
         self.global_pose = self.global_pose @ delta_pose_local
 
         # сбрасываем локальную позу
-        self.pose_var.value[:] = 0.0
+        self.local_pose_var.value[:] = 0.0
 
         if self.angle_normalize is not None:
             self.global_pose.ang = self.angle_normalize(self.global_pose.ang)
@@ -113,13 +115,10 @@ class RigidBody2D(Contribution):
         После коррекции позиций сбрасываем локальную позу.
         """
         self.global_pose = self.global_pose @ Pose2(
-            lin=self.pose_var.value[0:2],
-            ang=self.pose_var.value[2],
+            lin=self.local_pose_var.value[0:2],
+            ang=self.local_pose_var.value[2],
         )
-
-        print(f"Finish correction step for body, new global pose: {self.global_pose}")
-
-        self.pose_var.value[:] = 0.0
+        self.local_pose_var.value[:] = 0.0
 
 class ForceOnBody2D(Contribution):
     """Внешняя сила и момент в локальной СК тела."""
@@ -204,12 +203,8 @@ class FixedRotationJoint2D(Contribution):
         poserr = matrices["position_error"]
         F_idx = index_maps["force"][self.internal_force]
 
-        pose = self.body.pose()
-        c, s = np.cos(pose.ang), np.sin(pose.ang)
-        R_T = np.array([[ c, s],
-                        [-s, c]])  # R^T
-        
-        perr = R_T @ (pose.lin - self.coords_of_joint)  + self.r_local
+        pose = self.body.pose()        
+        perr = pose.inverse_rotate_vector(pose.lin - self.coords_of_joint)  + self.r_local
         poserr[F_idx] -= perr
 
 
@@ -241,7 +236,8 @@ class RevoluteJoint2D(Contribution):
         self.rB_local = poseB.inverse_transform_point(cW)  # в СК B
 
         # кэш для rB, выраженного в СК A, и для R_AB
-        self.R_AB = np.eye(2)
+        #self.R_AB = np.eye(2)
+        self.poseAB = Pose2.identity()
         self.rB_in_A = self.rB_local.copy()  # будет обновляться
 
         self.update_local_view()
@@ -257,13 +253,13 @@ class RevoluteJoint2D(Contribution):
         """Обновить R_AB и rB, выраженные в СК A."""
         poseA = self.bodyA.pose()
         poseB = self.bodyB.pose()
-        cA, sA = np.cos(poseA.ang), np.sin(poseA.ang)
-        cB, sB = np.cos(poseB.ang), np.sin(poseB.ang)
-
-        R_A = np.array([[cA, -sA],[sA, cA]])
-        R_B = np.array([[cB, -sB],[sB, cB]])
-        self.R_AB = R_A.T @ R_B
-        self.rB_in_A = self.R_AB @ self.rB_local  # r_B, выраженный в СК A
+        #cA, sA = np.cos(poseA.ang), np.sin(poseA.ang)
+        #cB, sB = np.cos(poseB.ang), np.sin(poseB.ang)
+        #R_A = np.array([[cA, -sA],[sA, cA]])
+        #R_B = np.array([[cB, -sB],[sB, cB]])
+        #self.R_AB = R_A.T @ R_B
+        self.poseAB = poseA.inverse() @ poseB
+        self.rB_in_A = self.poseAB.rotate_vector(self.rB_local)  # r_B, выраженный в СК A
 
     def contribute(self, matrices, index_maps: Dict[str, Dict[Variable, List[int]]]):
         self.update_local_view()
@@ -297,7 +293,7 @@ class RevoluteJoint2D(Contribution):
 
         rA = self.rA_local
         rB_A = self.rB_in_A
-        R = self.R_AB
+        R = self.poseAB.rotation_matrix()
 
         # блок по aA (в СК A)
         H[np.ix_(F, aA)] += np.array([
@@ -307,7 +303,7 @@ class RevoluteJoint2D(Contribution):
 
         # блок по aB, выраженный в СК A:
         # - [ R,  R * perp(rB) ], где perp(r) = [-r_y, r_x]
-        col_alphaB = R @ self._perp_col(self.rB_local)  # = perp(rB_A)
+        col_alphaB = self.poseAB.rotate_vector(self._perp_col(self.rB_local))  # = perp(rB_A)
         H[np.ix_(F, aB)] += np.array([
             [-R[0,0], -R[0,1],  col_alphaB[0]],
             [-R[1,0], -R[1,1],  col_alphaB[1]],
@@ -329,9 +325,7 @@ class RevoluteJoint2D(Contribution):
         pB = self.bodyB.pose().lin
 
         poseA = self.bodyA.pose()
-        cA, sA = np.cos(poseA.ang), np.sin(poseA.ang)
-        R_A_T = np.array([[ cA, sA],
-                          [-sA, cA]])  # R_A^T
+        R_A_T = poseA.inverse().rotation_matrix()
 
         delta_p_A = R_A_T @ (pA - pB)
         rA = self.rA_local

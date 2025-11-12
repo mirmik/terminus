@@ -90,6 +90,14 @@ class Pose2:
         R = self.rotation_matrix()
         return R.T @ (point - self.lin)
 
+    def inverse_rotate_vector(self, vector: numpy.ndarray) -> numpy.ndarray:
+        """Rotate a 2D vector using the inverse of the pose's rotation."""
+        vector = numpy.asarray(vector)
+        if vector.shape != (2,):
+            raise ValueError("vector must be a 2D vector")
+        R = self.rotation_matrix()
+        return R.T @ vector
+
     def inverse_transform_vector(self, vector: numpy.ndarray) -> numpy.ndarray:
         """Transform a 2D vector using the inverse of the pose (ignoring translation)."""
         vector = numpy.asarray(vector)

@@ -344,3 +344,7 @@ class Pose3:
         vec[0:3] = self.lin
         vec[3:7] = self.ang
         return vec
+
+    def rotate_vector(self, vec: numpy.ndarray) -> numpy.ndarray:
+        """Rotate a 3D vector using the pose's rotation."""
+        return qrot(self.ang, vec)

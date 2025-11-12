@@ -318,3 +318,33 @@ class Screw3(Screw):
             ang=q,
             lin=lin
         )
+
+    def from_vector_vw_order(vec: numpy.ndarray) -> "Screw3":
+        """Create a Screw3 from a 6x1 array in [vx, vy, vz, wx, wy, wz] order."""
+        if vec.shape != (6,):
+            raise Exception("Input vector must be of shape (6,)")
+
+        return Screw3(
+            ang=vec[3:6],
+            lin=vec[0:3]
+        )
+
+    def from_vector_wv_order(vec: numpy.ndarray) -> "Screw3":
+        """Create a Screw3 from a 6x1 array in [wx, wy, wz, vx, vy, vz] order."""
+        if vec.shape != (6,):
+            raise Exception("Input vector must be of shape (6,)")
+
+        return Screw3(
+            ang=vec[0:3],
+            lin=vec[3:6]
+        )
+
+    def to_vector_vw_order(self) -> numpy.ndarray:
+        """Return the screw as a 6x1 array in [vx, vy, vz, wx, wy, wz] order."""
+        return numpy.array([self.lin[0], self.lin[1], self.lin[2],
+                            self.ang[0], self.ang[1], self.ang[2]], float)
+
+    def to_vector_wv_order(self) -> numpy.ndarray:
+        """Return the screw as a 6x1 array in [wx, wy, wz, vx, vy, vz] order."""
+        return numpy.array([self.ang[0], self.ang[1], self.ang[2],
+                            self.lin[0], self.lin[1], self.lin[2]], float)

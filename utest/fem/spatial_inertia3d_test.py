@@ -17,7 +17,7 @@ def test_spatial_inertia3d_add():
     skew1 = np.array([[0, -d1[2], d1[1]], [d1[2], 0, -d1[0]], [-d1[1], d1[0], 0]])
     skew2 = np.array([[0, -d2[2], d2[1]], [d2[2], 0, -d2[0]], [-d2[1], d2[0], 0]])
     expected_I = np.eye(3) + 2*np.eye(3) + 2.0 * skew1 @ skew1.T + 3.0 * skew2 @ skew2.T
-    assert np.allclose(I_sum.I_com, expected_I)
+    assert np.allclose(I_sum.Ic, expected_I)
 
 # def test_spatial_inertia3d_transform():
 #     # Тело с центром масс не в начале
