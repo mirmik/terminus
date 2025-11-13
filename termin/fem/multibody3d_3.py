@@ -26,6 +26,31 @@ def _skew(r: np.ndarray) -> np.ndarray:
         [  -ry,  rx,  0.0],
     ], dtype=float)
 
+def quat_normalize(q):
+    return q / np.linalg.norm(q)
+
+def quat_mul(q1, q2):
+    """Кватернионное произведение q1*q2 (оба в формате [x,y,z,w])."""
+    x1,y1,z1,w1 = q1
+    x2,y2,z2,w2 = q2
+    return np.array([
+        w1*x2 + x1*w2 + y1*z2 - z1*y2,
+        w1*y2 + y1*w2 + z1*x2 - x1*z2,
+        w1*z2 + z1*w2 + x1*y2 - y1*x2,
+        w1*w2 - x1*x2 - y1*y2 - z1*z2,
+    ])
+
+def quat_from_small_angle(dθ):
+    """Создать кватернион вращения из малого углового вектора dθ."""
+    θ = np.linalg.norm(dθ)
+    if θ < 1e-12:
+        # линеаризация
+        return quat_normalize(np.array([0.5*dθ[0], 0.5*dθ[1], 0.5*dθ[2], 1.0]))
+    axis = dθ / θ
+    s = np.sin(0.5 * θ)
+    return np.array([axis[0]*s, axis[1]*s, axis[2]*s, np.cos(0.5*θ)])
+
+
 
 class RigidBody3D(Contribution):
     """
@@ -107,48 +132,56 @@ class RigidBody3D(Contribution):
 
     # ---------- интеграция шага ----------
     def finish_timestep(self, dt: float):
-        """
-        После интеграции ускорений и скоростей:
-          1) обновляем скорость в локальной СК;
-          2) интегрируем локальное смещение позы;
-          3) применяем его к глобальной позе;
-          4) обнуляем локальную позу.
-        """
-        # v = self.velocity_var.value
-        # a = self.acceleration_var.value
-        # v += a * dt
-        # self.velocity_var.value = v
+        v = self.velocity_var.value
+        a = self.acceleration_var.value
+        v += a * dt
+        self.velocity_var.value = v
 
-        # # локальное приращение позы
-        # v_lin = v[0:3]
-        # v_ang = v[3:6]
+        # линейное смещение
+        v_lin = v[0:3]
+        dp_lin = v_lin * dt
 
-        # delta_pose_local = Pose3(
-        #     lin=v_lin * dt,
-        #     ang=v_ang * dt,
-        # )
+        # угловое малое приращение через кватернион
+        v_ang = v[3:6]
+        dθ = v_ang * dt
+        q_delta = quat_from_small_angle(dθ)
 
-        # # обновляем глобальную позу тела
-        # self.global_pose = self.global_pose @ delta_pose_local
+        # обновляем глобальную позу
+        # pose.lin += R * dp_lin   (делает Pose3 оператор @)
+        # pose.ang = pose.ang * q_delta
+        delta_pose_local = Pose3(
+            lin=dp_lin,
+            ang=q_delta,
+        )
 
-        # # сбрасываем локальную позу
-        # self.local_pose_var.value[:] = 0.0
+        self.global_pose = self.global_pose @ delta_pose_local
 
-        # if self.angle_normalize is not None:
-        #     # предполагается, что angle_normalize умеет работать с 3D представлением ориентации
-        #     self.global_pose.ang = self.angle_normalize(self.global_pose.ang)
+        # сбрасываем локальную позу
+        self.local_pose_var.value[:] = 0.0
+
+        if self.angle_normalize is not None:
+            self.global_pose.ang = self.angle_normalize(self.global_pose.ang)
+        else:
+            self.global_pose.ang = quat_normalize(self.global_pose.ang)
 
     def finish_correction_step(self):
-        """
-        После коррекции позиций сбрасываем локальную позу.
-        """
-        # dp = self.local_pose_var.value
-        # delta_pose_local = Pose3(
-        #     lin=dp[0:3],
-        #     ang=dp[3:6],
-        # )
-        # self.global_pose = self.global_pose @ delta_pose_local
-        # self.local_pose_var.value[:] = 0.0
+        dp = self.local_pose_var.value
+
+        # линейная часть
+        dp_lin = dp[0:3]
+
+        # угловая часть dp[3:6] — это снова угловой вектор, надо превращать в кватернион
+        dθ = dp[3:6]
+        q_delta = quat_from_small_angle(dθ)
+
+        delta_pose_local = Pose3(
+            lin=dp_lin,
+            ang=q_delta,
+        )
+
+        self.global_pose = self.global_pose @ delta_pose_local
+        self.local_pose_var.value[:] = 0.0
+        self.global_pose.ang = quat_normalize(self.global_pose.ang)
 
 
 class ForceOnBody3D(Contribution):
