@@ -1,6 +1,7 @@
 import unittest
 import numpy as np
 from termin.linalg.subspaces import (nullspace_projector, nullspace_basis,
+                          nullspace_basis_svd, nullspace_basis_qr,
                           rowspace_projector, rowspace_basis,
                           colspace_projector, colspace_basis,
                           left_nullspace_projector, left_nullspace_basis,
@@ -556,7 +557,7 @@ class TestRowspaceBasis(unittest.TestCase):
         # Ортонормированность
         gram = R.T @ R
         np.testing.assert_allclose(gram, np.eye(2), atol=1e-10)
-    
+
     def test_custom_tolerance(self):
         """Использование пользовательского порога"""
         A = np.array([[1., 2.],
@@ -582,6 +583,55 @@ class TestRowspaceBasis(unittest.TestCase):
         gram = R.T.conj() @ R
         expected = np.eye(R.shape[1])
         np.testing.assert_allclose(gram, expected, atol=1e-10)
+
+
+class TestNullspaceBasisQR(unittest.TestCase):
+    """Тесты для nullspace_basis_qr"""
+
+    def test_equivalence_with_svd(self):
+        """V⊥ = ker(A): проверяем совпадение с SVD-базисом"""
+        A = np.array([[1., 2., 3.],
+                      [0., 1., 4.]])
+        N_perp = nullspace_basis_qr(A)
+        N_null = nullspace_basis_svd(A)
+
+        np.testing.assert_allclose(A @ N_perp, np.zeros((A.shape[0], N_perp.shape[1])), atol=1e-10)
+        self.assertEqual(N_perp.shape[1], N_null.shape[1])
+
+        proj_perp = N_perp @ N_perp.T.conj()
+        np.testing.assert_allclose(proj_perp @ N_null, N_null, atol=1e-10)
+
+    def test_restriction_inside_subspace(self):
+        """Сценарий HQP: (J @ N) z = 0 ⇒ J @ (N @ z) = 0"""
+        J = np.array([[1., -1., 0.],
+                      [0., 0., 1.]])
+        N = np.array([[1., 0.],
+                      [0., 1.],
+                      [0., 0.]])
+
+        A_red = J @ N
+        N_red = nullspace_basis_qr(A_red)
+        directions = N @ N_red
+
+        self.assertEqual(directions.shape[1], 1)
+        np.testing.assert_allclose(J @ directions, np.zeros((J.shape[0], directions.shape[1])), atol=1e-10)
+
+
+class TestNullspaceBasisSwitch(unittest.TestCase):
+    """Проверяем переключатель метода в nullspace_basis"""
+
+    def test_qr_method_matches_helper(self):
+        A = np.array([[1., 2., 3.],
+                      [2., 4., 6.]])
+        N_qr = nullspace_basis(A, method="qr")
+        N_expected = nullspace_basis_qr(A)
+        np.testing.assert_allclose(N_qr, N_expected, atol=1e-10)
+
+    def test_invalid_method(self):
+        A = np.array([[1., 0.],
+                      [0., 1.]])
+        with self.assertRaises(ValueError):
+            nullspace_basis(A, method="foo")
 
 
 class TestColspaceProjector(unittest.TestCase):

@@ -1,7 +1,7 @@
 import numpy as np
 from typing import List, Optional, Tuple
 from termin.linalg.solve import solve_qp_active_set
-from termin.linalg.subspaces import nullspace_basis as nullspace
+from termin.linalg.subspaces import nullspace_basis_qr
 
 
 # ========= ТИПЫ ЗАДАЧ ================================================
@@ -66,6 +66,16 @@ class Level:
         self.inequalities.append(ineq)
 
     def build_qp(self, n_vars: int):
+        """ Формируем агрегированную задачу уровня:
+
+            min_x ½ 
+                x^T H x + g^T x  
+            
+            при 
+                A_eq x = b_eq,  C x ≤ d,
+            где 
+                H = Σ_i J_i^T W_i J_i и g = Σ_i (-J_i^T W_i v_i). 
+         """
         H = np.zeros((n_vars, n_vars))
         g = np.zeros(n_vars)
         if self.tasks:
@@ -130,27 +140,32 @@ class HQPSolver:
     def solve(self, x0: Optional[np.ndarray] = None) -> np.ndarray:
         n = self.n_vars
         x = np.zeros(n) if x0 is None else x0.copy()
-        N = np.eye(n)
+        N = np.eye(n)  # Базис допустимых направлений после предыдущих уровней (изначально всё пространство)
 
         for level in self.levels:
             H, g, A_eq, b_eq, C, d, J_stack = level.build_qp(n)
 
             if N.shape[1] == 0:
-                break
+                break  # Нет свободных степеней: последующие уровни ничего не добавят
 
+            # Проецируем текущий QP в координаты z, живущие в столбцовом пространстве N.
             H_z, g_z, A_eq_z, b_eq_z, C_z, d_z = self._transform_qp_to_nullspace(
                 H, g, A_eq, b_eq, C, d, x, N
             )
 
+            # Решаем QP текущего уровня в координатах z.
             z, lam_eq, lam_ineq, active_set, iters = solve_qp_active_set(
                 H_z, g_z, A_eq_z, b_eq_z, C_z, d_z,
                 x0=None, active0=None
             )
 
+            # Возвращаемся в исходное пространство: x ← x + N z.
             x = x + N @ z
 
-            grad = H @ x + g
+            grad = H @ x + g  # Градиент уровня нужен, чтобы закрепить найденное решение при переходе выше.
 
+            # Формируем совокупный якобиан ограничений текущего уровня,
+            # действующих внутри текущего nullspace.
             J_prior_blocks = []
             if A_eq.size > 0:
                 J_prior_blocks.append(A_eq)
@@ -165,7 +180,10 @@ class HQPSolver:
 
             if J_prior.size > 0 and N.shape[1] > 0:
                 A_red = J_prior @ N
-                N_red = nullspace(A_red)
+                # Столбцы nullspace_basis_qr(A_red) образуют базис ker(A_red) = V⊥,
+                # где V = rowspace(A_red) — ограничения текущего уровня внутри подпространства N.
+                N_red = nullspace_basis_qr(A_red)
+                # Обновляем глобальный базис допустимых направлений: следующий уровень живёт в подпространстве N @ N_red.
                 N = N @ N_red
 
         return x

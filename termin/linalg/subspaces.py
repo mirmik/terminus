@@ -47,60 +47,107 @@ def nullspace_projector(A):
         return numpy.zeros((A.shape[1], A.shape[1]), dtype=A.dtype)
 
 
-def nullspace_basis(A, rtol=None, atol=None):
-    """Возвращает ортонормированный базис нуль-пространства матрицы A.
-    
-    Нуль-пространство (ядро) матрицы A состоит из векторов v таких, что A @ v = 0.
-    
+def nullspace_basis_svd(A, rtol=None, atol=None):
+    """Ортонормированный базис ker(A), полученный через SVD A = U Σ V^H.
+
+    Правые сингулярные векторы, соответствующие нулевым σ, образуют базис
+    нуль-пространства. В реализации отбрасываются σ ниже заданного порога.
+
     Args:
         A: Матрица размера (m, n)
-        rtol: Относительный порог для определения нулевых сингулярных чисел.
-              По умолчанию: max(m, n) * машинная_точность
-        atol: Абсолютный порог для сингулярных чисел.
-              Если задан, имеет приоритет над rtol.
-        
+        rtol: Относительный порог для сингулярных чисел (≈ eps · max(m, n)).
+        atol: Абсолютный порог (если задан, имеет приоритет над rtol).
+
     Returns:
-        Матрица размера (n, k) где k - размерность нуль-пространства.
-        Столбцы образуют ортонормированный базис нуль-пространства.
-        Если нуль-пространство тривиально (пустое), возвращает массив формы (n, 0).
-    
-    Notes:
-        - Использует SVD-разложение для численной устойчивости
-        - Размерность нуль-пространства = n - rank(A)
-        - Векторы базиса ортонормированы: basis.T @ basis = I
-        - Для получения проектора: P = basis @ basis.T
-        - Если задан atol: используется абсолютный порог
-        - Если задан только rtol: порог = rtol * max(сингулярное_число)
-        - По умолчанию: rtol = max(m, n) * машинная_точность
-    
-    Examples:
-        >>> A = np.array([[1, 2, 3], [2, 4, 6]])  # Ранг 1
-        >>> N = nullspace_basis(A)
-        >>> N.shape  # (3, 2) - базис из 2 векторов
-        >>> np.allclose(A @ N, 0)  # Проверка: A @ v = 0
-        True
+        Матрица (n, k) с ортонормированными столбцами basis, где A @ basis = 0.
+        Если ker(A) тривиально, возвращается массив формы (n, 0).
     """
     A = _ensure_inexact(A)
     u, s, vh = numpy.linalg.svd(A, full_matrices=True)
-    
-    # Определяем порог для малых сингулярных чисел
+
     if atol is not None:
-        # Абсолютный порог имеет приоритет
         tol = atol
     else:
-        # Относительный порог
         if rtol is None:
             rtol = max(A.shape) * numpy.finfo(A.dtype).eps
         tol = rtol * s[0] if s.size > 0 else rtol
-    
-    # Ранг матрицы = количество сингулярных чисел больше порога
+
     rank = numpy.sum(s > tol)
-    
-    # Нуль-пространство = правые сингулярные векторы соответствующие нулевым σ
-    # Берём строки vh с индексами [rank:] и транспонируем
     null_basis = vh[rank:].T.conj()
-    
+
+    if null_basis.size == 0:
+        return numpy.zeros((A.shape[1], 0), dtype=A.dtype)
+
     return null_basis
+
+
+def nullspace_basis_qr(A, rtol=None, atol=None):
+    """Ортонормированный базис ker(A) по формуле A^T = Q R (полный QR).
+
+    Если r = rank(A), то строки A лежат в span(Q[:, :r]) и
+    ker(A) = (rowspace(A))^⊥ = span(Q[:, r:]). Хвостовые столбцы Q уже
+    ортонормированы и задают искомый базис.
+
+    Args:
+        A: Матрица размера (m, n)
+        rtol: Относительный порог для диагонали R.
+        atol: Абсолютный порог (если задан, имеет приоритет).
+
+    Returns:
+        Матрица (n, k) с ортонормированными столбцами ker(A).
+        Если дополнение тривиально, возвращается массив формы (n, 0).
+    """
+    A = _ensure_inexact(A)
+    m, n = A.shape
+
+    if n == 0:
+        return numpy.zeros((0, 0), dtype=A.dtype)
+
+    Q, R = numpy.linalg.qr(A.T, mode="complete")
+    diag_len = min(n, m)
+
+    if diag_len == 0:
+        rank = 0
+    else:
+        diag = numpy.abs(numpy.diag(R[:diag_len, :diag_len]))
+        max_diag = diag.max() if diag.size > 0 else 0.0
+
+        if atol is not None:
+            tol = atol
+        else:
+            if rtol is None:
+                rtol = max(m, n) * numpy.finfo(A.dtype).eps
+            tol = rtol * max_diag if max_diag > 0 else rtol
+
+        rank = int(numpy.sum(diag > tol))
+
+    return Q[:, rank:]
+
+
+def nullspace_basis(A, rtol=None, atol=None, method="svd"):
+    """Возвращает ортонормированный базис ker(A) с выбранным алгоритмом.
+
+    Args:
+        A: Матрица размера (m, n)
+        rtol: Относительный порог толеранса.
+        atol: Абсолютный порог толеранса.
+        method: 'svd' (устойчивее) или 'qr' (быстрее для узких матриц).
+
+    Returns:
+        Матрица (n, k), столбцы которой образуют базис нуль-пространства.
+
+    Raises:
+        ValueError: если указан неподдерживаемый method.
+    """
+    if method is None:
+        method = "svd"
+
+    if method == "svd":
+        return nullspace_basis_svd(A, rtol=rtol, atol=atol)
+    if method == "qr":
+        return nullspace_basis_qr(A, rtol=rtol, atol=atol)
+
+    raise ValueError(f"Unsupported nullspace method '{method}'. Use 'svd' or 'qr'.")
 
 
 def rowspace_projector(A):
