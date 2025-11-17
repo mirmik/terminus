@@ -5,6 +5,7 @@ from .hqsolver import (
     EqualityConstraint,
     InequalityConstraint,
 )
+from .robot import Robot
 from .hqtasks import (
     JointTrackingTask,
     CartesianTrackingTask,
@@ -19,6 +20,7 @@ __all__ = [
     "QuadraticTask",
     "EqualityConstraint",
     "InequalityConstraint",
+    "Robot",
     "JointTrackingTask",
     "CartesianTrackingTask",
     "JointEqualityConstraint",
