@@ -1,6 +1,6 @@
 import numpy as np
 
-from termin.fem.hqsolver import (
+from termin.robot.hqsolver import (
     HQPSolver,
     Level,
     QuadraticTask,
@@ -163,3 +163,4 @@ def test_hqp_full_logic_with_constraints():
 
     # Второй уровень: двигаем только x2 → ограничение даёт x2 = 3
     assert abs(x[1] - 3) < 1e-7
+
