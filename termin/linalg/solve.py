@@ -30,27 +30,46 @@ def solve_qp_equalities(H, g, A, b):
         H x = -g - A^T λ
     """
 
-    # --- 1) Cholesky разложение: H = L L^T ---
-    L, lower = cho_factor(H)
+    try:
+        # --- 1) Cholesky разложение: H = L L^T ---
+        L, lower = cho_factor(H)
 
-    # --- 2) Вычислить H^{-1} g и H^{-1} A^T ---
-    # здесь считаем два объекта, входящие в формулы Шура:
-    # H^{-1} g  и  H^{-1} A^T
-    y_g = cho_solve((L, lower), g)     # = H^{-1} g
-    Y   = cho_solve((L, lower), A.T)   # = H^{-1} A^T
+        # --- 2) Вычислить H^{-1} g и H^{-1} A^T ---
+        # здесь считаем два объекта, входящие в формулы Шура:
+        # H^{-1} g  и  H^{-1} A^T
+        y_g = cho_solve((L, lower), g)     # = H^{-1} g
+        Y   = cho_solve((L, lower), A.T)   # = H^{-1} A^T
 
-    # --- 3) Построить систему Шура ---
-    # S = A H^{-1} A^T
-    S = A @ Y
-    # r_λ = -b - A H^{-1} g
-    r_lambda = -b - A @ y_g
+        # --- 3) Построить систему Шура ---
+        # S = A H^{-1} A^T
+        S = A @ Y
+        # r_λ = -b - A H^{-1} g
+        r_lambda = -b - A @ y_g
 
-    # --- 4) Решить систему Шура: S λ = r_λ ---
-    λ = np.linalg.solve(S, r_lambda)
+        # --- 4) Решить систему Шура: S λ = r_λ ---
+        λ = np.linalg.solve(S, r_lambda)
 
-    # --- 5) Восстановить x: H x = -g - A^T λ ---
-    w = -g - A.T @ λ
-    x = cho_solve((L, lower), w)
+        # --- 5) Восстановить x: H x = -g - A^T λ ---
+        w = -g - A.T @ λ
+        x = cho_solve((L, lower), w)
+    except np.linalg.LinAlgError:
+        # H может быть лишь положительно полуопределённой.
+        n = H.shape[0]
+        m = A.shape[0]
+
+        if m > 0:
+            zero_block = np.zeros((m, m), dtype=H.dtype)
+            KKT = np.block([
+                [H, A.T],
+                [A, zero_block]
+            ])
+            rhs = np.concatenate([-g, b])
+            sol, *_ = np.linalg.lstsq(KKT, rhs, rcond=None)
+            x = sol[:n]
+            λ = sol[n:]
+        else:
+            x, *_ = np.linalg.lstsq(H, -g, rcond=None)
+            λ = np.zeros(0, dtype=H.dtype)
 
     return x, λ
 

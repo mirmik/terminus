@@ -9,6 +9,7 @@ from termin.fem.hqsolver import (
 )
 
 from termin.linalg.solve import solve_qp_active_set
+from termin.linalg.subspaces import nullspace_basis
 
 # -------------------------------------------------------------
 # ТЕСТ 1: ПРОСТАЯ QP (ОДИН УРОВЕНЬ)
@@ -33,7 +34,7 @@ def test_hqp_single_level_basic():
 # ТЕСТ 2: ДВА УРОВНЯ, ВТОРОЙ РАБОТАЕТ В NULLSPACE ПЕРВОГО
 # -------------------------------------------------------------
 
-def test_hqp_two_levels_nullspace():
+def test_hqp_two_levels_nullspace_simple():
     solver = HQPSolver(n_vars=2)
 
     # Level 0: тянем x → [1, 0]
@@ -67,8 +68,6 @@ def test_hqp_two_levels_nullspace():
         [0,0,1,1.1],
     ])
 
-    print(J.T @ J)
-
     lvl0.add_task(QuadraticTask(J, np.array([1., 0., 0.])))
     solver.add_level(lvl0)
 
@@ -78,12 +77,17 @@ def test_hqp_two_levels_nullspace():
     solver.add_level(lvl1)
 
     x = solver.solve()
-    print(x)
 
     assert abs(x[0] - 1.0) < 1e-7   # не нарушено первым уровнем
-    assert abs(x[1] - 0.0) < 1e-7   # второй уровень не может изменить x1
-    assert abs(x[2] - -2.0) < 1e-7   # второй уровень может изменить x2
-    assert abs(x[3] - 2.0) < 1e-7   # второй уровень может изменить x3
+    assert abs(x[1] - 0.0) < 1e-7   # второй уровень не может изменить x2
+    assert abs(x[2] + 1.1 * x[3]) < 1e-7  # сохраняем ограничение первого уровня
+
+    N = nullspace_basis(J)
+    x0 = np.array([1., 0., 0., 0.])
+    x_des = np.array([1., 5., -2., 2.])
+    z = N.T @ (x_des - x0)
+    x_expected = x0 + N @ z
+    assert np.allclose(x, x_expected, atol=1e-7)
 
 
 # -------------------------------------------------------------

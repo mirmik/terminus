@@ -68,6 +68,10 @@ class Level:
     def build_qp(self, n_vars: int):
         H = np.zeros((n_vars, n_vars))
         g = np.zeros(n_vars)
+        if self.tasks:
+            J_stack = np.vstack([t.J for t in self.tasks])
+        else:
+            J_stack = np.zeros((0, n_vars))
 
         for t in self.tasks:
             H_t, g_t = t.build_H_g()
@@ -88,7 +92,7 @@ class Level:
             C = np.zeros((0, n_vars))
             d = np.zeros(0)
 
-        return H, g, A_eq, b_eq, C, d
+        return H, g, A_eq, b_eq, C, d, J_stack
 
 
 # ========= ИЕРАРХИЧЕСКИЙ РЕШАТЕЛЬ ===================================
@@ -129,7 +133,7 @@ class HQPSolver:
         N = np.eye(n)
 
         for level in self.levels:
-            H, g, A_eq, b_eq, C, d = level.build_qp(n)
+            H, g, A_eq, b_eq, C, d, J_stack = level.build_qp(n)
 
             if N.shape[1] == 0:
                 break
@@ -147,9 +151,17 @@ class HQPSolver:
 
             grad = H @ x + g
 
-            J_prior = A_eq
+            J_prior_blocks = []
+            if A_eq.size > 0:
+                J_prior_blocks.append(A_eq)
+            if J_stack.size > 0:
+                J_prior_blocks.append(J_stack)
             if np.linalg.norm(grad) > 1e-12:
-                J_prior = np.vstack([J_prior, grad[None, :]])
+                J_prior_blocks.append(grad[None, :])
+            if J_prior_blocks:
+                J_prior = np.vstack(J_prior_blocks)
+            else:
+                J_prior = np.zeros((0, n))
 
             if J_prior.size > 0 and N.shape[1] > 0:
                 A_red = J_prior @ N
