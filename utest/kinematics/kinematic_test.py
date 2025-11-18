@@ -1,6 +1,6 @@
 import unittest
-from termin.kinematics import *
-from termin.kinematics import Transform3
+from termin.kinematic import *
+from termin.kinematic import Transform3
 from termin.geombase import Pose3
 import numpy
 import math

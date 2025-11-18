@@ -137,3 +137,113 @@ class JointBoundsConstraint(InequalityConstraint):
         C = np.vstack(rows)
         d = np.concatenate(rhs_parts)
         super().__init__(C, d)
+
+
+class JointVelocityDampingTask(QuadraticTask):
+    """Сглаживает управление, минимизируя норму суставных скоростей."""
+
+    def __init__(self, n_dofs: int, weight: Optional[np.ndarray] = None):
+        if n_dofs <= 0:
+            raise ValueError("n_dofs must be positive.")
+        J = np.eye(n_dofs)
+        v = np.zeros(n_dofs)
+        W = _prepare_weight(weight, n_dofs)
+        super().__init__(J, v, W)
+
+
+class JointPositionBoundsConstraint(InequalityConstraint):
+    """Гарантирует, что q + dt * dq останется в [lower, upper]."""
+
+    def __init__(
+        self,
+        q_current: np.ndarray,
+        lower: Optional[np.ndarray] = None,
+        upper: Optional[np.ndarray] = None,
+        dt: float = 1.0,
+    ):
+
+        if dt <= 0.0:
+            raise ValueError("dt must be positive.")
+        q_current = np.asarray(q_current, dtype=float)
+        n = q_current.size
+        if lower is None and upper is None:
+            raise ValueError("At least one of lower/upper bounds must be provided.")
+
+        rows = []
+        rhs = []
+
+        if upper is not None:
+            upper = np.asarray(upper, dtype=float)
+            if upper.size != n:
+                raise ValueError("upper must have same length as q_current.")
+            rows.append(np.eye(n) * dt)
+            rhs.append(upper - q_current)
+
+        if lower is not None:
+            lower = np.asarray(lower, dtype=float)
+            if lower.size != n:
+                raise ValueError("lower must have same length as q_current.")
+            rows.append(-np.eye(n) * dt)
+            rhs.append(q_current - lower)
+
+        C = np.vstack(rows)
+        d = np.concatenate(rhs)
+        super().__init__(C, d)
+
+
+def build_joint_soft_limit_task(
+    q_current: np.ndarray,
+    lower: Optional[np.ndarray],
+    upper: Optional[np.ndarray],
+    margin: float,
+    gain: float,
+) -> Optional[QuadraticTask]:
+    """Возвращает QuadraticTask, отталкивающий суставы от мягких зон."""
+
+    if margin <= 0 or gain <= 0:
+        return None
+
+    q_current = np.asarray(q_current, dtype=float)
+    n = q_current.size
+
+    upper_arr = np.asarray(upper, dtype=float) if upper is not None else None
+    lower_arr = np.asarray(lower, dtype=float) if lower is not None else None
+
+    rows = []
+    targets = []
+
+    def _push(amount: float) -> float:
+        phase = min(max(amount / margin, 0.0), 1.0)
+        return gain * phase
+
+    for idx in range(n):
+        coord = q_current[idx]
+        desired = 0.0
+        active = False
+
+        if upper_arr is not None:
+            boundary = upper_arr[idx]
+            trigger = boundary - margin
+            if coord > trigger:
+                desired -= _push(coord - trigger)
+                active = True
+
+        if lower_arr is not None:
+            boundary = lower_arr[idx]
+            trigger = boundary + margin
+            if coord < trigger:
+                desired += _push(trigger - coord)
+                active = True
+
+        if active:
+            row = np.zeros(n)
+            row[idx] = 1.0
+            rows.append(row)
+            targets.append(desired)
+
+    if not rows:
+        return None
+
+    J = np.vstack(rows)
+    v = np.array(targets, dtype=float)
+    return QuadraticTask(J, v)

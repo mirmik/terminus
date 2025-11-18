@@ -1,8 +1,8 @@
 import unittest
-from termin.kinematics import Transform3
-from termin.kinematics.kinematic import Rotator3, Actuator3
+from termin.kinematic import Transform3
+from termin.kinematic.kinematic import Rotator3, Actuator3
 from termin.geombase import Pose3
-from termin.kinematics.from_trent import from_trent
+from termin.kinematic.from_trent import from_trent
 import numpy
 import math
 

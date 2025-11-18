@@ -6,8 +6,8 @@ from typing import Dict, Iterable, List, Optional
 import numpy as np
 
 from termin.geombase import Pose3, Screw3
-from termin.kinematics.kinematic import KinematicTransform3
-from termin.kinematics.transform import Transform3
+from termin.kinematic.kinematic import KinematicTransform3
+from termin.kinematic.transform import Transform3
 
 
 class Robot:
@@ -141,3 +141,25 @@ class Robot:
                 jac[:, idx] = scr.lin
 
         return jac
+
+    def integrate_joint_speeds(self, speeds: np.ndarray, dt: float) -> None:
+        """Применяет численный шаг интегрирования ко всем координатам.
+
+        Для каждой кинематической пары прибавляет `speed_i * dt` к соответствующей
+        координате, используя `set_coord`. Предполагается, что `speeds` задан в
+        тех же единицах и порядке, что и столбцы Якобиана.
+        """
+        speeds = np.asarray(speeds, dtype=float)
+        if speeds.shape[0] != self._dofs:
+            raise ValueError(f"Speeds vector must have length {self._dofs}, got {speeds.shape[0]}")
+
+        for joint in self._kinematic_units:
+            sl = self._joint_slices[joint]
+            span = sl.stop - sl.start
+            if span == 0:
+                continue
+            segment = speeds[sl] * dt
+            if span == 1:
+                joint.set_coord(joint.get_coord() + segment[0])
+            else:
+                raise NotImplementedError("Multi-DOF joints require custom integration.")

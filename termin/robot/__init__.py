@@ -12,6 +12,9 @@ from .hqtasks import (
     JointEqualityConstraint,
     CartesianEqualityConstraint,
     JointBoundsConstraint,
+    JointVelocityDampingTask,
+    JointPositionBoundsConstraint,
+    build_joint_soft_limit_task,
 )
 
 __all__ = [
@@ -26,4 +29,7 @@ __all__ = [
     "JointEqualityConstraint",
     "CartesianEqualityConstraint",
     "JointBoundsConstraint",
+    "JointVelocityDampingTask",
+    "JointPositionBoundsConstraint",
+    "build_joint_soft_limit_task",
 ]

@@ -1,10 +1,11 @@
 import numpy as np
 
 from termin.geombase import Pose3
-from termin.kinematics.kinematic import Rotator3
-from termin.kinematics.transform import Transform3
+from termin.kinematic.kinematic import Rotator3
+from termin.kinematic.transform import Transform3
 from termin.robot.robot import Robot
-from termin.kinematics.kinchain import KinematicChain3
+from termin.robot.hqsolver import HQPSolver, Level, QuadraticTask
+from termin.kinematic.kinchain import KinematicChain3
 
 
 def _build_two_link_tree():
@@ -21,6 +22,22 @@ def _build_two_link_tree():
     Transform3(parent=j_branch.output, local_pose=Pose3.translation(0.3, 0.0, 0.0), name="branch_tip")
 
     return base, ee, j0, j1, j_branch
+
+
+def _build_two_link_tree_2():
+    base = Transform3(name="base")
+
+    j0 = Rotator3(axis=np.array([0.0, 0.0, 1.0]), parent=base, name="j0")
+    link0 = Transform3(parent=j0.output, local_pose=Pose3.translation(1.0, 0.0, 0.0), name="link0")
+
+    j1 = Rotator3(axis=np.array([0.0, 0.0, 1.0]), parent=link0, name="j1")
+    ee = Transform3(parent=j1.output, local_pose=Pose3.translation(1.0, 0.0, 0.0), name="ee")
+
+    # Уводим конфигурацию от сингулярного положения, чтобы Якобиан был полноранговым.
+    j0.set_coord(0.1)
+    j1.set_coord(-0.1)
+
+    return base, ee, j0, j1
 
 
 def _build_multi_branch_tree():
@@ -118,3 +135,74 @@ def test_robot_multi_branch_selection():
     waist_slice = robot.joint_slice(joints["waist"])
     assert np.linalg.norm(left_jac[:, waist_slice]) > 0
     assert np.linalg.norm(right_jac[:, waist_slice]) > 0
+
+
+def test_robot_integrate_joint_speeds():
+    base, joints, _ = _build_multi_branch_tree()
+    robot = Robot(base)
+
+    speeds = np.zeros(robot.dofs)
+    slice_leg = robot.joint_slice(joints["leg"])
+    speeds[slice_leg] = 1.5  # rad/s
+    slice_waist = robot.joint_slice(joints["waist"])
+    speeds[slice_waist] = -0.25
+
+    robot.integrate_joint_speeds(speeds, dt=0.2)
+
+    assert np.isclose(joints["leg"].get_coord(), 0.3)
+    assert np.isclose(joints["waist"].get_coord(), -0.05)
+
+
+def test_robot_hqp_reaches_point():
+    base, ee, *_ = _build_two_link_tree()
+    robot = Robot(base)
+
+    target = np.array([0.08, 0.08, 0.56])
+    dt = 0.2
+
+    for _ in range(60):
+        current = ee.global_pose().lin
+        err = target - current
+        if np.linalg.norm(err) < 1e-4:
+            break
+
+        solver = HQPSolver(n_vars=robot.dofs)
+        lvl = Level(priority=0)
+        J = robot.translation_jacobian(ee)
+        lvl.add_task(QuadraticTask(J, err))
+        solver.add_level(lvl)
+
+        delta = solver.solve()
+        robot.integrate_joint_speeds(delta, dt)
+
+    assert np.linalg.norm(target - ee.global_pose().lin) < 5e-3
+
+
+def test_robot_hqp_reaches_point_2():
+    base, ee, *_ = _build_two_link_tree_2()
+    robot = Robot(base)
+
+    target = np.array([0.5, 0.5, 0.0])
+    dt = 0.2
+
+    for _ in range(600):
+        current = ee.global_pose().lin
+        err = target - current
+        if np.linalg.norm(err) < 1e-4:
+            break
+
+        solver = HQPSolver(n_vars=robot.dofs)
+        lvl = Level(priority=0)
+        J = robot.translation_jacobian(ee)
+        assert J.shape == (3, 2)
+
+        signal = err * 0.1
+        lvl.add_task(QuadraticTask(J, signal))
+        solver.add_level(lvl)
+
+        delta = solver.solve()
+        robot.integrate_joint_speeds(delta, dt)
+
+        print(f"EE pos: {ee.global_pose().lin}, err norm: {np.linalg.norm(err)}")
+    
+    assert np.linalg.norm(target - ee.global_pose().lin) < 5e-3

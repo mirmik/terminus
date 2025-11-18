@@ -32,11 +32,12 @@ setup(
             "physics/*",
             "colliders/*",
             "fem/*",
-            "kinematics/*",
+            "kinematic/*",
             "geombase/*",
             "utils/*",
             "geomalgo/*",
             "linalg/*",
+            "robot/*",
         ]
     },
     include_package_data=True,

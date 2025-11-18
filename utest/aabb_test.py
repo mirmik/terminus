@@ -1,4 +1,4 @@
-from termin.kinematics import Transform
+from termin.kinematic import Transform
 from termin.geombase import Pose3, AABB, TransformAABB
 import unittest
 import numpy
