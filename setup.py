@@ -38,10 +38,16 @@ setup(
             "geomalgo/*",
             "linalg/*",
             "robot/*",
+            "visualization/*",
+            "mesh/*",
         ]
     },
     include_package_data=True,
     install_requires=[
+        "numpy",
+        "PyOpenGL>=3.1",
+        "glfw>=2.5.0",
+        "Pillow>=9.0",
     ],
     extras_require={
     },
