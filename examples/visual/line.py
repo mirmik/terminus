@@ -62,18 +62,29 @@ def build_scene() -> Scene:
     shader_prog = ShaderProgram(vert, frag)
     material = Material(shader=shader_prog, color=np.array([0.8, 0.3, 0.3, 1.0], dtype=np.float32), textures = {"u_diffuse_map": texture})
 
-    line = LineEntity(points=[
+    line1 = LineEntity(points=[
         np.array([0,0,0]), 
         np.array([1,0,0]),
         np.array([1,1,0]),
         np.array([0,1,0]),
         np.array([0,0,0])    
         ], color=np.array([1.0, 0.0, 0.0, 1.0], dtype=np.float32), width=2.0, material=material)
+
+    line2 = LineEntity(points=[
+        np.array([0,0,0]), 
+        np.array([1,0,0]),
+        np.array([1,1,0]),
+        np.array([0,1,0]),
+        np.array([0,0,0])    
+        ], color=np.array([1.0, 0.0, 0.0, 1.0], dtype=np.float32), width=2.0, material=material)    
+
     #drawable = MeshDrawable(cube_mesh)
     renderer = Renderer()
-    entity = Entity(mesh=line, material=material, pose=Pose3.identity(), name="cube")
+    entity1 = Entity(mesh=line1, material=material, pose=Pose3.identity(), name="line1")
+    entity2 = Entity(mesh=line2, material=material, pose=Pose3.translation(0,0,1), name="line2")
     scene = Scene()
-    scene.add(entity)
+    scene.add(entity1)
+    scene.add(entity2)
 
     skybox = SkyBoxEntity()
     scene.add(skybox)
