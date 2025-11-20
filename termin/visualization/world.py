@@ -20,6 +20,8 @@ class VisualizationWorld:
         self.scenes: List[Scene] = []
         self.windows: List[GLWindow] = []
         self._running = False
+        
+        self.fps = 0
 
     def add_scene(self, scene: Scene) -> Scene:
         self.scenes.append(scene)
@@ -37,6 +39,12 @@ class VisualizationWorld:
 
     def add_window(self, window: GLWindow):
         self.windows.append(window)
+
+    def update_fps(self, dt):
+        if dt > 0:
+            self.fps = int(1.0 / dt)
+        else:
+            self.fps = 0
 
     def run(self):
         if self._running:
@@ -62,7 +70,8 @@ class VisualizationWorld:
                 alive.append(window)
             self.windows = alive
             glfw.poll_events()
-
+            self.update_fps(dt)
+            
         for window in self.windows:
             window.close()
         glfw.terminate()
