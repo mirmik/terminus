@@ -57,6 +57,22 @@ class Component:
         return
 
 
+class InputComponent(Component):
+    """Component capable of handling input events."""
+
+    def on_mouse_button(self, viewport, button: int, action: int, mods: int):
+        return
+
+    def on_mouse_move(self, viewport, x: float, y: float, dx: float, dy: float):
+        return
+
+    def on_scroll(self, viewport, xoffset: float, yoffset: float):
+        return
+
+    def on_key(self, viewport, key: int, scancode: int, action: int, mods: int):
+        return
+
+
 C = TypeVar("C", bound=Component)
 
 
@@ -94,6 +110,8 @@ class Entity:
         if component not in self._components:
             return
         self._components.remove(component)
+        if self.scene is not None:
+            self.scene.unregister_component(component)
         component.on_removed()
         component.entity = None
 
@@ -134,6 +152,8 @@ class Entity:
 
     def on_removed(self):
         for component in self._components:
+            if self.scene is not None:
+                self.scene.unregister_component(component)
             component.on_removed()
             component.entity = None
         self.scene = None

@@ -105,6 +105,16 @@ class CubeMesh(Mesh):
             ],
             dtype=int,
         )
+        uvs = np.array([
+            [0.0, 0.0],
+            [1.0, 0.0],
+            [1.0, 1.0],
+            [0.0, 1.0],
+            [0.0, 0.0],
+            [1.0, 0.0],
+            [1.0, 1.0],
+            [0.0, 1.0],
+        ], dtype=float)
         super().__init__(vertices=vertices, triangles=triangles, uvs=uvs)
 
 

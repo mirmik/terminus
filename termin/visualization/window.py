@@ -8,8 +8,7 @@ from typing import List, Optional, Tuple
 import glfw
 from OpenGL import GL as gl
 
-from .camera import CameraComponent, CameraController, OrbitCameraController
-from .entity import Component
+from .camera import CameraComponent
 from .renderer import Renderer
 from .scene import Scene
 
@@ -24,7 +23,6 @@ class Viewport:
     scene: Scene
     camera: CameraComponent
     rect: Tuple[float, float, float, float]
-    controller: Optional[CameraController] = None
 
 
 class GLWindow:
@@ -50,8 +48,6 @@ class GLWindow:
         glfw.make_context_current(self.window)
         self.viewports: List[Viewport] = []
         self._active_viewport: Optional[Viewport] = None
-        self._mouse_left = False
-        self._mouse_right = False
         self._last_cursor: Optional[Tuple[float, float]] = None
 
         glfw.set_window_user_pointer(self.window, self)
@@ -77,12 +73,7 @@ class GLWindow:
     def add_viewport(self, scene: Scene, camera: CameraComponent, rect: Tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0)) -> Viewport:
         self.make_current()
         scene.ensure_ready()
-        controller = None
-        if camera.entity is not None:
-            controller = camera.entity.get_component(CameraController)
-            if controller is None:
-                controller = camera.entity.get_component(OrbitCameraController)
-        viewport = Viewport(scene=scene, camera=camera, rect=rect, controller=controller)
+        viewport = Viewport(scene=scene, camera=camera, rect=rect)
         self.viewports.append(viewport)
         return viewport
 
@@ -118,45 +109,47 @@ class GLWindow:
         return
 
     def _handle_mouse_button(self, window, button, action, mods):
-        if button == glfw.MOUSE_BUTTON_LEFT:
-            self._mouse_left = action == glfw.PRESS
-        elif button == glfw.MOUSE_BUTTON_RIGHT:
-            self._mouse_right = action == glfw.PRESS
-        if action == glfw.PRESS:
-            x, y = glfw.get_cursor_pos(self.window)
-            self._active_viewport = self._viewport_under_cursor(x, y)
-        if action == glfw.RELEASE:
-            self._last_cursor = None
-            if not (self._mouse_left or self._mouse_right):
-                self._active_viewport = None
-
-    def _handle_cursor_pos(self, window, x, y):
-        if not (self._mouse_left or self._mouse_right):
-            self._last_cursor = (x, y)
+        if self.window is None:
             return
-        if self._last_cursor is None:
-            self._last_cursor = (x, y)
-            return
-        dx = x - self._last_cursor[0]
-        dy = y - self._last_cursor[1]
-        self._last_cursor = (x, y)
-        viewport = self._active_viewport or self._viewport_under_cursor(x, y)
-        if viewport is None or viewport.controller is None:
-            return
-        if self._mouse_left:
-            viewport.controller.orbit(-dx * 0.2, dy * 0.2)
-        elif self._mouse_right:
-            viewport.controller.pan(-dx * 0.005, dy * 0.005)
-
-    def _handle_scroll(self, window, xoffset, yoffset):
         x, y = glfw.get_cursor_pos(self.window)
         viewport = self._viewport_under_cursor(x, y)
-        if viewport and viewport.controller:
-            viewport.controller.zoom(-yoffset * 0.5)
+        if action == glfw.PRESS:
+            self._active_viewport = viewport
+        if action == glfw.RELEASE:
+            self._last_cursor = None
+            if viewport is None:
+                viewport = self._active_viewport
+            self._active_viewport = None
+        if viewport is not None:
+            viewport.scene.dispatch_input(viewport, "on_mouse_button", button=button, action=action, mods=mods)
+
+    def _handle_cursor_pos(self, window, x, y):
+        if self.window is None:
+            return
+        if self._last_cursor is None:
+            dx = dy = 0.0
+        else:
+            dx = x - self._last_cursor[0]
+            dy = y - self._last_cursor[1]
+        self._last_cursor = (x, y)
+        viewport = self._active_viewport or self._viewport_under_cursor(x, y)
+        if viewport is not None:
+            viewport.scene.dispatch_input(viewport, "on_mouse_move", x=x, y=y, dx=dx, dy=dy)
+
+    def _handle_scroll(self, window, xoffset, yoffset):
+        if self.window is None:
+            return
+        x, y = glfw.get_cursor_pos(self.window)
+        viewport = self._viewport_under_cursor(x, y) or self._active_viewport
+        if viewport is not None:
+            viewport.scene.dispatch_input(viewport, "on_scroll", xoffset=xoffset, yoffset=yoffset)
 
     def _handle_key(self, window, key, scancode, action, mods):
         if key == glfw.KEY_ESCAPE and action == glfw.PRESS:
             glfw.set_window_should_close(self.window, True)
+        viewport = self._active_viewport or (self.viewports[0] if self.viewports else None)
+        if viewport is not None:
+            viewport.scene.dispatch_input(viewport, "on_key", key=key, scancode=scancode, action=action, mods=mods)
 
     def _viewport_under_cursor(self, x: float, y: float) -> Optional[Viewport]:
         if self.window is None or not self.viewports:

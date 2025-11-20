@@ -8,7 +8,7 @@ camera models and GPU resources such as meshes, shaders, materials and textures.
 from .window import GLWindow
 from .renderer import Renderer
 from .scene import Scene
-from .entity import Entity, Component, RenderContext
+from .entity import Entity, Component, InputComponent, RenderContext
 from .camera import (
     CameraComponent,
     PerspectiveCameraComponent,
@@ -28,6 +28,7 @@ __all__ = [
     "Scene",
     "Entity",
     "Component",
+    "InputComponent",
     "RenderContext",
     "CameraComponent",
     "PerspectiveCameraComponent",

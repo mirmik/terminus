@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Iterable, Optional
+from typing import Dict, Iterable, Optional
 
 import numpy as np
+import glfw
 
 from termin.geombase.pose3 import Pose3
 
-from .entity import Component
+from .entity import Component, InputComponent
 
 
 class CameraComponent(Component):
@@ -82,7 +83,7 @@ class OrthographicCameraComponent(CameraComponent):
         return proj
 
 
-class CameraController(Component):
+class CameraController(InputComponent):
     """Base class for camera manipulation controllers."""
 
     def orbit(self, d_azimuth: float, d_elevation: float):
@@ -114,6 +115,10 @@ class OrbitCameraController(CameraController):
         self.elevation = math.radians(elevation)
         self._min_radius = min_radius
         self._max_radius = max_radius
+        self._orbit_speed = 0.2
+        self._pan_speed = 0.005
+        self._zoom_speed = 0.5
+        self._states: Dict[int, dict] = {}
 
     def start(self, scene):
         if self.entity is None:
@@ -155,3 +160,32 @@ class OrbitCameraController(CameraController):
         up = rot[:, 1]
         self.target = self.target + right * dx + up * dy
         self._update_pose()
+
+    def _state(self, viewport) -> dict:
+        key = id(viewport)
+        if key not in self._states:
+            self._states[key] = {"orbit": False, "pan": False, "last": None}
+        return self._states[key]
+
+    def on_mouse_button(self, viewport, button: int, action: int, mods: int):
+        state = self._state(viewport)
+        if button == glfw.MOUSE_BUTTON_LEFT:
+            state["orbit"] = action == glfw.PRESS
+        elif button == glfw.MOUSE_BUTTON_RIGHT:
+            state["pan"] = action == glfw.PRESS
+        if action == glfw.RELEASE:
+            state["last"] = None
+
+    def on_mouse_move(self, viewport, x: float, y: float, dx: float, dy: float):
+        state = self._state(viewport)
+        if state.get("last") is None:
+            state["last"] = (x, y)
+            return
+        state["last"] = (x, y)
+        if state.get("orbit"):
+            self.orbit(-dx * self._orbit_speed, dy * self._orbit_speed)
+        elif state.get("pan"):
+            self.pan(-dx * self._pan_speed, dy * self._pan_speed)
+
+    def on_scroll(self, viewport, xoffset: float, yoffset: float):
+        self.zoom(-yoffset * self._zoom_speed)

@@ -6,7 +6,7 @@ from typing import List, Sequence, TYPE_CHECKING
 
 import numpy as np
 
-from .entity import Component, Entity
+from .entity import Component, Entity, InputComponent
 
 if TYPE_CHECKING:  # pragma: no cover
     from .shader import ShaderProgram
@@ -20,6 +20,7 @@ class Scene:
         self.background_color = np.array(background_color, dtype=np.float32)
         self._shaders_set = set()
         self._inited = False
+        self._input_components: List[InputComponent] = []
 
         # Lights
         self.light_direction = np.array([-0.5, -1.0, -0.3], dtype=np.float32)
@@ -43,6 +44,12 @@ class Scene:
     def register_component(self, component: Component):
         for shader in component.required_shaders():
             self._register_shader(shader)
+        if isinstance(component, InputComponent):
+            self._input_components.append(component)
+
+    def unregister_component(self, component: Component):
+        if isinstance(component, InputComponent) and component in self._input_components:
+            self._input_components.remove(component)
 
     def update(self, dt: float):
         for entity in self.entities:
@@ -61,3 +68,10 @@ class Scene:
         self._shaders_set.add(shader)
         if self._inited:
             shader.ensure_ready()
+
+    def dispatch_input(self, viewport, event: str, **kwargs):
+        listeners = list(self._input_components)
+        for component in listeners:
+            handler = getattr(component, event, None)
+            if handler:
+                handler(viewport, **kwargs)

@@ -248,7 +248,10 @@ def test_mesh_upload_and_draw_without_real_context():
     )
     triangles = np.array([[0, 1, 2]], dtype=int)
     mesh = mesh_module.Mesh(vertices, triangles)
-    fake_ctx = 1234
+    class FakeContext:
+        def __init__(self, key):
+            self.context_key = key
+    fake_ctx = FakeContext(1234)
     fake_glfw = mock.Mock()
     fake_glfw.get_current_context.return_value = fake_ctx
     with mock.patch.object(mesh_module, "gl", fake_gl), \
@@ -256,7 +259,7 @@ def test_mesh_upload_and_draw_without_real_context():
          mock.patch.object(mesh_module, "_gl_vertex_attrib_pointer", side_effect=fake_pointer):
         drawable = MeshDrawable(mesh)
         drawable.draw(fake_ctx)
-        assert fake_ctx in drawable._context_resources
+        assert fake_ctx.context_key in drawable._context_resources
         assert fake_gl.draw_calls == 1
         expected_array_bytes = mesh.vertices.shape[0] * 8 * 4
         assert fake_gl.array_buffer_size == expected_array_bytes
