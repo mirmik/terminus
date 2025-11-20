@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Dict, Optional
+from typing import Dict
 
 import numpy as np
 from OpenGL import GL as gl
 from OpenGL.raw.GL.VERSION.GL_2_0 import glVertexAttribPointer as _gl_vertex_attrib_pointer
 import ctypes
-import glfw
 
 from termin.mesh.mesh import Mesh
 from .entity import RenderContext
@@ -37,23 +36,8 @@ class MeshDrawable:
             self._mesh.compute_vertex_normals()
         self._context_resources: Dict[int, tuple[int, int, int]] = {}
 
-    def _context_id(self) -> int:
-        ctx = glfw.get_current_context()
-        if ctx is None:
-            raise RuntimeError("No current OpenGL context for mesh upload.")
-        return int(ctx)
-
-    def _key_from_context(self, context: Optional[RenderContext | int]) -> int:
-        if context is None:
-            return self._context_id()
-        if isinstance(context, RenderContext):
-            return context.context_key
-        if hasattr(context, "context_key"):
-            return int(context.context_key)
-        return int(context)
-
-    def upload(self, context: Optional[RenderContext | int] = None):
-        ctx = self._key_from_context(context)
+    def upload(self, context: RenderContext):
+        ctx = context.context_key
         if ctx in self._context_resources:
             return
         vertex_block = np.hstack((
@@ -86,10 +70,10 @@ class MeshDrawable:
         gl.glBindVertexArray(0)
         self._context_resources[ctx] = (vao, vbo, ebo)
 
-    def draw(self, context: Optional[RenderContext | int] = None):
-        ctx = self._key_from_context(context)
+    def draw(self, context: RenderContext):
+        ctx = context.context_key
         if ctx not in self._context_resources:
-            self.upload(ctx)
+            self.upload(context)
         vao, _, _ = self._context_resources[ctx]
         gl.glEnable(gl.GL_DEPTH_TEST)
         gl.glBindVertexArray(vao)

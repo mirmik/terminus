@@ -10,6 +10,7 @@ import termin.visualization.texture as texture_module
 from termin.visualization.mesh import MeshDrawable, _vertex_normals
 from termin.visualization.shader import ShaderCompilationError, ShaderProgram
 from termin.visualization.texture import Texture
+from termin.visualization.ui.elements import UIRectangle
 
 
 class FakeShaderGL:
@@ -252,10 +253,7 @@ def test_mesh_upload_and_draw_without_real_context():
         def __init__(self, key):
             self.context_key = key
     fake_ctx = FakeContext(1234)
-    fake_glfw = mock.Mock()
-    fake_glfw.get_current_context.return_value = fake_ctx
     with mock.patch.object(mesh_module, "gl", fake_gl), \
-         mock.patch.object(mesh_module, "glfw", fake_glfw), \
          mock.patch.object(mesh_module, "_gl_vertex_attrib_pointer", side_effect=fake_pointer):
         drawable = MeshDrawable(mesh)
         drawable.draw(fake_ctx)
@@ -299,3 +297,18 @@ def test_texture_upload_defers_until_bind(tmp_path):
         assert fake_gl.tex_image_calls == 1
         tex.bind(2)
         assert fake_gl.tex_image_calls == 1  # No re-upload
+
+
+def test_ui_rectangle_clip_vertices():
+    rect = UIRectangle(position=(0.25, 0.25), size=(0.5, 0.5))
+    verts = rect._to_clip_vertices()
+    expected = np.array(
+        [
+            [-0.5, 0.5],
+            [0.5, 0.5],
+            [-0.5, -0.5],
+            [0.5, -0.5],
+        ],
+        dtype=np.float32,
+    )
+    np.testing.assert_allclose(verts, expected)

@@ -67,19 +67,14 @@ class Renderer:
         if not opengl_is_inited():
             init_opengl()
 
-    def render(self, scene: Scene, camera: CameraComponent):
-        width, height = 1, 1
-        self.render_viewport(scene, camera, (0, 0, width, height), ctx_key)
-
-
-    def render_viewport(self, scene: Scene, camera: CameraComponent, viewport_rect: tuple[int, int, int, int], window : GLWindow):
+    def render_viewport(self, scene: Scene, camera: CameraComponent, viewport_rect: tuple[int, int, int, int], context_key: int):
         self.ensure_ready()
         self._ensure_gl_state()
         x, y, w, h = viewport_rect
         gl.glViewport(x, y, w, h)
         view = camera.get_view_matrix()
         projection = camera.get_projection_matrix()
-        context = RenderContext(view=view, projection=projection, camera=camera, scene=scene, renderer=self, context_key=id(window))
+        context = RenderContext(view=view, projection=projection, camera=camera, scene=scene, renderer=self, context_key=context_key)
 
         for entity in scene.entities:
             entity.draw(context)

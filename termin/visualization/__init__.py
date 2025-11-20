@@ -20,6 +20,7 @@ from .material import Material
 from .shader import ShaderProgram
 from .texture import Texture
 from .components import MeshRenderer
+from .ui import Canvas, UIElement, UIRectangle
 from .world import VisualizationWorld
 
 __all__ = [
@@ -36,6 +37,9 @@ __all__ = [
     "OrbitCameraController",
     "MeshDrawable",
     "MeshRenderer",
+    "Canvas",
+    "UIElement",
+    "UIRectangle",
     "Material",
     "ShaderProgram",
     "Texture",

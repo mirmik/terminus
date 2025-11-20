@@ -39,6 +39,7 @@ setup(
             "linalg/*",
             "robot/*",
             "visualization/*",
+            "visualization/ui/*",
             "mesh/*",
         ]
     },

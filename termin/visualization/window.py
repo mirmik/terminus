@@ -23,6 +23,7 @@ class Viewport:
     scene: Scene
     camera: CameraComponent
     rect: Tuple[float, float, float, float]
+    canvas: Optional["Canvas"] = None
 
 
 class GLWindow:
@@ -70,10 +71,10 @@ class GLWindow:
         if self.window is not None:
             glfw.make_context_current(self.window)
 
-    def add_viewport(self, scene: Scene, camera: CameraComponent, rect: Tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0)) -> Viewport:
+    def add_viewport(self, scene: Scene, camera: CameraComponent, rect: Tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0), canvas: Optional[Canvas] = None) -> Viewport:
         self.make_current()
         scene.ensure_ready()
-        viewport = Viewport(scene=scene, camera=camera, rect=rect)
+        viewport = Viewport(scene=scene, camera=camera, rect=rect, canvas=canvas)
         self.viewports.append(viewport)
         return viewport
 
@@ -85,6 +86,7 @@ class GLWindow:
         if self.window is None:
             return
         self.make_current()
+        context_key = id(self)
         width, height = glfw.get_framebuffer_size(self.window)
         for viewport in self.viewports:
             vx, vy, vw, vh = viewport.rect
@@ -100,8 +102,11 @@ class GLWindow:
             gl.glClearColor(float(bg[0]), float(bg[1]), float(bg[2]), float(bg[3]))
             gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
             gl.glDisable(gl.GL_SCISSOR_TEST)
-            self.renderer.render_viewport(viewport.scene, viewport.camera, (px, gl_viewport_y, pw, ph), self)
+            self.renderer.render_viewport(viewport.scene, viewport.camera, (px, gl_viewport_y, pw, ph), context_key)
+            if viewport.canvas:
+                viewport.canvas.render(context_key, (px, gl_viewport_y, pw, ph))
         glfw.swap_buffers(self.window)
+
 
     # Event handlers -----------------------------------------------------
 

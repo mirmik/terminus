@@ -110,6 +110,11 @@ class ShaderProgram:
         vec = np.asarray(vector, dtype=np.float32)
         gl.glUniform3f(location, float(vec[0]), float(vec[1]), float(vec[2]))
 
+    def set_uniform_vec4(self, name: str, vector: np.ndarray):
+        location = self.uniform_location(name)
+        vec = np.asarray(vector, dtype=np.float32)
+        gl.glUniform4f(location, float(vec[0]), float(vec[1]), float(vec[2]), float(vec[3]))
+
     def set_uniform_float(self, name: str, value: float):
         location = self.uniform_location(name)
         gl.glUniform1f(location, float(value))
