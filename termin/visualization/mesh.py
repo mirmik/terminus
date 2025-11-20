@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Dict, Optional
 
 import numpy as np
 from OpenGL import GL as gl
 from OpenGL.raw.GL.VERSION.GL_2_0 import glVertexAttribPointer as _gl_vertex_attrib_pointer
 import ctypes
+import glfw
 
 from termin.mesh.mesh import Mesh
 
@@ -33,13 +34,11 @@ class MeshDrawable:
         self._mesh = mesh
         if self._mesh.vertex_normals is None:
             self._mesh.compute_vertex_normals()
-        self._vao = None
-        self._vbo = None
-        self._ebo = None
+        self._context_resources: Dict[int, tuple[int, int, int]] = {}
 
-
-    def upload(self):
-        if self._vao is not None:
+    def upload(self, context: RenderContext):
+        ctx = context.context_key
+        if ctx in self._context_resources:
             return
         vertex_block = np.hstack((
             self._mesh.vertices, 
@@ -48,16 +47,16 @@ class MeshDrawable:
         )).astype(np.float32).ravel()
         indices = self._mesh.triangles.astype(np.uint32).ravel()
 
-        self._vao = gl.glGenVertexArrays(1)
-        self._vbo = gl.glGenBuffers(1)
-        self._ebo = gl.glGenBuffers(1)
+        vao = gl.glGenVertexArrays(1)
+        vbo = gl.glGenBuffers(1)
+        ebo = gl.glGenBuffers(1)
 
-        gl.glBindVertexArray(self._vao)
+        gl.glBindVertexArray(vao)
 
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self._vbo)
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, vbo)
         gl.glBufferData(gl.GL_ARRAY_BUFFER, vertex_block.nbytes, vertex_block, gl.GL_STATIC_DRAW)
 
-        gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, self._ebo)
+        gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, ebo)
         gl.glBufferData(gl.GL_ELEMENT_ARRAY_BUFFER, indices.nbytes, indices, gl.GL_STATIC_DRAW)
 
         stride = 8 * 4  # 8 floats per vertex (3 position, 3 normal, 2 uv)
@@ -69,19 +68,21 @@ class MeshDrawable:
         _gl_vertex_attrib_pointer(2, 2, gl.GL_FLOAT, gl.GL_FALSE, stride, ctypes.c_void_p(24))
 
         gl.glBindVertexArray(0)
+        self._context_resources[ctx] = (vao, vbo, ebo)
 
-    def draw(self):
-        if self._vao is None:
-            self.upload()
+    def draw(self, context: RenderContext):
+        ctx = context.context_key
+        if ctx not in self._context_resources:
+            self.upload(context)
+        vao, _, _ = self._context_resources[ctx]
         gl.glEnable(gl.GL_DEPTH_TEST)
-        gl.glBindVertexArray(self._vao)
+        gl.glBindVertexArray(vao)
         gl.glDrawElements(gl.GL_TRIANGLES, self._mesh.triangles.size, gl.GL_UNSIGNED_INT, ctypes.c_void_p(0))
         gl.glBindVertexArray(0)
 
     def delete(self):
-        if self._vao is None:
-            return
-        gl.glDeleteVertexArrays(1, [self._vao])
-        gl.glDeleteBuffers(1, [self._vbo])
-        gl.glDeleteBuffers(1, [self._ebo])
-        self._vao = self._vbo = self._ebo = None
+        for vao, vbo, ebo in self._context_resources.values():
+            gl.glDeleteVertexArrays(1, [vao])
+            gl.glDeleteBuffers(1, [vbo])
+            gl.glDeleteBuffers(1, [ebo])
+        self._context_resources.clear()

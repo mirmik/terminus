@@ -1,31 +1,79 @@
-"""Scene entity storing pose, mesh and material references."""
+"""Scene entity storing components (Unity-like architecture)."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Iterable, List, Optional, Type, TypeVar, TYPE_CHECKING
 
 import numpy as np
 
 from termin.geombase.pose3 import Pose3
 
-from .material import Material
-from .mesh import MeshDrawable
+if TYPE_CHECKING:  # pragma: no cover
+    from .camera import Camera
+    from .renderer import Renderer
+    from .scene import Scene
+    from .shader import ShaderProgram
 
-from OpenGL import GL as gl
+
+@dataclass
+class RenderContext:
+    """Data bundle passed to components during rendering."""
+
+    view: np.ndarray
+    projection: np.ndarray
+    camera: "Camera"
+    scene: "Scene"
+    renderer: "Renderer"
+    context_key: int
+
+
+class Component:
+    """Base class for all entity components."""
+
+    def __init__(self, enabled: bool = True):
+        self.enabled = enabled
+        self.entity: Optional["Entity"] = None
+        self._started = False
+
+    def required_shaders(self) -> Iterable["ShaderProgram"]:
+        """Return shaders that must be compiled before rendering."""
+        return ()
+
+    def start(self, scene: "Scene"):
+        """Called once when the component becomes part of an active scene."""
+        self._started = True
+
+    def update(self, dt: float):
+        """Called every frame."""
+        return
+
+    def draw(self, context: RenderContext):
+        """Issue draw calls."""
+        return
+
+    def on_removed(self):
+        """Called when component is removed from its entity."""
+        return
+
+
+C = TypeVar("C", bound=Component)
 
 
 @dataclass
 class Entity:
-    """Renderable object with transform, geometry and appearance."""
+    """Container of components with transform data."""
 
-    mesh: MeshDrawable
-    material: Material
     pose: Pose3 = field(default_factory=Pose3.identity)
     visible: bool = True
+    active: bool = True
     name: str = "entity"
     scale: float = 1.0
     priority: int = 0  # rendering priority, lower values drawn first
+
+    def __post_init__(self):
+        self.scene: Optional["Scene"] = None
+        self._components: List[Component] = []
 
     def model_matrix(self) -> np.ndarray:
         """Construct homogeneous model matrix ``M = [R|t]`` with optional uniform scale."""
@@ -33,12 +81,59 @@ class Entity:
         matrix[:3, :3] *= self.scale
         return matrix
 
-    def update(self, dt: float):
-        """Override to implement per-frame animation."""
-        # Prototype hook, intentionally empty.
-        return
+    def add_component(self, component: Component) -> Component:
+        component.entity = self
+        self._components.append(component)
+        if self.scene is not None:
+            self.scene.register_component(component)
+            if not component._started:
+                component.start(self.scene)
+        return component
 
-    def draw(self):
-        """Draw the entity's mesh."""
-        gl.glDepthFunc(gl.GL_LESS)
-        self.mesh.draw()
+    def remove_component(self, component: Component):
+        if component not in self._components:
+            return
+        self._components.remove(component)
+        component.on_removed()
+        component.entity = None
+
+    def get_component(self, component_type: Type[C]) -> Optional[C]:
+        for comp in self._components:
+            if isinstance(comp, component_type):
+                return comp
+        return None
+
+    @property
+    def components(self) -> List[Component]:
+        return list(self._components)
+
+    def update(self, dt: float):
+        if not self.active:
+            return
+        for component in self._components:
+            if component.enabled:
+                component.update(dt)
+
+    def draw(self, context: RenderContext):
+        if not (self.active and self.visible):
+            return
+        for component in self._components:
+            if component.enabled:
+                component.draw(context)
+
+    def gather_shaders(self) -> Iterable["ShaderProgram"]:
+        for component in self._components:
+            yield from component.required_shaders()
+
+    def on_added(self, scene: "Scene"):
+        self.scene = scene
+        for component in self._components:
+            scene.register_component(component)
+            if not component._started:
+                component.start(scene)
+
+    def on_removed(self):
+        for component in self._components:
+            component.on_removed()
+            component.entity = None
+        self.scene = None

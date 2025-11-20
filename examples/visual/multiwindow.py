@@ -91,20 +91,28 @@ def build_scene(world: VisualizationWorld) -> tuple[Scene, PerspectiveCameraComp
     scene.add(SkyBoxEntity())
     world.add_scene(scene)
 
-    camera_entity = Entity(name="camera")
-    camera = PerspectiveCameraComponent()
-    camera_entity.add_component(camera)
-    camera_entity.add_component(OrbitCameraController())
-    scene.add(camera_entity)
+    camera1_entity = Entity(name="camera1")
+    camera1 = PerspectiveCameraComponent()
+    camera1_entity.add_component(camera1)
+    camera1_entity.add_component(OrbitCameraController())
+    scene.add(camera1_entity)
 
-    return scene, camera
+    camera2_entity = Entity(name="camera2")
+    camera2 = PerspectiveCameraComponent()
+    camera2_entity.add_component(camera2)
+    camera2_entity.add_component(OrbitCameraController())
+    scene.add(camera2_entity)
+
+    return scene, camera1, camera2
 
 
 def main():
     world = VisualizationWorld()
-    scene, camera = build_scene(world)
-    window = world.create_window(title="termin textured cube")
-    window.add_viewport(scene, camera)
+    scene, camera1, camera2 = build_scene(world)
+    window1 = world.create_window(title="window1")
+    window2 = world.create_window(title="window2")
+    window1.add_viewport(scene, camera1)
+    window2.add_viewport(scene, camera2)
     world.run()
 
 

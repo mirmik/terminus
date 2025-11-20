@@ -5,14 +5,12 @@ import numpy as np
 
 from termin.geombase.pose3 import Pose3
 
-from .entity import Entity
 from termin.mesh.mesh import Mesh
+from .entity import Entity
 from .mesh import MeshDrawable
 from .material import Material
 from .shader import ShaderProgram
-
-#gl
-from OpenGL import GL as gl
+from .components import SkyboxRenderer
 
 
 SKYBOX_VERTEX_SHADER = """
@@ -91,26 +89,9 @@ class SkyBoxEntity(Entity):
         material.color = None  # skybox не использует u_color
 
         super().__init__(
-            mesh=mesh,
-            material=material,
             pose=Pose3.identity(),
             scale=size,
             name="skybox",
-            priority = -100,  # рисуем в самом начале
+            priority=-100,  # рисуем в самом начале
         )
-
-    def update(self, dt: float, camera=None):
-        # Skybox следует за камерой, но без вращения
-        if camera is None:
-            return
-        eye = camera.pose.translation
-        self.pose = Pose3.from_translation(eye)
-
-    def draw(self):
-        gl.glDepthMask(gl.GL_FALSE)
-        gl.glDepthFunc(gl.GL_LEQUAL)
-
-        self.mesh.draw()
-
-        gl.glDepthFunc(gl.GL_LESS)
-        gl.glDepthMask(gl.GL_TRUE)
+        self.renderer = self.add_component(SkyboxRenderer(mesh, material))

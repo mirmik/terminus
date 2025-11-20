@@ -1,36 +1,47 @@
-"""Camera classes producing view/projection matrices."""
+"""Camera components and controllers."""
 
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Iterable, Optional
 
 import numpy as np
 
 from termin.geombase.pose3 import Pose3
 
+from .entity import Component
 
-@dataclass
-class Camera:
-    """Base camera that stores pose plus clipping planes."""
 
-    pose: Pose3
-    near: float = 0.1
-    far: float = 100.0
+class CameraComponent(Component):
+    """Component that exposes view/projection matrices based on entity pose."""
+
+    def __init__(self, near: float = 0.1, far: float = 100.0):
+        super().__init__(enabled=True)
+        self.near = near
+        self.far = far
+
+    def start(self, scene):
+        if self.entity is None:
+            raise RuntimeError("CameraComponent must be attached to an entity.")
+        super().start(scene)
 
     def get_view_matrix(self) -> np.ndarray:
-        """Calculate view matrix ``V = (pose)^{-1}``."""
-        return self.pose.inverse().as_matrix()
+        if self.entity is None:
+            raise RuntimeError("CameraComponent has no entity.")
+        return self.entity.pose.inverse().as_matrix()
 
     def get_projection_matrix(self) -> np.ndarray:
         raise NotImplementedError
 
+    def set_aspect(self, aspect: float):
+        """Optional method for perspective cameras."""
+        return
 
-class PerspectiveCamera(Camera):
-    """Perspective projection defined by field-of-view and aspect ratio."""
 
-    def __init__(self, pose: Pose3 | None = None, fov_y_degrees: float = 60.0, aspect: float = 1.0, near: float = 0.1, far: float = 100.0):
-        super().__init__(pose=pose or Pose3.identity(), near=near, far=far)
+class PerspectiveCameraComponent(CameraComponent):
+    def __init__(self, fov_y_degrees: float = 60.0, aspect: float = 1.0, near: float = 0.1, far: float = 100.0):
+        super().__init__(near=near, far=far)
         self.fov_y = math.radians(fov_y_degrees)
         self.aspect = aspect
 
@@ -38,11 +49,10 @@ class PerspectiveCamera(Camera):
         self.aspect = aspect
 
     def get_projection_matrix(self) -> np.ndarray:
-        """Standard perspective matrix with ``f = 1 / tan(fov/2)``."""
         f = 1.0 / math.tan(self.fov_y * 0.5)
         near, far = self.near, self.far
         proj = np.zeros((4, 4), dtype=np.float32)
-        proj[0, 0] = f / self.aspect
+        proj[0, 0] = f / max(1e-6, self.aspect)
         proj[1, 1] = f
         proj[2, 2] = (far + near) / (near - far)
         proj[2, 3] = (2 * far * near) / (near - far)
@@ -50,11 +60,9 @@ class PerspectiveCamera(Camera):
         return proj
 
 
-class OrthographicCamera(Camera):
-    """Orthographic camera defined by view volume."""
-
-    def __init__(self, pose: Pose3 | None = None, left: float = -1.0, right: float = 1.0, bottom: float = -1.0, top: float = 1.0, near: float = 0.1, far: float = 100.0):
-        super().__init__(pose=pose or Pose3.identity(), near=near, far=far)
+class OrthographicCameraComponent(CameraComponent):
+    def __init__(self, left: float = -1.0, right: float = 1.0, bottom: float = -1.0, top: float = 1.0, near: float = 0.1, far: float = 100.0):
+        super().__init__(near=near, far=far)
         self.left = left
         self.right = right
         self.bottom = bottom
@@ -74,22 +82,50 @@ class OrthographicCamera(Camera):
         return proj
 
 
-class OrbitCamera(PerspectiveCamera):
-    """Camera rotating around a target point using spherical coordinates."""
+class CameraController(Component):
+    """Base class for camera manipulation controllers."""
 
-    def __init__(self, target: np.ndarray | None = None, radius: float = 5.0, azimuth: float = 45.0, elevation: float = 30.0, **kwargs):
-        pose = kwargs.pop("pose", None)
-        super().__init__(pose=pose, **kwargs)
+    def orbit(self, d_azimuth: float, d_elevation: float):
+        return
+
+    def pan(self, dx: float, dy: float):
+        return
+
+    def zoom(self, delta: float):
+        return
+
+
+class OrbitCameraController(CameraController):
+    """Orbit controller similar to common DCC tools."""
+
+    def __init__(
+        self,
+        target: Optional[np.ndarray] = None,
+        radius: float = 5.0,
+        azimuth: float = 45.0,
+        elevation: float = 30.0,
+        min_radius: float = 1.0,
+        max_radius: float = 100.0,
+    ):
+        super().__init__(enabled=True)
         self.target = np.array(target if target is not None else [0.0, 0.0, 0.0], dtype=np.float32)
         self.radius = radius
         self.azimuth = math.radians(azimuth)
         self.elevation = math.radians(elevation)
-        self._min_radius = 1.0
-        self._max_radius = 100.0
+        self._min_radius = min_radius
+        self._max_radius = max_radius
+
+    def start(self, scene):
+        if self.entity is None:
+            raise RuntimeError("OrbitCameraController must be attached to an entity.")
+        super().start(scene)
         self._update_pose()
 
     def _update_pose(self):
-        r = max(self._min_radius, min(self._max_radius, self.radius))
+        entity = self.entity
+        if entity is None:
+            return
+        r = float(np.clip(self.radius, self._min_radius, self._max_radius))
         cos_elev = math.cos(self.elevation)
         eye = np.array(
             [
@@ -99,7 +135,7 @@ class OrbitCamera(PerspectiveCamera):
             ],
             dtype=np.float32,
         )
-        self.pose = Pose3.looking_at(eye=eye, target=self.target)
+        entity.pose = Pose3.looking_at(eye=eye, target=self.target)
 
     def orbit(self, delta_azimuth: float, delta_elevation: float):
         self.azimuth += math.radians(delta_azimuth)
@@ -107,12 +143,15 @@ class OrbitCamera(PerspectiveCamera):
         self._update_pose()
 
     def zoom(self, delta: float):
-        self.radius = np.clip(self.radius + delta, self._min_radius, self._max_radius)
+        self.radius += delta
         self._update_pose()
 
     def pan(self, dx: float, dy: float):
-        rot = self.pose.rotation_matrix()
+        entity = self.entity
+        if entity is None:
+            return
+        rot = entity.pose.rotation_matrix()
         right = rot[:, 0]
         up = rot[:, 1]
-        self.target += right * dx + up * dy
+        self.target = self.target + right * dx + up * dy
         self._update_pose()

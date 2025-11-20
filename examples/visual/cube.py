@@ -5,8 +5,17 @@ from __future__ import annotations
 import numpy as np
 
 from termin.geombase.pose3 import Pose3
-from termin.mesh.mesh import Mesh, CubeMesh, UVSphereMesh, IcoSphereMesh, PlaneMesh, CylinderMesh, ConeMesh
-from termin.visualization import Entity, GLWindow, MeshDrawable, Renderer, Scene, Material
+from termin.mesh.mesh import UVSphereMesh
+from termin.visualization import (
+    Entity,
+    MeshDrawable,
+    Scene,
+    Material,
+    VisualizationWorld,
+    PerspectiveCameraComponent,
+    OrbitCameraController,
+)
+from termin.visualization.components import MeshRenderer
 from termin.visualization.shader import ShaderProgram
 from termin.visualization.skybox import SkyBoxEntity
 
@@ -91,26 +100,35 @@ void main() {
 }
 """
 
-def build_scene() -> Scene:
+def build_scene(world: VisualizationWorld) -> tuple[Scene, PerspectiveCameraComponent]:
     cube_mesh = UVSphereMesh()
     drawable = MeshDrawable(cube_mesh)
     shader_prog = ShaderProgram(vert, frag)
-    renderer = Renderer()
     material = Material(shader=shader_prog, color=np.array([0.8, 0.3, 0.3, 1.0], dtype=np.float32))
-    entity = Entity(mesh=drawable, material=material, pose=Pose3.identity(), name="cube")
+    entity = Entity(pose=Pose3.identity(), name="cube")
+    entity.add_component(MeshRenderer(drawable, material))
     scene = Scene()
     scene.add(entity)
 
     skybox = SkyBoxEntity()
     scene.add(skybox)
-    
-    return scene, renderer
+    world.add_scene(scene)
+
+    camera_entity = Entity(name="camera")
+    camera = PerspectiveCameraComponent()
+    camera_entity.add_component(camera)
+    camera_entity.add_component(OrbitCameraController())
+    scene.add(camera_entity)
+
+    return scene, camera
 
 
 def main():
-    scene, renderer = build_scene()
-    window = GLWindow(scene=scene, renderer=renderer, title="termin cube demo")
-    window.run()
+    world = VisualizationWorld()
+    scene, camera = build_scene(world)
+    window = world.create_window(title="termin cube demo")
+    window.add_viewport(scene, camera)
+    world.run()
 
 
 if __name__ == "__main__":

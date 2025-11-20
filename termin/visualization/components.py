@@ -1,0 +1,59 @@
+"""Common component implementations (renderers, etc.)."""
+
+from __future__ import annotations
+
+from typing import Iterable
+
+import numpy as np
+from OpenGL import GL as gl
+
+from .entity import Component, RenderContext
+from .material import Material
+from .mesh import MeshDrawable
+
+
+class MeshRenderer(Component):
+    """Renderer component that draws :class:`MeshDrawable` with a :class:`Material`."""
+
+    def __init__(self, mesh: MeshDrawable, material: Material):
+        super().__init__(enabled=True)
+        self.mesh = mesh
+        self.material = material
+
+    def required_shaders(self) -> Iterable:
+        return (self.material.shader,)
+
+    def draw(self, context: RenderContext):
+        if self.entity is None:
+            return
+        model = self.entity.model_matrix()
+        self.material.apply(model, context.view, context.projection)
+        shader = self.material.shader
+        if hasattr(context.scene, "light_direction"):
+            shader.set_uniform_vec3("u_light_dir", context.scene.light_direction)
+        if hasattr(context.scene, "light_color"):
+            shader.set_uniform_vec3("u_light_color", context.scene.light_color)
+        camera_entity = context.camera.entity if context.camera is not None else None
+        if camera_entity is not None:
+            shader.set_uniform_vec3("u_view_pos", camera_entity.pose.lin)
+        self.mesh.draw(context)
+
+
+class SkyboxRenderer(MeshRenderer):
+    """Specialized renderer for skyboxes (no depth writes and view without translation)."""
+
+    def draw(self, context: RenderContext):
+        if self.entity is None:
+            return
+        camera_entity = context.camera.entity if context.camera is not None else None
+        if camera_entity is not None:
+            self.entity.pose.lin = camera_entity.pose.lin.copy()
+        original_view = context.view
+        view_no_translation = np.array(original_view, copy=True)
+        view_no_translation[:3, 3] = 0.0
+        gl.glDepthMask(gl.GL_FALSE)
+        gl.glDepthFunc(gl.GL_LEQUAL)
+        self.material.apply(self.entity.model_matrix(), view_no_translation, context.projection)
+        self.mesh.draw(context)
+        gl.glDepthFunc(gl.GL_LESS)
+        gl.glDepthMask(gl.GL_TRUE)

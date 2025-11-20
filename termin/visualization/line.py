@@ -1,38 +1,29 @@
-# skybox.py
+"""Helpers for rendering polylines as entities."""
 
 from __future__ import annotations
+
 import numpy as np
 
 from termin.geombase.pose3 import Pose3
 
+from .components import MeshRenderer
 from .entity import Entity
-from termin.mesh.mesh import Mesh
-from .mesh import MeshDrawable
 from .material import Material
-from .shader import ShaderProgram
-
-#gl
-from OpenGL import GL as gl
-
-from termin.visualization.polyline import Polyline, PolylineDrawable
+from .polyline import Polyline, PolylineDrawable
 
 
 class LineEntity(Entity):
-    def __init__(self, points: list[np.ndarray], color: np.ndarray = np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float32), width: float = 1.0, size: float = 1.0, material: Optional[Material] = None):
-        mesh = PolylineDrawable(Polyline(vertices=np.array(points, dtype=np.float32),
-                        indices=np.array(range(len(points)), dtype=np.uint32)))
+    """Entity wrapping a :class:`PolylineDrawable` with a material."""
 
-        if material is None:
-            raise ValueError("Material must be provided for LineEntity.")
-
-        super().__init__(
-            mesh=mesh,
-            material=material,
-            pose=Pose3.identity(),
-            scale=size,
-            name="line",
-            priority = -100,  # рисуем в самом начале
-        )
-
-    def draw(self):
-        self.mesh.draw()
+    def __init__(
+        self,
+        points: list[np.ndarray],
+        material: Material,
+        is_strip: bool = True,
+        name: str = "line",
+        priority: int = 0,
+    ):
+        super().__init__(pose=Pose3.identity(), name=name, priority=priority)
+        polyline = Polyline(vertices=np.array(points, dtype=np.float32), indices=None, is_strip=is_strip)
+        drawable = PolylineDrawable(polyline)
+        self.add_component(MeshRenderer(drawable, material))

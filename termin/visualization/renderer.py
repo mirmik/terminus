@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import numpy as np
 from OpenGL import GL as gl
 
-from .camera import Camera, PerspectiveCamera
-from .material import Material
+from .camera import CameraComponent, PerspectiveCameraComponent
 from .scene import Scene
 from .shader import ShaderProgram
+from .entity import RenderContext
 
 from .opengl_helpers import init_opengl, opengl_is_inited
 
@@ -65,29 +64,22 @@ class Renderer:
             init_opengl()
 
     def _ensure_gl_state(self):
-        if opengl_is_inited() == False:
+        if not opengl_is_inited():
             init_opengl()
 
-    def render(self, scene: Scene, camera: Camera):
+    def render(self, scene: Scene, camera: CameraComponent):
+        width, height = 1, 1
+        self.render_viewport(scene, camera, (0, 0, width, height), ctx_key)
+
+
+    def render_viewport(self, scene: Scene, camera: CameraComponent, viewport_rect: tuple[int, int, int, int], window : GLWindow):
         self.ensure_ready()
         self._ensure_gl_state()
-        bg = scene.background_color
-        gl.glClearColor(float(bg[0]), float(bg[1]), float(bg[2]), float(bg[3]))
-        gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
+        x, y, w, h = viewport_rect
+        gl.glViewport(x, y, w, h)
         view = camera.get_view_matrix()
         projection = camera.get_projection_matrix()
+        context = RenderContext(view=view, projection=projection, camera=camera, scene=scene, renderer=self, context_key=id(window))
 
         for entity in scene.entities:
-            if not entity.visible:
-                continue
-            material = entity.material
-            model = entity.model_matrix()
-            material.apply(model, view, projection)
-            material.shader.set_uniform_vec3("u_light_dir", scene.light_direction)
-            material.shader.set_uniform_vec3("u_light_color", np.array([1.0, 1.0, 1.0], dtype=np.float32))
-            entity.draw()
-
-    def resize(self, width: int, height: int, camera: Camera):
-        gl.glViewport(0, 0, width, height)
-        if isinstance(camera, PerspectiveCamera):
-            camera.set_aspect(width / max(1.0, float(height)))
+            entity.draw(context)
