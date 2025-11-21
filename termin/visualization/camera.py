@@ -199,4 +199,6 @@ class OrbitCameraController(CameraController):
             self.pan(-dx * self._pan_speed, dy * self._pan_speed)
 
     def on_scroll(self, viewport, xoffset: float, yoffset: float):
+        if viewport != self.camera_component.viewport:
+            return
         self.zoom(-yoffset * self._zoom_speed)
