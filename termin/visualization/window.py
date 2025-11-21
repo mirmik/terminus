@@ -75,6 +75,7 @@ class GLWindow:
         self.make_current()
         scene.ensure_ready()
         viewport = Viewport(scene=scene, camera=camera, rect=rect, canvas=canvas)
+        camera.viewport = viewport
         self.viewports.append(viewport)
         return viewport
 

@@ -1,0 +1,1462 @@
+"""
+Visualization package providing a minimal OpenGL-based rendering stack.
+
+The module exposes abstractions for window/context management, scene graphs,
+camera models and GPU resources such as meshes, shaders, materials and textures.
+"""
+
+from .window import GLWindow
+from .renderer import Renderer
+from .scene import Scene
+from .entity import Entity, Component, InputComponent, RenderContext
+from .camera import (
+    CameraComponent,
+    PerspectiveCameraComponent,
+    OrthographicCameraComponent,
+    OrbitCameraController,
+)
+from .mesh import MeshDrawable
+from .material import Material
+from .shader import ShaderProgram
+from .texture import Texture
+from .components import MeshRenderer
+from .ui import Canvas, UIElement, UIRectangle
+from .world import VisualizationWorld
+
+__all__ = [
+    "GLWindow",
+    "Renderer",
+    "Scene",
+    "Entity",
+    "Component",
+    "InputComponent",
+    "RenderContext",
+    "CameraComponent",
+    "PerspectiveCameraComponent",
+    "OrthographicCameraComponent",
+    "OrbitCameraController",
+    "MeshDrawable",
+    "MeshRenderer",
+    "Canvas",
+    "UIElement",
+    "UIRectangle",
+    "Material",
+    "ShaderProgram",
+    "Texture",
+    "VisualizationWorld",
+]
+"""Camera components and controllers."""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+from typing import Dict, Iterable, Optional
+
+import numpy as np
+import glfw
+
+from termin.geombase.pose3 import Pose3
+
+from .entity import Component, InputComponent
+
+
+class CameraComponent(Component):
+    """Component that exposes view/projection matrices based on entity pose."""
+
+    def __init__(self, near: float = 0.1, far: float = 100.0):
+        super().__init__(enabled=True)
+        self.near = near
+        self.far = far
+
+    def start(self, scene):
+        if self.entity is None:
+            raise RuntimeError("CameraComponent must be attached to an entity.")
+        super().start(scene)
+
+    def get_view_matrix(self) -> np.ndarray:
+        if self.entity is None:
+            raise RuntimeError("CameraComponent has no entity.")
+        return self.entity.pose.inverse().as_matrix()
+
+    def get_projection_matrix(self) -> np.ndarray:
+        raise NotImplementedError
+
+    def set_aspect(self, aspect: float):
+        """Optional method for perspective cameras."""
+        return
+
+
+class PerspectiveCameraComponent(CameraComponent):
+    def __init__(self, fov_y_degrees: float = 60.0, aspect: float = 1.0, near: float = 0.1, far: float = 100.0):
+        super().__init__(near=near, far=far)
+        self.fov_y = math.radians(fov_y_degrees)
+        self.aspect = aspect
+
+    def set_aspect(self, aspect: float):
+        self.aspect = aspect
+
+    def get_projection_matrix(self) -> np.ndarray:
+        f = 1.0 / math.tan(self.fov_y * 0.5)
+        near, far = self.near, self.far
+        proj = np.zeros((4, 4), dtype=np.float32)
+        proj[0, 0] = f / max(1e-6, self.aspect)
+        proj[1, 1] = f
+        proj[2, 2] = (far + near) / (near - far)
+        proj[2, 3] = (2 * far * near) / (near - far)
+        proj[3, 2] = -1.0
+        return proj
+
+
+class OrthographicCameraComponent(CameraComponent):
+    def __init__(self, left: float = -1.0, right: float = 1.0, bottom: float = -1.0, top: float = 1.0, near: float = 0.1, far: float = 100.0):
+        super().__init__(near=near, far=far)
+        self.left = left
+        self.right = right
+        self.bottom = bottom
+        self.top = top
+
+    def get_projection_matrix(self) -> np.ndarray:
+        lr = self.right - self.left
+        tb = self.top - self.bottom
+        fn = self.far - self.near
+        proj = np.identity(4, dtype=np.float32)
+        proj[0, 0] = 2.0 / lr
+        proj[1, 1] = 2.0 / tb
+        proj[2, 2] = -2.0 / fn
+        proj[0, 3] = -(self.right + self.left) / lr
+        proj[1, 3] = -(self.top + self.bottom) / tb
+        proj[2, 3] = -(self.far + self.near) / fn
+        return proj
+
+
+class CameraController(InputComponent):
+    """Base class for camera manipulation controllers."""
+
+    def orbit(self, d_azimuth: float, d_elevation: float):
+        return
+
+    def pan(self, dx: float, dy: float):
+        return
+
+    def zoom(self, delta: float):
+        return
+
+
+class OrbitCameraController(CameraController):
+    """Orbit controller similar to common DCC tools."""
+
+    def __init__(
+        self,
+        target: Optional[np.ndarray] = None,
+        radius: float = 5.0,
+        azimuth: float = 45.0,
+        elevation: float = 30.0,
+        min_radius: float = 1.0,
+        max_radius: float = 100.0,
+    ):
+        super().__init__(enabled=True)
+        self.target = np.array(target if target is not None else [0.0, 0.0, 0.0], dtype=np.float32)
+        self.radius = radius
+        self.azimuth = math.radians(azimuth)
+        self.elevation = math.radians(elevation)
+        self._min_radius = min_radius
+        self._max_radius = max_radius
+        self._orbit_speed = 0.2
+        self._pan_speed = 0.005
+        self._zoom_speed = 0.5
+        self._states: Dict[int, dict] = {}
+
+    def start(self, scene):
+        if self.entity is None:
+            raise RuntimeError("OrbitCameraController must be attached to an entity.")
+        super().start(scene)
+        self._update_pose()
+
+    def _update_pose(self):
+        entity = self.entity
+        if entity is None:
+            return
+        r = float(np.clip(self.radius, self._min_radius, self._max_radius))
+        cos_elev = math.cos(self.elevation)
+        eye = np.array(
+            [
+                self.target[0] + r * math.cos(self.azimuth) * cos_elev,
+                self.target[1] + r * math.sin(self.azimuth) * cos_elev,
+                self.target[2] + r * math.sin(self.elevation),
+            ],
+            dtype=np.float32,
+        )
+        entity.pose = Pose3.looking_at(eye=eye, target=self.target)
+
+    def orbit(self, delta_azimuth: float, delta_elevation: float):
+        self.azimuth += math.radians(delta_azimuth)
+        self.elevation = np.clip(self.elevation + math.radians(delta_elevation), math.radians(-89.0), math.radians(89.0))
+        self._update_pose()
+
+    def zoom(self, delta: float):
+        self.radius += delta
+        self._update_pose()
+
+    def pan(self, dx: float, dy: float):
+        entity = self.entity
+        if entity is None:
+            return
+        rot = entity.pose.rotation_matrix()
+        right = rot[:, 0]
+        up = rot[:, 1]
+        self.target = self.target + right * dx + up * dy
+        self._update_pose()
+
+    def _state(self, viewport) -> dict:
+        key = id(viewport)
+        if key not in self._states:
+            self._states[key] = {"orbit": False, "pan": False, "last": None}
+        return self._states[key]
+
+    def on_mouse_button(self, viewport, button: int, action: int, mods: int):
+        state = self._state(viewport)
+        if button == glfw.MOUSE_BUTTON_LEFT:
+            state["orbit"] = action == glfw.PRESS
+        elif button == glfw.MOUSE_BUTTON_RIGHT:
+            state["pan"] = action == glfw.PRESS
+        if action == glfw.RELEASE:
+            state["last"] = None
+
+    def on_mouse_move(self, viewport, x: float, y: float, dx: float, dy: float):
+        state = self._state(viewport)
+        if state.get("last") is None:
+            state["last"] = (x, y)
+            return
+        state["last"] = (x, y)
+        if state.get("orbit"):
+            self.orbit(-dx * self._orbit_speed, dy * self._orbit_speed)
+        elif state.get("pan"):
+            self.pan(-dx * self._pan_speed, dy * self._pan_speed)
+
+    def on_scroll(self, viewport, xoffset: float, yoffset: float):
+        self.zoom(-yoffset * self._zoom_speed)
+"""Common component implementations (renderers, etc.)."""
+
+from __future__ import annotations
+
+from typing import Iterable
+
+import numpy as np
+from OpenGL import GL as gl
+
+from .entity import Component, RenderContext
+from .material import Material
+from .mesh import MeshDrawable
+
+
+class MeshRenderer(Component):
+    """Renderer component that draws :class:`MeshDrawable` with a :class:`Material`."""
+
+    def __init__(self, mesh: MeshDrawable, material: Material):
+        super().__init__(enabled=True)
+        self.mesh = mesh
+        self.material = material
+
+    def required_shaders(self) -> Iterable:
+        return (self.material.shader,)
+
+    def draw(self, context: RenderContext):
+        if self.entity is None:
+            return
+        model = self.entity.model_matrix()
+        self.material.apply(model, context.view, context.projection)
+        shader = self.material.shader
+        if hasattr(context.scene, "light_direction"):
+            shader.set_uniform_vec3("u_light_dir", context.scene.light_direction)
+        if hasattr(context.scene, "light_color"):
+            shader.set_uniform_vec3("u_light_color", context.scene.light_color)
+        camera_entity = context.camera.entity if context.camera is not None else None
+        if camera_entity is not None:
+            shader.set_uniform_vec3("u_view_pos", camera_entity.pose.lin)
+        self.mesh.draw(context)
+
+
+class SkyboxRenderer(MeshRenderer):
+    """Specialized renderer for skyboxes (no depth writes and view without translation)."""
+
+    def draw(self, context: RenderContext):
+        if self.entity is None:
+            return
+        camera_entity = context.camera.entity if context.camera is not None else None
+        if camera_entity is not None:
+            self.entity.pose.lin = camera_entity.pose.lin.copy()
+        original_view = context.view
+        view_no_translation = np.array(original_view, copy=True)
+        view_no_translation[:3, 3] = 0.0
+        gl.glDepthMask(gl.GL_FALSE)
+        gl.glDepthFunc(gl.GL_LEQUAL)
+        self.material.apply(self.entity.model_matrix(), view_no_translation, context.projection)
+        self.mesh.draw(context)
+        gl.glDepthFunc(gl.GL_LESS)
+        gl.glDepthMask(gl.GL_TRUE)
+"""Scene entity storing components (Unity-like architecture)."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Iterable, List, Optional, Type, TypeVar, TYPE_CHECKING
+
+import numpy as np
+
+from termin.geombase.pose3 import Pose3
+
+if TYPE_CHECKING:  # pragma: no cover
+    from .camera import Camera
+    from .renderer import Renderer
+    from .scene import Scene
+    from .shader import ShaderProgram
+
+
+@dataclass
+class RenderContext:
+    """Data bundle passed to components during rendering."""
+
+    view: np.ndarray
+    projection: np.ndarray
+    camera: "Camera"
+    scene: "Scene"
+    renderer: "Renderer"
+    context_key: int
+
+
+class Component:
+    """Base class for all entity components."""
+
+    def __init__(self, enabled: bool = True):
+        self.enabled = enabled
+        self.entity: Optional["Entity"] = None
+        self._started = False
+
+    def required_shaders(self) -> Iterable["ShaderProgram"]:
+        """Return shaders that must be compiled before rendering."""
+        return ()
+
+    def start(self, scene: "Scene"):
+        """Called once when the component becomes part of an active scene."""
+        self._started = True
+
+    def update(self, dt: float):
+        """Called every frame."""
+        return
+
+    def draw(self, context: RenderContext):
+        """Issue draw calls."""
+        return
+
+    def on_removed(self):
+        """Called when component is removed from its entity."""
+        return
+
+
+class InputComponent(Component):
+    """Component capable of handling input events."""
+
+    def on_mouse_button(self, viewport, button: int, action: int, mods: int):
+        return
+
+    def on_mouse_move(self, viewport, x: float, y: float, dx: float, dy: float):
+        return
+
+    def on_scroll(self, viewport, xoffset: float, yoffset: float):
+        return
+
+    def on_key(self, viewport, key: int, scancode: int, action: int, mods: int):
+        return
+
+
+C = TypeVar("C", bound=Component)
+
+
+@dataclass
+class Entity:
+    """Container of components with transform data."""
+
+    pose: Pose3 = field(default_factory=Pose3.identity)
+    visible: bool = True
+    active: bool = True
+    name: str = "entity"
+    scale: float = 1.0
+    priority: int = 0  # rendering priority, lower values drawn first
+
+    def __post_init__(self):
+        self.scene: Optional["Scene"] = None
+        self._components: List[Component] = []
+
+    def model_matrix(self) -> np.ndarray:
+        """Construct homogeneous model matrix ``M = [R|t]`` with optional uniform scale."""
+        matrix = self.pose.as_matrix().copy()
+        matrix[:3, :3] *= self.scale
+        return matrix
+
+    def add_component(self, component: Component) -> Component:
+        component.entity = self
+        self._components.append(component)
+        if self.scene is not None:
+            self.scene.register_component(component)
+            if not component._started:
+                component.start(self.scene)
+        return component
+
+    def remove_component(self, component: Component):
+        if component not in self._components:
+            return
+        self._components.remove(component)
+        if self.scene is not None:
+            self.scene.unregister_component(component)
+        component.on_removed()
+        component.entity = None
+
+    def get_component(self, component_type: Type[C]) -> Optional[C]:
+        for comp in self._components:
+            if isinstance(comp, component_type):
+                return comp
+        return None
+
+    @property
+    def components(self) -> List[Component]:
+        return list(self._components)
+
+    def update(self, dt: float):
+        if not self.active:
+            return
+        for component in self._components:
+            if component.enabled:
+                component.update(dt)
+
+    def draw(self, context: RenderContext):
+        if not (self.active and self.visible):
+            return
+        for component in self._components:
+            if component.enabled:
+                component.draw(context)
+
+    def gather_shaders(self) -> Iterable["ShaderProgram"]:
+        for component in self._components:
+            yield from component.required_shaders()
+
+    def on_added(self, scene: "Scene"):
+        self.scene = scene
+        for component in self._components:
+            scene.register_component(component)
+            if not component._started:
+                component.start(scene)
+
+    def on_removed(self):
+        for component in self._components:
+            if self.scene is not None:
+                self.scene.unregister_component(component)
+            component.on_removed()
+            component.entity = None
+        self.scene = None
+"""Helpers for rendering polylines as entities."""
+
+from __future__ import annotations
+
+import numpy as np
+
+from termin.geombase.pose3 import Pose3
+
+from .components import MeshRenderer
+from .entity import Entity
+from .material import Material
+from .polyline import Polyline, PolylineDrawable
+
+
+class LineEntity(Entity):
+    """Entity wrapping a :class:`PolylineDrawable` with a material."""
+
+    def __init__(
+        self,
+        points: list[np.ndarray],
+        material: Material,
+        is_strip: bool = True,
+        name: str = "line",
+        priority: int = 0,
+    ):
+        super().__init__(pose=Pose3.identity(), name=name, priority=priority)
+        polyline = Polyline(vertices=np.array(points, dtype=np.float32), indices=None, is_strip=is_strip)
+        drawable = PolylineDrawable(polyline)
+        self.add_component(MeshRenderer(drawable, material))
+"""Material keeps shader reference and static uniform parameters."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, Dict, Iterable
+
+import numpy as np
+
+from .shader import ShaderProgram
+from .texture import Texture
+
+
+class Material:
+    """Collection of shader parameters applied before drawing a mesh."""
+
+    def __init__(
+        self,
+        shader: ShaderProgram,
+        color: np.ndarray | None = None,
+        textures: Dict[str, Texture] | None = None,
+        uniforms: Dict[str, Any] | None = None
+    ):
+        if color is None:
+            color = np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float32)
+
+        self.shader = shader
+        self.color = color
+        self.textures = textures if textures is not None else {}
+        self.uniforms = uniforms if uniforms is not None else {}
+
+
+    def apply(self, model: np.ndarray, view: np.ndarray, projection: np.ndarray):
+        """Bind shader, upload MVP matrices and all statically defined uniforms."""
+        self.shader.use()
+        self.shader.set_uniform_matrix4("u_model", model)
+        self.shader.set_uniform_matrix4("u_view", view)
+        self.shader.set_uniform_matrix4("u_projection", projection)
+        if self.color is not None:
+            self.shader.set_uniform_vec3("u_color", self.color)
+
+        texture_slots = enumerate(self.textures.items())
+        for unit, (uniform_name, texture) in texture_slots:
+            #print(f"Binding texture to unit {unit} for uniform {uniform_name}")
+            texture.bind(unit)
+            self.shader.set_uniform_int(uniform_name, unit)
+
+        for name, value in self.uniforms.items():
+            self.shader.set_uniform_auto(name, value)
+
+    def update_color(self, rgba: Iterable[float]):
+        vec = np.asarray(rgba, dtype=np.float32)
+        if vec.shape != (4,):
+            raise ValueError("Color must be an RGBA quadruplet.")
+        self.color = vec
+"""GPU mesh helper built on top of :mod:`termin.mesh` geometry."""
+
+from __future__ import annotations
+
+from typing import Dict
+
+import numpy as np
+from OpenGL import GL as gl
+from OpenGL.raw.GL.VERSION.GL_2_0 import glVertexAttribPointer as _gl_vertex_attrib_pointer
+import ctypes
+
+from termin.mesh.mesh import Mesh
+from .entity import RenderContext
+
+
+def _vertex_normals(vertices: np.ndarray, triangles: np.ndarray) -> np.ndarray:
+    """Area-weighted vertex normals: ``n_v = sum_{t∈F(v)} ( (v1-v0) × (v2-v0) ).``"""
+    normals = np.zeros_like(vertices, dtype=np.float64)
+    v0 = vertices[triangles[:, 0]]
+    v1 = vertices[triangles[:, 1]]
+    v2 = vertices[triangles[:, 2]]
+    face_normals = np.cross(v1 - v0, v2 - v0)
+    for face, normal in zip(triangles, face_normals):
+        normals[face] += normal
+    norms = np.linalg.norm(normals, axis=1)
+    norms[norms == 0] = 1.0
+    return (normals.T / norms).T.astype(np.float32)
+
+
+class MeshDrawable:
+    """Uploads CPU mesh data to GPU buffers and issues draw commands."""
+
+    def __init__(self, mesh: Mesh):
+        self._mesh = mesh
+        if self._mesh.vertex_normals is None:
+            self._mesh.compute_vertex_normals()
+        self._context_resources: Dict[int, tuple[int, int, int]] = {}
+
+    def upload(self, context: RenderContext):
+        ctx = context.context_key
+        if ctx in self._context_resources:
+            return
+        vertex_block = np.hstack((
+            self._mesh.vertices, 
+            self._mesh.vertex_normals,
+            self._mesh.uv if self._mesh.uv is not None else np.zeros((self._mesh.vertices.shape[0], 2))    
+        )).astype(np.float32).ravel()
+        indices = self._mesh.triangles.astype(np.uint32).ravel()
+
+        vao = gl.glGenVertexArrays(1)
+        vbo = gl.glGenBuffers(1)
+        ebo = gl.glGenBuffers(1)
+
+        gl.glBindVertexArray(vao)
+
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, vbo)
+        gl.glBufferData(gl.GL_ARRAY_BUFFER, vertex_block.nbytes, vertex_block, gl.GL_STATIC_DRAW)
+
+        gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, ebo)
+        gl.glBufferData(gl.GL_ELEMENT_ARRAY_BUFFER, indices.nbytes, indices, gl.GL_STATIC_DRAW)
+
+        stride = 8 * 4  # 8 floats per vertex (3 position, 3 normal, 2 uv)
+        gl.glEnableVertexAttribArray(0)
+        _gl_vertex_attrib_pointer(0, 3, gl.GL_FLOAT, gl.GL_FALSE, stride, ctypes.c_void_p(0))
+        gl.glEnableVertexAttribArray(1)
+        _gl_vertex_attrib_pointer(1, 3, gl.GL_FLOAT, gl.GL_FALSE, stride, ctypes.c_void_p(12))
+        gl.glEnableVertexAttribArray(2)
+        _gl_vertex_attrib_pointer(2, 2, gl.GL_FLOAT, gl.GL_FALSE, stride, ctypes.c_void_p(24))
+
+        gl.glBindVertexArray(0)
+        self._context_resources[ctx] = (vao, vbo, ebo)
+
+    def draw(self, context: RenderContext):
+        ctx = context.context_key
+        if ctx not in self._context_resources:
+            self.upload(context)
+        vao, _, _ = self._context_resources[ctx]
+        gl.glEnable(gl.GL_DEPTH_TEST)
+        gl.glBindVertexArray(vao)
+        gl.glDrawElements(gl.GL_TRIANGLES, self._mesh.triangles.size, gl.GL_UNSIGNED_INT, ctypes.c_void_p(0))
+        gl.glBindVertexArray(0)
+
+    def delete(self):
+        for vao, vbo, ebo in self._context_resources.values():
+            gl.glDeleteVertexArrays(1, [vao])
+            gl.glDeleteBuffers(1, [vbo])
+            gl.glDeleteBuffers(1, [ebo])
+        self._context_resources.clear()
+
+
+from OpenGL import GL as gl
+
+_OPENGL_INITED = False
+
+def init_opengl():
+    """Initializes OpenGL state."""
+    global _OPENGL_INITED
+    if _OPENGL_INITED:
+        return
+
+    gl.glEnable(gl.GL_DEPTH_TEST)
+    gl.glEnable(gl.GL_CULL_FACE)
+    gl.glCullFace(gl.GL_BACK)
+    gl.glFrontFace(gl.GL_CCW)
+    _OPENGL_INITED = True
+
+def opengl_is_inited() -> bool:
+    """Checks if OpenGL has been initialized."""
+    return _OPENGL_INITEDfrom __future__ import annotations
+from typing import Optional
+
+import numpy as np
+from OpenGL import GL as gl
+from OpenGL.raw.GL.VERSION.GL_2_0 import glVertexAttribPointer as _gl_vertex_attrib_pointer
+import ctypes
+
+
+class Polyline:
+    """
+    Минимальная структура данных:
+    vertices: (N, 3)
+    indices: optional (M,) — индексы для линий; если None, рисуем по порядку
+    is_strip: bool — GL_LINE_STRIP или GL_LINES
+    """
+    def __init__(self,
+                 vertices: np.ndarray,
+                 indices: Optional[np.ndarray] = None,
+                 is_strip: bool = True):
+        self.vertices = vertices.astype(np.float32)
+        self.indices = indices.astype(np.uint32) if indices is not None else None
+        self.is_strip = is_strip
+
+
+class PolylineDrawable:
+    """Рисует полилинию из CPU данных."""
+    
+    def __init__(self, polyline: Polyline):
+        self._poly = polyline
+        self._vao = None
+        self._vbo = None
+        self._ebo = None
+
+    def upload(self):
+        if self._vao is not None:
+            return
+        
+        vertex_block = self._poly.vertices.ravel()
+        
+        self._vao = gl.glGenVertexArrays(1)
+        self._vbo = gl.glGenBuffers(1)
+        self._ebo = gl.glGenBuffers(1) if self._poly.indices is not None else None
+
+        gl.glBindVertexArray(self._vao)
+
+        # vertex buffer
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self._vbo)
+        gl.glBufferData(gl.GL_ARRAY_BUFFER, vertex_block.nbytes, vertex_block, gl.GL_STATIC_DRAW)
+
+        # index buffer (optional)
+        if self._poly.indices is not None:
+            gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, self._ebo)
+            gl.glBufferData(gl.GL_ELEMENT_ARRAY_BUFFER,
+                            self._poly.indices.nbytes,
+                            self._poly.indices,
+                            gl.GL_STATIC_DRAW)
+
+        # vertex layout: only positions
+        stride = 3 * 4
+        gl.glEnableVertexAttribArray(0)
+        _gl_vertex_attrib_pointer(0, 3, gl.GL_FLOAT, gl.GL_FALSE, stride, ctypes.c_void_p(0))
+
+        gl.glBindVertexArray(0)
+
+    def draw(self):
+        if self._vao is None:
+            self.upload()
+        
+        mode = gl.GL_LINE_STRIP if self._poly.is_strip else gl.GL_LINES
+        
+        gl.glBindVertexArray(self._vao)
+        gl.glEnable(gl.GL_DEPTH_TEST)
+
+        if self._poly.indices is not None:
+            gl.glDrawElements(
+                mode,
+                self._poly.indices.size,
+                gl.GL_UNSIGNED_INT,
+                ctypes.c_void_p(0)
+            )
+        else:
+            gl.glDrawArrays(
+                mode,
+                0,
+                self._poly.vertices.shape[0]
+            )
+
+        gl.glBindVertexArray(0)
+
+    def delete(self):
+        if self._vao is None:
+            return
+        
+        gl.glDeleteVertexArrays(1, [self._vao])
+        gl.glDeleteBuffers(1, [self._vbo])
+        if self._ebo is not None:
+            gl.glDeleteBuffers(1, [self._ebo])
+        self._vao = self._vbo = self._ebo = None"""Renderer configures OpenGL state and draws entities."""
+
+from __future__ import annotations
+
+from OpenGL import GL as gl
+
+from .camera import CameraComponent, PerspectiveCameraComponent
+from .scene import Scene
+from .shader import ShaderProgram
+from .entity import RenderContext
+
+from .opengl_helpers import init_opengl, opengl_is_inited
+
+
+DEFAULT_VERTEX_SHADER = """
+#version 330 core
+layout(location = 0) in vec3 a_position;
+layout(location = 1) in vec3 a_normal;
+
+uniform mat4 u_model;
+uniform mat4 u_view;
+uniform mat4 u_projection;
+
+out vec3 v_normal;
+out vec3 v_world_pos;
+
+void main() {
+    vec4 world = u_model * vec4(a_position, 1.0);
+    v_world_pos = world.xyz;
+    v_normal = mat3(transpose(inverse(u_model))) * a_normal;
+    gl_Position = u_projection * u_view * world;
+}
+"""
+
+
+DEFAULT_FRAGMENT_SHADER = """
+#version 330 core
+in vec3 v_normal;
+in vec3 v_world_pos;
+
+uniform vec3 u_color;
+uniform vec3 u_light_dir;
+
+out vec4 FragColor;
+
+void main() {
+    vec3 normal = normalize(v_normal);
+    float ndotl = max(dot(normal, -normalize(u_light_dir)), 0.0);
+    vec3 diffuse = u_color * (0.3 + 0.7 * ndotl);
+    FragColor = vec4(diffuse, 1.0);
+}
+"""
+
+
+
+class Renderer:
+    """Responsible for viewport setup, uniforms and draw traversal."""
+
+    def __init__(self):
+        pass
+
+    def ensure_ready(self):
+        if not opengl_is_inited():
+            init_opengl()
+
+    def _ensure_gl_state(self):
+        if not opengl_is_inited():
+            init_opengl()
+
+    def render_viewport(self, scene: Scene, camera: CameraComponent, viewport_rect: tuple[int, int, int, int], context_key: int):
+        self.ensure_ready()
+        self._ensure_gl_state()
+        x, y, w, h = viewport_rect
+        gl.glViewport(x, y, w, h)
+        view = camera.get_view_matrix()
+        projection = camera.get_projection_matrix()
+        context = RenderContext(view=view, projection=projection, camera=camera, scene=scene, renderer=self, context_key=context_key)
+
+        for entity in scene.entities:
+            entity.draw(context)
+"""Simple scene graph storing entities and global parameters."""
+
+from __future__ import annotations
+
+from typing import List, Sequence, TYPE_CHECKING
+
+import numpy as np
+
+from .entity import Component, Entity, InputComponent
+
+if TYPE_CHECKING:  # pragma: no cover
+    from .shader import ShaderProgram
+
+class Scene:
+    """Container for renderable entities and lighting data."""
+
+    def __init__(self, background_color: Sequence[float] = (0.05, 0.05, 0.08, 1.0)):
+        self.entities: List[Entity] = []
+        self.lights: List[np.ndarray] = []
+        self.background_color = np.array(background_color, dtype=np.float32)
+        self._shaders_set = set()
+        self._inited = False
+        self._input_components: List[InputComponent] = []
+
+        # Lights
+        self.light_direction = np.array([-0.5, -1.0, -0.3], dtype=np.float32)
+        self.light_color = np.array([1.0, 1.0, 1.0], dtype=np.float32)
+
+    def add(self, entity: Entity) -> Entity:
+        """Add entity to the scene, keeping the entities list sorted by priority."""
+        index = 0
+        while index < len(self.entities) and self.entities[index].priority <= entity.priority:
+            index += 1
+        self.entities.insert(index, entity)
+        entity.on_added(self)
+        for shader in entity.gather_shaders():
+            self._register_shader(shader)
+        return entity
+
+    def remove(self, entity: Entity):
+        self.entities.remove(entity)
+        entity.on_removed()
+
+    def register_component(self, component: Component):
+        for shader in component.required_shaders():
+            self._register_shader(shader)
+        if isinstance(component, InputComponent):
+            self._input_components.append(component)
+
+    def unregister_component(self, component: Component):
+        if isinstance(component, InputComponent) and component in self._input_components:
+            self._input_components.remove(component)
+
+    def update(self, dt: float):
+        for entity in self.entities:
+            entity.update(dt)
+
+    def ensure_ready(self):
+        if self._inited:
+            return
+        for shader in list(self._shaders_set):
+            shader.ensure_ready()
+        self._inited = True
+
+    def _register_shader(self, shader: "ShaderProgram"):
+        if shader in self._shaders_set:
+            return
+        self._shaders_set.add(shader)
+        if self._inited:
+            shader.ensure_ready()
+
+    def dispatch_input(self, viewport, event: str, **kwargs):
+        listeners = list(self._input_components)
+        for component in listeners:
+            handler = getattr(component, event, None)
+            if handler:
+                handler(viewport, **kwargs)
+"""OpenGL shader helpers implemented with PyOpenGL + GLFW contexts."""
+
+from __future__ import annotations
+
+import ctypes
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+from .opengl_helpers import init_opengl, opengl_is_inited
+
+import numpy as np
+from OpenGL import GL as gl
+
+import sys
+
+
+class ShaderCompilationError(RuntimeError):
+    """Raised when GLSL compilation or program linking fails."""
+
+
+def _compile_shader(source: str, shader_type: int) -> int:
+    shader = gl.glCreateShader(shader_type)
+    gl.glShaderSource(shader, source)
+    gl.glCompileShader(shader)
+
+    status = ctypes.c_int()
+    gl.glGetShaderiv(shader, gl.GL_COMPILE_STATUS, ctypes.byref(status))
+    if not status.value:
+        log = gl.glGetShaderInfoLog(shader)
+        sys.stderr.write(f"Shader compilation failed:\n{log}\n")
+        raise ShaderCompilationError(log.decode("utf-8") if isinstance(log, bytes) else str(log))
+    return shader
+
+
+def _link_program(vertex_shader: int, fragment_shader: int) -> int:
+    program = gl.glCreateProgram()
+    gl.glAttachShader(program, vertex_shader)
+    gl.glAttachShader(program, fragment_shader)
+    gl.glLinkProgram(program)
+
+    status = ctypes.c_int()
+    gl.glGetProgramiv(program, gl.GL_LINK_STATUS, ctypes.byref(status))
+    if not status.value:
+        log = gl.glGetProgramInfoLog(program)
+        raise ShaderCompilationError(log.decode("utf-8") if isinstance(log, bytes) else str(log))
+    gl.glDetachShader(program, vertex_shader)
+    gl.glDetachShader(program, fragment_shader)
+    gl.glDeleteShader(vertex_shader)
+    gl.glDeleteShader(fragment_shader)
+    return program
+
+
+class ShaderProgram:
+    """A GLSL shader program (vertex + fragment).
+
+    Uniform setters inside the class assume column-major matrices and they set the
+    combined MVP transform ``P * V * M`` in homogeneous coordinates.
+    """
+
+    def __init__(
+        self,
+        vertex_source: str,
+        fragment_source: str
+    ):
+        self.vertex_source = vertex_source
+        self.fragment_source = fragment_source
+        self.program: Optional[int] = None
+        self._uniform_cache: Dict[str, int] = {}
+        self._compiled = False
+
+    def __post_init__(self):
+        self._uniform_cache = {}
+
+    def compile(self):
+        vertex_shader = _compile_shader(self.vertex_source, gl.GL_VERTEX_SHADER)
+        fragment_shader = _compile_shader(self.fragment_source, gl.GL_FRAGMENT_SHADER)
+        self.program = _link_program(vertex_shader, fragment_shader)
+        self._compiled = True
+
+    def ensure_ready(self):
+        if not self._compiled:
+            self.compile()
+
+    def use(self):
+        gl.glUseProgram(self.program)
+
+    def stop(self):
+        gl.glUseProgram(0)
+
+    def delete(self):
+        if self.program:
+            gl.glDeleteProgram(self.program)
+            self.program = None
+
+    def uniform_location(self, name: str) -> int:
+        if name not in self._uniform_cache:
+            location = gl.glGetUniformLocation(self.program, name.encode("utf-8"))
+            self._uniform_cache[name] = location
+        return self._uniform_cache[name]
+
+    def set_uniform_matrix4(self, name: str, matrix: np.ndarray):
+        """Upload a 4x4 matrix (float32) to uniform ``name``."""
+        location = self.uniform_location(name)
+        mat = np.asarray(matrix, dtype=np.float32)
+        gl.glUniformMatrix4fv(location, 1, True, mat.ctypes.data_as(ctypes.POINTER(ctypes.c_float)))
+
+    def set_uniform_vec3(self, name: str, vector: np.ndarray):
+        location = self.uniform_location(name)
+        vec = np.asarray(vector, dtype=np.float32)
+        gl.glUniform3f(location, float(vec[0]), float(vec[1]), float(vec[2]))
+
+    def set_uniform_vec4(self, name: str, vector: np.ndarray):
+        location = self.uniform_location(name)
+        vec = np.asarray(vector, dtype=np.float32)
+        gl.glUniform4f(location, float(vec[0]), float(vec[1]), float(vec[2]), float(vec[3]))
+
+    def set_uniform_float(self, name: str, value: float):
+        location = self.uniform_location(name)
+        gl.glUniform1f(location, float(value))
+
+    def set_uniform_int(self, name: str, value: int):
+        location = self.uniform_location(name)
+        gl.glUniform1i(location, int(value))
+
+    def set_uniform_auto(self, name: str, value: Any):
+        """Best-effort setter that infers uniform type based on ``value``."""
+        if isinstance(value, (list, tuple, np.ndarray)):
+            arr = np.asarray(value)
+            if arr.shape == (4, 4):
+                self.set_uniform_matrix4(name, arr)
+            elif arr.shape == (3,):
+                self.set_uniform_vec3(name, arr)
+            else:
+                raise ValueError(f"Unsupported uniform array shape for {name}: {arr.shape}")
+        elif isinstance(value, bool):
+            self.set_uniform_int(name, int(value))
+        elif isinstance(value, int):
+            self.set_uniform_int(name, value)
+        else:
+            self.set_uniform_float(name, float(value))
+
+    @classmethod
+    def from_files(cls, vertex_path: str | Path, fragment_path: str | Path) -> "ShaderProgram":
+        vertex_source = Path(vertex_path).read_text(encoding="utf-8")
+        fragment_source = Path(fragment_path).read_text(encoding="utf-8")
+        return cls(vertex_source=vertex_source, fragment_source=fragment_source)
+# skybox.py
+
+from __future__ import annotations
+import numpy as np
+
+from termin.geombase.pose3 import Pose3
+
+from termin.mesh.mesh import Mesh
+from .entity import Entity
+from .mesh import MeshDrawable
+from .material import Material
+from .shader import ShaderProgram
+from .components import SkyboxRenderer
+
+
+SKYBOX_VERTEX_SHADER = """
+#version 330 core
+layout(location = 0) in vec3 a_position;
+
+uniform mat4 u_view;
+uniform mat4 u_projection;
+
+out vec3 v_dir;
+
+void main() {
+    // Убираем трансляцию камеры — skybox не должен двигаться
+    mat4 view_no_translation = mat4(mat3(u_view));
+    v_dir = a_position;
+    gl_Position = u_projection * view_no_translation * vec4(a_position, 1.0);
+}
+"""
+
+SKYBOX_FRAGMENT_SHADER = """
+#version 330 core
+
+in vec3 v_dir;
+out vec4 FragColor;
+
+void main() {
+    // Простой вертикальный градиент неба
+    float t = normalize(v_dir).y * 0.5 + 0.5;
+    vec3 top = vec3(0.05, 0.1, 0.25);
+    vec3 bottom = vec3(0.3, 0.3, 0.35);
+    FragColor = vec4(mix(bottom, top, t), 1.0);
+}
+"""
+
+
+def _skybox_cube():
+    F = 1.0  # большой размер куба
+    vertices = np.array([
+        [-F, -F, -F],
+        [ F, -F, -F],
+        [ F,  F, -F],
+        [-F,  F, -F],
+        [-F, -F,  F],
+        [ F, -F,  F],
+        [ F,  F,  F],
+        [-F,  F,  F],
+    ], dtype=np.float32)
+
+    triangles = np.array([
+        [0, 1, 2], [0, 2, 3],      # back
+        [4, 6, 5], [4, 7, 6],      # front
+        [0, 4, 5], [0, 5, 1],      # bottom
+        [3, 2, 6], [3, 6, 7],      # top
+        [1, 5, 6], [1, 6, 2],      # right
+        [0, 3, 7], [0, 7, 4],      # left
+    ], dtype=np.uint32)
+
+    return vertices, triangles
+
+
+class SkyBoxEntity(Entity):
+    """
+    Небесный куб, который всегда окружает камеру.
+    Не использует освещение, цвет и прочее — отдельный шейдер.
+    """
+
+    def __init__(self, size: float = 1.0):
+        verts, tris = _skybox_cube()
+        mesh = MeshDrawable(Mesh(vertices=verts, triangles=tris))
+
+        shader = ShaderProgram(
+            vertex_source=SKYBOX_VERTEX_SHADER,
+            fragment_source=SKYBOX_FRAGMENT_SHADER
+        )
+        material = Material(shader=shader)
+        material.color = None  # skybox не использует u_color
+
+        super().__init__(
+            pose=Pose3.identity(),
+            scale=size,
+            name="skybox",
+            priority=-100,  # рисуем в самом начале
+        )
+        self.renderer = self.add_component(SkyboxRenderer(mesh, material))
+"""Simple 2D texture wrapper for GLFW/PyOpenGL stack."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Optional
+
+import numpy as np
+from PIL import Image
+from OpenGL import GL as gl
+
+
+class Texture:
+    """Loads an image via Pillow and uploads it as ``GL_TEXTURE_2D``."""
+
+    def __init__(self, path: Optional[str | Path] = None):
+        self.handle = None
+        self._image_data: Optional[np.ndarray] = None
+        self._size: Optional[tuple[int, int]] = None
+        if path is not None:
+            self.load(path)
+
+    def load(self, path: str | Path):
+        image = Image.open(path).convert("RGBA")
+        image = image.transpose(Image.FLIP_TOP_BOTTOM)
+        data = np.array(image, dtype=np.uint8)
+        width, height = image.size
+
+        self._image_data = data
+        self._size = (width, height)
+        self.handle = None  # Mark for upload in the next bind.
+
+    def _upload_if_needed(self):
+        if self.handle is not None:
+            return
+        if self._image_data is None or self._size is None:
+            raise RuntimeError("Texture has no image data to upload.")
+        self.handle = gl.glGenTextures(1)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, self.handle)
+        gl.glTexImage2D(
+            gl.GL_TEXTURE_2D,
+            0,
+            gl.GL_RGBA,
+            self._size[0],
+            self._size[1],
+            0,
+            gl.GL_RGBA,
+            gl.GL_UNSIGNED_BYTE,
+            self._image_data,
+        )
+        gl.glGenerateMipmap(gl.GL_TEXTURE_2D)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR_MIPMAP_LINEAR)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_REPEAT)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_REPEAT)
+
+    def bind(self, unit: int = 0):
+        self._upload_if_needed()
+        gl.glActiveTexture(gl.GL_TEXTURE0 + unit)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, self.handle or 0)
+
+    @classmethod
+    def from_file(cls, path: str | Path) -> "Texture":
+        tex = cls()
+        tex.load(path)
+        return tex
+"""GLFW window wrapper supporting multiple viewports and cameras."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import List, Optional, Tuple
+
+import glfw
+from OpenGL import GL as gl
+
+from .camera import CameraComponent
+from .renderer import Renderer
+from .scene import Scene
+
+
+def _ensure_glfw():
+    if not glfw.init():
+        raise RuntimeError("Failed to initialize GLFW")
+
+
+@dataclass
+class Viewport:
+    scene: Scene
+    camera: CameraComponent
+    rect: Tuple[float, float, float, float]
+    canvas: Optional["Canvas"] = None
+
+
+class GLWindow:
+    """Manages a GLFW window and a set of viewports."""
+
+    def __init__(self, width: int, height: int, title: str, renderer: Renderer, share=None):
+        _ensure_glfw()
+        glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
+        glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3)
+        glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
+        glfw.window_hint(glfw.RESIZABLE, glfw.TRUE)
+
+        self.renderer = renderer
+        share_handle = None
+        if isinstance(share, GLWindow):
+            share_handle = share.window
+        elif share is not None:
+            share_handle = share
+
+        self.window = glfw.create_window(width, height, title, None, share_handle)
+        if not self.window:
+            raise RuntimeError("Failed to create GLFW window")
+        glfw.make_context_current(self.window)
+        self.viewports: List[Viewport] = []
+        self._active_viewport: Optional[Viewport] = None
+        self._last_cursor: Optional[Tuple[float, float]] = None
+
+        glfw.set_window_user_pointer(self.window, self)
+        glfw.set_framebuffer_size_callback(self.window, self._handle_framebuffer_resize)
+        glfw.set_cursor_pos_callback(self.window, self._handle_cursor_pos)
+        glfw.set_scroll_callback(self.window, self._handle_scroll)
+        glfw.set_mouse_button_callback(self.window, self._handle_mouse_button)
+        glfw.set_key_callback(self.window, self._handle_key)
+
+    def close(self):
+        if self.window:
+            glfw.destroy_window(self.window)
+            self.window = None
+
+    @property
+    def should_close(self) -> bool:
+        return self.window is None or glfw.window_should_close(self.window)
+
+    def make_current(self):
+        if self.window is not None:
+            glfw.make_context_current(self.window)
+
+    def add_viewport(self, scene: Scene, camera: CameraComponent, rect: Tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0), canvas: Optional[Canvas] = None) -> Viewport:
+        self.make_current()
+        scene.ensure_ready()
+        viewport = Viewport(scene=scene, camera=camera, rect=rect, canvas=canvas)
+        self.viewports.append(viewport)
+        return viewport
+
+    def update(self, dt: float):
+        # Reserved for future per-window updates.
+        return
+
+    def render(self):
+        if self.window is None:
+            return
+        self.make_current()
+        context_key = id(self)
+        width, height = glfw.get_framebuffer_size(self.window)
+        for viewport in self.viewports:
+            vx, vy, vw, vh = viewport.rect
+            px = int(vx * width)
+            py = int(vy * height)
+            pw = max(1, int(vw * width))
+            ph = max(1, int(vh * height))
+            gl_viewport_y = py
+            viewport.camera.set_aspect(pw / max(1.0, float(ph)))
+            gl.glEnable(gl.GL_SCISSOR_TEST)
+            gl.glScissor(px, gl_viewport_y, pw, ph)
+            bg = viewport.scene.background_color
+            gl.glClearColor(float(bg[0]), float(bg[1]), float(bg[2]), float(bg[3]))
+            gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
+            gl.glDisable(gl.GL_SCISSOR_TEST)
+            self.renderer.render_viewport(viewport.scene, viewport.camera, (px, gl_viewport_y, pw, ph), context_key)
+            if viewport.canvas:
+                viewport.canvas.render(context_key, (px, gl_viewport_y, pw, ph))
+        glfw.swap_buffers(self.window)
+
+
+    # Event handlers -----------------------------------------------------
+
+    def _handle_framebuffer_resize(self, window, width, height):
+        return
+
+    def _handle_mouse_button(self, window, button, action, mods):
+        if self.window is None:
+            return
+        x, y = glfw.get_cursor_pos(self.window)
+        viewport = self._viewport_under_cursor(x, y)
+        if action == glfw.PRESS:
+            self._active_viewport = viewport
+        if action == glfw.RELEASE:
+            self._last_cursor = None
+            if viewport is None:
+                viewport = self._active_viewport
+            self._active_viewport = None
+        if viewport is not None:
+            viewport.scene.dispatch_input(viewport, "on_mouse_button", button=button, action=action, mods=mods)
+
+    def _handle_cursor_pos(self, window, x, y):
+        if self.window is None:
+            return
+        if self._last_cursor is None:
+            dx = dy = 0.0
+        else:
+            dx = x - self._last_cursor[0]
+            dy = y - self._last_cursor[1]
+        self._last_cursor = (x, y)
+        viewport = self._active_viewport or self._viewport_under_cursor(x, y)
+        if viewport is not None:
+            viewport.scene.dispatch_input(viewport, "on_mouse_move", x=x, y=y, dx=dx, dy=dy)
+
+    def _handle_scroll(self, window, xoffset, yoffset):
+        if self.window is None:
+            return
+        x, y = glfw.get_cursor_pos(self.window)
+        viewport = self._viewport_under_cursor(x, y) or self._active_viewport
+        if viewport is not None:
+            viewport.scene.dispatch_input(viewport, "on_scroll", xoffset=xoffset, yoffset=yoffset)
+
+    def _handle_key(self, window, key, scancode, action, mods):
+        if key == glfw.KEY_ESCAPE and action == glfw.PRESS:
+            glfw.set_window_should_close(self.window, True)
+        viewport = self._active_viewport or (self.viewports[0] if self.viewports else None)
+        if viewport is not None:
+            viewport.scene.dispatch_input(viewport, "on_key", key=key, scancode=scancode, action=action, mods=mods)
+
+    def _viewport_under_cursor(self, x: float, y: float) -> Optional[Viewport]:
+        if self.window is None or not self.viewports:
+            return None
+        win_w, win_h = glfw.get_window_size(self.window)
+        if win_w == 0 or win_h == 0:
+            return None
+        nx = x / win_w
+        ny = 1.0 - (y / win_h)
+        for viewport in self.viewports:
+            vx, vy, vw, vh = viewport.rect
+            if vx <= nx <= vx + vw and vy <= ny <= vy + vh:
+                return viewport
+        return None
+"""Visualization world orchestrating scenes, windows and main loop."""
+
+from __future__ import annotations
+
+import time
+from typing import List, Optional, Sequence, Tuple
+
+import glfw
+
+from .renderer import Renderer
+from .scene import Scene
+from .window import GLWindow
+
+
+class VisualizationWorld:
+    """High-level application controller."""
+
+    def __init__(self):
+        self.renderer = Renderer()
+        self.scenes: List[Scene] = []
+        self.windows: List[GLWindow] = []
+        self._running = False
+        
+        self.fps = 0
+
+    def add_scene(self, scene: Scene) -> Scene:
+        self.scenes.append(scene)
+        return scene
+
+    def remove_scene(self, scene: Scene):
+        if scene in self.scenes:
+            self.scenes.remove(scene)
+
+    def create_window(self, width: int = 1280, height: int = 720, title: str = "termin viewer") -> GLWindow:
+        share = self.windows[0] if self.windows else None
+        window = GLWindow(width=width, height=height, title=title, renderer=self.renderer, share=share)
+        self.windows.append(window)
+        return window
+
+    def add_window(self, window: GLWindow):
+        self.windows.append(window)
+
+    def update_fps(self, dt):
+        if dt > 0:
+            self.fps = int(1.0 / dt)
+        else:
+            self.fps = 0
+
+    def run(self):
+        if self._running:
+            return
+        self._running = True
+        last = time.perf_counter()
+
+        while self.windows:
+            now = time.perf_counter()
+            dt = now - last
+            last = now
+
+            for scene in list(self.scenes):
+                scene.update(dt)
+
+            alive = []
+            for window in list(self.windows):
+                if window.should_close:
+                    window.close()
+                    continue
+                window.update(dt)
+                window.render()
+                alive.append(window)
+            self.windows = alive
+            glfw.poll_events()
+            self.update_fps(dt)
+            
+        for window in self.windows:
+            window.close()
+        glfw.terminate()
+        self._running = False

@@ -96,6 +96,12 @@ class Entity:
         matrix = self.pose.as_matrix().copy()
         matrix[:3, :3] *= self.scale
         return matrix
+    
+    def get_component(self, component_type: Type[C]) -> Optional[C]:
+        for comp in self._components:
+            if isinstance(comp, component_type):
+                return comp
+        return None
 
     def add_component(self, component: Component) -> Component:
         component.entity = self

@@ -21,6 +21,7 @@ class CameraComponent(Component):
         super().__init__(enabled=True)
         self.near = near
         self.far = far
+        self.viewport = None 
 
     def start(self, scene):
         if self.entity is None:
@@ -85,6 +86,12 @@ class OrthographicCameraComponent(CameraComponent):
 
 class CameraController(InputComponent):
     """Base class for camera manipulation controllers."""
+
+    def start(self, scene):
+        super().start(scene)
+        self.camera_component = self.entity.get_component(CameraComponent)
+        if self.camera_component is None:
+            raise RuntimeError("OrbitCameraController requires a CameraComponent on the same entity.")
 
     def orbit(self, d_azimuth: float, d_elevation: float):
         return
@@ -168,6 +175,8 @@ class OrbitCameraController(CameraController):
         return self._states[key]
 
     def on_mouse_button(self, viewport, button: int, action: int, mods: int):
+        if viewport != self.camera_component.viewport:
+            return
         state = self._state(viewport)
         if button == glfw.MOUSE_BUTTON_LEFT:
             state["orbit"] = action == glfw.PRESS
@@ -177,6 +186,8 @@ class OrbitCameraController(CameraController):
             state["last"] = None
 
     def on_mouse_move(self, viewport, x: float, y: float, dx: float, dy: float):
+        if viewport != self.camera_component.viewport:
+            return
         state = self._state(viewport)
         if state.get("last") is None:
             state["last"] = (x, y)
