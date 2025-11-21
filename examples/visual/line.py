@@ -32,11 +32,11 @@ void main() {
 
 FRAG = """
 #version 330 core
-uniform vec3 u_color;
+uniform vec4 u_color;
 out vec4 FragColor;
 
 void main() {
-    FragColor = vec4(u_color, 1.0);
+    FragColor = u_color;
 }
 """
 

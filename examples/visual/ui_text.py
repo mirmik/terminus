@@ -1,7 +1,6 @@
-"""Demonstrate 3D scene with a UI canvas overlay."""
+"""Text rendering demo: UI text overlay on a 3D scene."""
 
 from __future__ import annotations
-
 import numpy as np
 
 from termin.geombase.pose3 import Pose3
@@ -19,12 +18,14 @@ from termin.visualization.components import MeshRenderer
 from termin.visualization.shader import ShaderProgram
 from termin.visualization.skybox import SkyBoxEntity
 from termin.visualization.ui import Canvas, UIRectangle
+from termin.visualization.ui.elements import UIText
+from termin.visualization.ui.font import FontTextureAtlas
 
 
 VERT = """
 #version 330 core
-layout(location = 0) in vec3 a_position;
-layout(location = 1) in vec3 a_normal;
+layout(location=0) in vec3 a_position;
+layout(location=1) in vec3 a_normal;
 
 uniform mat4 u_model;
 uniform mat4 u_view;
@@ -41,10 +42,8 @@ void main() {
 FRAG = """
 #version 330 core
 in vec3 v_normal;
-
 uniform vec4 u_color;
 uniform vec3 u_light_dir;
-
 out vec4 FragColor;
 
 void main() {
@@ -91,38 +90,42 @@ void main(){
 
 
 
-def build_scene(world: VisualizationWorld) -> tuple[Scene, PerspectiveCameraComponent, Canvas]:
+def build_scene(world: VisualizationWorld):
     shader = ShaderProgram(VERT, FRAG)
-    material = Material(shader=shader, color=np.array([0.6, 0.8, 0.9, 1.0], dtype=np.float32))
-    mesh = MeshDrawable(CubeMesh(size=1.5))
-    cube = Entity(name="cube", pose=Pose3.identity())
-    cube.add_component(MeshRenderer(mesh, material))
+    mat = Material(shader=shader, color=np.array([0.7, 0.4, 0.2, 1.0]))
+    mesh = MeshDrawable(CubeMesh())
+    cube = Entity(pose=Pose3.identity(), name="cube")
+    cube.add_component(MeshRenderer(mesh, mat))
 
     scene = Scene()
     scene.add(cube)
     scene.add(SkyBoxEntity())
     world.add_scene(scene)
 
-    cam_entity = Entity(name="camera")
-    camera = PerspectiveCameraComponent()
-    cam_entity.add_component(camera)
-    cam_entity.add_component(OrbitCameraController(radius=5.0))
-    scene.add(cam_entity)
+    cam_e = Entity(name="camera")
+    cam = PerspectiveCameraComponent()
+    cam_e.add_component(cam)
+    cam_e.add_component(OrbitCameraController(radius=5.0))
+    scene.add(cam_e)
 
     canvas = Canvas()
     ui_shader = ShaderProgram(UI_VERTEX_SHADER, UI_FRAGMENT_SHADER)
-    ui_material = Material(shader=ui_shader, color=np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float32), uniforms={"u_use_texture": False})
-    canvas.add(UIRectangle(position=(0.05, 0.05), size=(0.25, 0.1), color=(0.1, 0.1, 0.1, 0.7), material=ui_material))
-    canvas.add(UIRectangle(position=(0.07, 0.07), size=(0.21, 0.06), color=(0.9, 0.4, 0.2, 1.0), material=ui_material))
+    rect_material = Material(shader=ui_shader, color=np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float32), uniforms={"u_use_texture": False})
+    text_material = Material(shader=ui_shader, color=np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float32), uniforms={"u_use_texture": True})
 
-    return scene, camera, canvas
+    canvas.add(UIRectangle(position=(0.05, 0.05), size=(0.3, 0.1), color=(0, 0, 0, 0.5), material=rect_material))
+
+    canvas.font = FontTextureAtlas("examples/data/fonts/Roboto-Regular.ttf", size=32)
+    canvas.add(UIText("Hello, world!", position=(0.07, 0.07), color=(1, 1, 1, 1), scale=1.0, material=text_material))
+
+    return scene, cam, canvas
 
 
 def main():
     world = VisualizationWorld()
-    scene, camera, canvas = build_scene(world)
-    window = world.create_window(title="termin UI overlay")
-    window.add_viewport(scene, camera, canvas=canvas)
+    scene, cam, canvas = build_scene(world)
+    win = world.create_window(title="termin UI text")
+    win.add_viewport(scene, cam, canvas=canvas)
     world.run()
 
 

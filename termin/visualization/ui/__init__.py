@@ -6,5 +6,5 @@ from .elements import UIElement, UIRectangle
 __all__ = [
     "Canvas",
     "UIElement",
-    "UIRectangle",
+    "UIRectangle"
 ]

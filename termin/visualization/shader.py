@@ -131,6 +131,8 @@ class ShaderProgram:
                 self.set_uniform_matrix4(name, arr)
             elif arr.shape == (3,):
                 self.set_uniform_vec3(name, arr)
+            elif arr.shape == (4,):
+                self.set_uniform_vec4(name, arr)
             else:
                 raise ValueError(f"Unsupported uniform array shape for {name}: {arr.shape}")
         elif isinstance(value, bool):

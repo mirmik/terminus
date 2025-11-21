@@ -50,7 +50,7 @@ frag = """
 in vec3 v_normal;
 in vec3 v_world_pos;
 
-uniform vec3 u_color;        // базовый цвет материала
+uniform vec4 u_color;        // базовый цвет материала (RGBA)
 uniform vec3 u_light_dir;    // направление от источника к объекту (world space)
 uniform vec3 u_light_color;  // цвет света
 uniform vec3 u_view_pos;     // позиция камеры (world space)
@@ -77,11 +77,11 @@ void main() {
     const float shininess        = 32.0; // степень блеска
 
     // Эмбиент
-    vec3 ambient = ambientStrength * u_color;
+    vec3 ambient = ambientStrength * u_color.rgb;
 
     // Диффуз (Ламберт)
     float ndotl = max(dot(N, L), 0.0);
-    vec3 diffuse = diffuseStrength * ndotl * u_color;
+    vec3 diffuse = diffuseStrength * ndotl * u_color.rgb;
 
     // Спекуляр (Blinn–Phong)
     float specFactor = 0.0;
@@ -96,7 +96,7 @@ void main() {
     // Можно слегка ограничить, чтобы не улетало в дикий перегиб
     color = clamp(color, 0.0, 1.0);
 
-    FragColor = vec4(color, 1.0);
+    FragColor = vec4(color, u_color.a);
 }
 """
 

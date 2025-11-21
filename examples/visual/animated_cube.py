@@ -45,7 +45,7 @@ FRAG = """
 #version 330 core
 in vec3 v_normal;
 
-uniform vec3 u_color;
+uniform vec4 u_color;
 uniform vec3 u_light_dir;
 
 out vec4 FragColor;
@@ -53,8 +53,8 @@ out vec4 FragColor;
 void main() {
     vec3 N = normalize(v_normal);
     float ndotl = max(dot(N, -normalize(u_light_dir)), 0.0);
-    vec3 color = u_color * (0.2 + 0.8 * ndotl);
-    FragColor = vec4(color, 1.0);
+    vec3 color = u_color.rgb * (0.2 + 0.8 * ndotl);
+    FragColor = vec4(color, u_color.a);
 }
 """
 

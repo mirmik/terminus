@@ -14,6 +14,13 @@ from .texture import Texture
 class Material:
     """Collection of shader parameters applied before drawing a mesh."""
 
+    @staticmethod
+    def _rgba(vec: Iterable[float]) -> np.ndarray:
+        arr = np.asarray(vec, dtype=np.float32)
+        if arr.shape != (4,):
+            raise ValueError("Color must be an RGBA quadruplet.")
+        return arr
+
     def __init__(
         self,
         shader: ShaderProgram,
@@ -23,6 +30,8 @@ class Material:
     ):
         if color is None:
             color = np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float32)
+        else:
+            color = self._rgba(color)
 
         self.shader = shader
         self.color = color
@@ -37,7 +46,7 @@ class Material:
         self.shader.set_uniform_matrix4("u_view", view)
         self.shader.set_uniform_matrix4("u_projection", projection)
         if self.color is not None:
-            self.shader.set_uniform_vec3("u_color", self.color)
+            self.shader.set_uniform_vec4("u_color", self.color)
 
         texture_slots = enumerate(self.textures.items())
         for unit, (uniform_name, texture) in texture_slots:
@@ -49,7 +58,4 @@ class Material:
             self.shader.set_uniform_auto(name, value)
 
     def update_color(self, rgba: Iterable[float]):
-        vec = np.asarray(rgba, dtype=np.float32)
-        if vec.shape != (4,):
-            raise ValueError("Color must be an RGBA quadruplet.")
-        self.color = vec
+        self.color = self._rgba(rgba)
