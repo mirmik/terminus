@@ -25,7 +25,7 @@ class Scene:
         self._inited = False
         self._input_components: List[InputComponent] = []
 
-        self.update_list: List[Entity] = []
+        self.update_list: List[Component] = []
 
         # Lights
         self.light_direction = np.array([-0.5, -1.0, -0.3], dtype=np.float32)
@@ -52,15 +52,15 @@ class Scene:
         if isinstance(component, InputComponent):
             self._input_components.append(component)
         if is_overrides_method(component, "update", Component):
-            self.update_list.append(component.entity)
+            self.update_list.append(component)
 
     def unregister_component(self, component: Component):
         if isinstance(component, InputComponent) and component in self._input_components:
             self._input_components.remove(component)
 
     def update(self, dt: float):
-        for entity in self.update_list:
-            entity.update(dt)
+        for component in self.update_list:
+            component.update(dt)
 
     def ensure_ready(self):
         if self._inited:
