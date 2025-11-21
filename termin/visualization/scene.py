@@ -11,6 +11,9 @@ from .entity import Component, Entity, InputComponent
 if TYPE_CHECKING:  # pragma: no cover
     from .shader import ShaderProgram
 
+def is_overrides_method(obj, method_name, base_class):
+    return getattr(obj.__class__, method_name) is not getattr(base_class, method_name)
+
 class Scene:
     """Container for renderable entities and lighting data."""
 
@@ -21,6 +24,8 @@ class Scene:
         self._shaders_set = set()
         self._inited = False
         self._input_components: List[InputComponent] = []
+
+        self.update_list: List[Entity] = []
 
         # Lights
         self.light_direction = np.array([-0.5, -1.0, -0.3], dtype=np.float32)
@@ -46,13 +51,15 @@ class Scene:
             self._register_shader(shader)
         if isinstance(component, InputComponent):
             self._input_components.append(component)
+        if is_overrides_method(component, "update", Component):
+            self.update_list.append(component.entity)
 
     def unregister_component(self, component: Component):
         if isinstance(component, InputComponent) and component in self._input_components:
             self._input_components.remove(component)
 
     def update(self, dt: float):
-        for entity in self.entities:
+        for entity in self.update_list:
             entity.update(dt)
 
     def ensure_ready(self):
