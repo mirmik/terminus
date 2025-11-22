@@ -23,6 +23,15 @@ class UIElement:
     
     def contains(self, nx: float, ny: float) -> bool:
         return False
+    
+    def on_mouse_down(self, x: float, y: float, viewport_rect):
+        pass
+
+    def on_mouse_move(self, x: float, y: float, viewport_rect):
+        pass
+
+    def on_mouse_up(self, x: float, y: float, viewport_rect):
+        pass  
 
 
 @dataclass
@@ -166,3 +175,74 @@ class UIButton(UIElement):
     def draw(self, canvas, graphics, context_key, viewport_rect):
         self.bg.draw(canvas, graphics, context_key, viewport_rect)
         self.label.draw(canvas, graphics, context_key, viewport_rect)
+
+@dataclass
+class UISlider(UIElement):
+    position: tuple[float, float]              # нормализовано 0..1
+    size: tuple[float, float]                  # ширина/высота трека
+    value: float = 0.5                         # 0..1
+    on_change: callable | None = None
+    material: Material | None = None
+    handle_material: Material | None = None
+
+    _dragging: bool = False
+
+    def _track_vertices(self):
+        rect = UIRectangle(
+            position=self.position,
+            size=self.size,
+            color=(0.3, 0.3, 0.3, 1),
+            material=self.material
+        )
+        return rect
+
+    def _handle_position(self):
+        x, y = self.position
+        w, h = self.size
+        hx = x + self.value * w
+        return hx, y
+
+    def draw(self, canvas, graphics, context_key, viewport_rect):
+        track = self._track_vertices()
+        track.draw(canvas, graphics, context_key, viewport_rect)
+
+        hx, hy = self._handle_position()
+        handle = UIRectangle(
+            position=(hx - 0.01, hy),
+            size=(0.02, self.size[1]),
+            color=(0.8, 0.8, 0.9, 1),
+            material=self.handle_material
+        )
+        handle.draw(canvas, graphics, context_key, viewport_rect)
+
+    def contains(self, nx, ny):
+        x, y = self.position
+        w, h = self.size
+        return x <= nx <= x + w and y <= ny <= y + h
+
+    # === Events ===
+    def on_mouse_down(self, x, y):
+        print("Slider mouse down at:", (x, y))
+        self._dragging = True
+
+    def on_mouse_move(self, x, y, viewport_rect):
+        # преобразуем в нормализованные координаты
+        px, py, pw, ph = viewport_rect
+        nx = (x - px) / pw
+        ny = (y - py) / ph
+
+        print("Slider mouse move at:", (nx, ny))
+        if not self._dragging:
+            return
+        x0, y0 = self.position
+        w, h = self.size
+        t = (nx - x0) / w
+        t = max(0.0, min(1.0, t))
+        self.value = t
+        if self.on_change:
+            self.on_change(self.value)
+
+
+    def on_mouse_up(self, x, y, viewport_rect):
+        print("Slider mouse up at:", (x, y))
+        self._dragging = False

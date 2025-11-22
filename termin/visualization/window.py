@@ -104,14 +104,29 @@ class Window:
         x, y = self.handle.get_cursor_pos()
         viewport = self._viewport_under_cursor(x, y)
 
-        # ---- NEW: UI click handling ----
+        # ---- UI click handling ----
+        # if viewport and viewport.canvas:
+        #     ui_hit = viewport.canvas.hit_test(x, y, self.viewport_rect_to_pixels(viewport))
+        #     print("UI hit test result:", ui_hit)
+        #     if ui_hit:
+        #         if action == Action.PRESS and hasattr(ui_hit, "on_click") and ui_hit.on_click:
+        #             ui_hit.on_click()
+        #         # UI перехватывает клик — дальше в 3D не лезем
+        #         print("UI element clicked:", ui_hit)
+        #         return
+
+        # ---- UI click handling 2 ----
         if viewport and viewport.canvas:
-            ui_hit = viewport.canvas.hit_test(x, y, self.viewport_rect_to_pixels(viewport))
-            if ui_hit:
-                if action == Action.PRESS and hasattr(ui_hit, "on_click") and ui_hit.on_click:
-                    ui_hit.on_click()
-                # UI перехватывает клик — дальше в 3D не лезем
-                return
+            if action == Action.PRESS:
+                interrupt = viewport.canvas.mouse_down(x, y, self.viewport_rect_to_pixels(viewport))
+                print("UI mouse down at:", (x, y))
+                if interrupt:
+                    return
+            elif action == Action.RELEASE:
+                interrupt = viewport.canvas.mouse_up(x, y, self.viewport_rect_to_pixels(viewport))
+                print("UI mouse up at:", (x, y))
+                if interrupt:
+                    return
 
         # Обработка 3D сцены (сперва глобальная)
         if action == Action.PRESS:
@@ -140,15 +155,22 @@ class Window:
 
 
     def _handle_cursor_pos(self, window, x, y):
+        
         if self.handle is None:
             return
+        
         if self._last_cursor is None:
             dx = dy = 0.0
         else:
             dx = x - self._last_cursor[0]
             dy = y - self._last_cursor[1]
+        
         self._last_cursor = (x, y)
         viewport = self._active_viewport or self._viewport_under_cursor(x, y)
+
+        if viewport and viewport.canvas:
+            viewport.canvas.mouse_move(x, y, self.viewport_rect_to_pixels(viewport))
+
         if viewport is not None:
             viewport.scene.dispatch_input(viewport, "on_mouse_move", x=x, y=y, dx=dx, dy=dy)
 

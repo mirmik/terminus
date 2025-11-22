@@ -12,6 +12,7 @@ class Canvas:
 
     def __init__(self):
         self.elements: List["UIElement"] = []
+        self.active_element = None  # захват мыши
 
     def add(self, element: "UIElement") -> "UIElement":
         self.elements.append(element)
@@ -56,3 +57,27 @@ class Canvas:
                 if elem.contains(nx, ny):
                     return elem
         return None
+
+    def mouse_down(self, x, y, viewport_rect):
+        print("Canvas mouse down at:", (x, y))
+        hit = self.hit_test(x, y, viewport_rect)
+        if hit:
+            self.active_element = hit
+            hit.on_mouse_down(x, y)
+            return True
+        return False
+    
+
+    def mouse_move(self, x, y, viewport_rect):
+        if self.active_element:
+            self.active_element.on_mouse_move(x, y, viewport_rect)
+            return True
+        return False
+
+    def mouse_up(self, x, y, viewport_rect):
+        print("Canvas mouse up at:", (x, y))
+        if self.active_element:
+            self.active_element.on_mouse_up(x, y, viewport_rect)
+            self.active_element = None
+            return True
+        return False
