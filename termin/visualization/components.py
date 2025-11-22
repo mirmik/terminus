@@ -10,6 +10,8 @@ from .entity import Component, RenderContext
 from .material import Material
 from .mesh import MeshDrawable
 
+from termin.geombase.pose3 import Pose3
+
 
 class MeshRenderer(Component):
     """Renderer component that draws :class:`MeshDrawable` with a :class:`Material`."""
@@ -46,7 +48,8 @@ class SkyboxRenderer(MeshRenderer):
             return
         camera_entity = context.camera.entity if context.camera is not None else None
         if camera_entity is not None:
-            self.entity.pose.lin = camera_entity.pose.lin.copy()
+            #self.entity.transform.local_pose.lin = camera_entity.transform.global_pose().lin.copy()
+            self.entity.transform.relocate(Pose3(lin = camera_entity.transform.global_pose().lin))
         original_view = context.view
         view_no_translation = np.array(original_view, copy=True)
         view_no_translation[:3, 3] = 0.0

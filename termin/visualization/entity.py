@@ -8,6 +8,7 @@ from typing import Iterable, List, Optional, Type, TypeVar, TYPE_CHECKING
 import numpy as np
 
 from termin.geombase.pose3 import Pose3
+from termin.kinematic.transform import Transform3
 from .backends.base import GraphicsBackend
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -78,16 +79,18 @@ class InputComponent(Component):
 C = TypeVar("C", bound=Component)
 
 
-@dataclass
 class Entity:
     """Container of components with transform data."""
 
-    pose: Pose3 = field(default_factory=Pose3.identity)
-    visible: bool = True
-    active: bool = True
-    name: str = "entity"
-    scale: float = 1.0
-    priority: int = 0  # rendering priority, lower values drawn first
+    def __init__(self, pose: Pose3 = Pose3.identity(), name : str = "entity", scale: float = 1.0, priority: int = 0):
+        self.transform = Transform3(pose)
+        self.visible = True
+        self.active = True
+        self.name = name
+        self.scale = scale
+        self.priority = priority  # rendering priority, lower values drawn first
+        self._components: List[Component] = []
+        self.scene: Optional["Scene"] = None
 
     def __post_init__(self):
         self.scene: Optional["Scene"] = None
@@ -95,7 +98,7 @@ class Entity:
 
     def model_matrix(self) -> np.ndarray:
         """Construct homogeneous model matrix ``M = [R|t]`` with optional uniform scale."""
-        matrix = self.pose.as_matrix().copy()
+        matrix = self.transform.global_pose().as_matrix().copy()
         matrix[:3, :3] *= self.scale
         return matrix
 
