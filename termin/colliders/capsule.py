@@ -1,5 +1,5 @@
 
-from termin.clossest import closest_points_between_segments, closest_points_between_capsules, closest_points_between_capsule_and_sphere
+from termin.closest import closest_points_between_segments, closest_points_between_capsules, closest_points_between_capsule_and_sphere
 import numpy
 from termin.colliders.collider import Collider
 from termin.colliders.sphere import SphereCollider
@@ -38,7 +38,7 @@ class CapsuleCollider(Collider):
     def closest_to_collider(self, other: "Collider"):
         """Return the closest points and distance between this collider and another collider."""
 
-        from .capsule import SphereCollider
+        from .sphere import SphereCollider
         from .union_collider import UnionCollider
 
         if isinstance(other, CapsuleCollider):

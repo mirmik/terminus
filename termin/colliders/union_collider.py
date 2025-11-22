@@ -5,7 +5,7 @@ class UnionCollider(Collider):
     def __init__(self, colliders):
         self.colliders = colliders
 
-    def transform_by(self, transform: 'Transform3'):
+    def transform_by(self, transform: 'Pose3'):
         """Return a new UnionCollider transformed by the given Transform3."""
         transformed_colliders = [collider.transform_by(transform) for collider in self.colliders]
         return UnionCollider(transformed_colliders)
