@@ -1,0 +1,216 @@
+=== file: termin/colliders/collider.py ===
+--- insert-after-text
+class Collider:
+---
+    def closest_to_ray(self, ray: "Ray3"):
+        """
+        Возвращает (p_col, p_ray, distance) — ближайшие точки между коллайдером и лучом.
+        """
+        raise NotImplementedError("closest_to_ray must be implemented by subclasses.")
+=END=
+
+
+=== file: termin/colliders/attached.py ===
+--- insert-after-text
+    def closest_to_collider(self, other: "AttachedCollider"):
+---
+    def closest_to_ray(self, ray: "Ray3"):
+        """
+        Делегируем вычисление трансформированному коллайдеру.
+        """
+        return self.transformed_collider().closest_to_ray(ray)
+=END=
+
+
+=== file: termin/colliders/sphere.py ===
+--- insert-after-text
+class SphereCollider(Collider):
+---
+    def closest_to_ray(self, ray: "Ray3"):
+        """
+        Аналитическое пересечение луча со сферой.
+        Луч: O + D * t
+        Центр: C
+        Радиус: r
+        """
+        O = ray.origin
+        D = ray.direction
+        C = self.center
+        r = self.radius
+
+        OC = O - C
+        b = 2 * numpy.dot(D, OC)
+        c = numpy.dot(OC, OC) - r * r
+        disc = b * b - 4 * c
+
+        # Нет пересечения — вернуть ближайшие точки
+        if disc < 0:
+            # t = -dot(OC, D)
+            t = -numpy.dot(OC, D)
+            if t < 0:
+                t = 0
+            p_ray = ray.point_at(t)
+
+            dir_vec = p_ray - C
+            dist = numpy.linalg.norm(dir_vec)
+            if dist > 1e-8:
+                p_col = C + dir_vec * (r / dist)
+            else:
+                p_col = C + numpy.array([r, 0, 0], dtype=numpy.float32)  # произвольное направление
+
+            return p_col, p_ray, numpy.linalg.norm(p_col - p_ray)
+
+        # Есть пересечения: берем ближайшее t >= 0
+        sqrt_disc = numpy.sqrt(disc)
+        t1 = (-b - sqrt_disc) * 0.5
+        t2 = (-b + sqrt_disc) * 0.5
+
+        t_hit = None
+        if t1 >= 0:
+            t_hit = t1
+        elif t2 >= 0:
+            t_hit = t2
+
+        # Пересечение позади луча — перейти к ближайшей точке
+        if t_hit is None:
+            t = -numpy.dot(OC, D)
+            if t < 0:
+                t = 0
+            p_ray = ray.point_at(t)
+            dir_vec = p_ray - C
+            dist = numpy.linalg.norm(dir_vec)
+            p_col = C + dir_vec * (r / dist)
+            return p_col, p_ray, numpy.linalg.norm(p_col - p_ray)
+
+        # Корректное пересечение
+        p_ray = ray.point_at(t_hit)
+        dir_vec = p_ray - C
+        dist = numpy.linalg.norm(dir_vec)
+        p_col = C + dir_vec * (r / dist) if dist > 1e-8 else p_ray
+        return p_col, p_ray, 0.0
+=END=
+
+
+=== file: termin/colliders/capsule.py ===
+--- insert-after-text
+class CapsuleCollider(Collider):
+---
+    def closest_to_ray(self, ray: "Ray3"):
+        """
+        Ближайшие точки между сегментом капсулы и лучом:
+        Используем closest_points_between_segments(…)
+        Луч считаем как сегмент O + D * t, t >= 0.
+        Для упрощения ограничиваем t большим числом.
+        """
+        from termin.closest import closest_points_between_segments
+
+        O = ray.origin
+        D = ray.direction
+        FAR = 1e6  # ограничение луча
+
+        ray_a = O
+        ray_b = O + D * FAR
+
+        p_seg, p_ray, dist = closest_points_between_segments(
+            self.a, self.b,
+            ray_a, ray_b
+        )
+
+        # Если мы дальше радиуса, то это просто ближайшая точка
+        if dist > self.radius:
+            p_col = p_seg
+            return p_col, p_ray, dist - self.radius
+
+        # Иначе луч пересекает капсулу
+        dir_vec = p_ray - p_seg
+        n = numpy.linalg.norm(dir_vec)
+        if n > 1e-8:
+            p_col = p_seg + dir_vec * (self.radius / n)
+        else:
+            p_col = p_seg
+        return p_col, p_ray, max(0.0, numpy.linalg.norm(p_col - p_ray))
+=END=
+
+
+=== file: termin/colliders/box.py ===
+--- insert-after-text
+class BoxCollider(Collider):
+---
+    def closest_to_ray(self, ray: "Ray3"):
+        """
+        Переносим луч в локальное пространство коробки и применяем стандартный
+        алгоритм пересечения луча с AABB.
+        """
+        import numpy as np
+
+        # Перенос луча в локальные координаты
+        O_local = self.point_in_local_frame(ray.origin)
+        D_local = self.pose.inverse_transform_vector(ray.direction)
+
+        # Нормализуем, чтобы корректно считать t
+        n = np.linalg.norm(D_local)
+        if n < 1e-8:
+            D_local = np.array([0, 0, 1], dtype=np.float32)
+        else:
+            D_local = D_local / n
+
+        aabb = self.local_aabb()
+
+        tmin = -1e9
+        tmax =  1e9
+
+        for i in range(3):
+            if abs(D_local[i]) < 1e-8:
+                # Луч параллелен плоскости AABB, проверяем попадание
+                if O_local[i] < aabb.min_point[i] or O_local[i] > aabb.max_point[i]:
+                    # не пересекает — nearest point
+                    pass
+            else:
+                t1 = (aabb.min_point[i] - O_local[i]) / D_local[i]
+                t2 = (aabb.max_point[i] - O_local[i]) / D_local[i]
+                t1, t2 = min(t1, t2), max(t1, t2)
+                tmin = max(tmin, t1)
+                tmax = min(tmax, t2)
+
+        # Нет пересечения → nearest point
+        if tmax < max(tmin, 0):
+            t = max(tmin, 0)
+            p_ray_local = O_local + D_local * t
+            # Клиппинг к границам AABB
+            p_box_local = np.minimum(np.maximum(p_ray_local, aabb.min_point), aabb.max_point)
+            p_ray = self.pose.transform_point_inv(O_local)  # вернем обратно
+            p_ray = ray.point_at(t)
+            p_col = self.pose.transform_point(p_box_local)
+            return p_col, p_ray, np.linalg.norm(p_col - p_ray)
+
+        # Есть пересечение, используем t_hit ≥ 0
+        t_hit = tmin if tmin >= 0 else tmax
+        if t_hit < 0:
+            t_hit = tmax
+
+        p_ray_local = O_local + D_local * t_hit
+        p_ray = ray.point_at(t_hit)
+        # точка попадания лежит в AABB, трансформируем в мир
+        p_col = p_ray
+        return p_col, p_ray, 0.0
+=END=
+
+
+=== file: termin/colliders/union_collider.py ===
+--- insert-after-text
+class UnionCollider(Collider):
+---
+    def closest_to_ray(self, ray: "Ray3"):
+        min_dist = float("inf")
+        best_p = None
+        best_q = None
+
+        for col in self.colliders:
+            p, q, d = col.closest_to_ray(ray)
+            if d < min_dist:
+                min_dist = d
+                best_p = p
+                best_q = q
+
+        return best_p, best_q, min_dist
+=END=

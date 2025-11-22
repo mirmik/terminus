@@ -17,7 +17,6 @@ def is_overrides_method(obj, method_name, base_class):
 
 class Scene:
     """Container for renderable entities and lighting data."""
-
     def __init__(self, background_color: Sequence[float] = (0.05, 0.05, 0.08, 1.0)):
         self.entities: List[Entity] = []
         self.lights: List[np.ndarray] = []
@@ -26,7 +25,7 @@ class Scene:
         self._inited = False
         self._input_components: List[InputComponent] = []
         self._graphics: GraphicsBackend | None = None
-
+        self.colliders = []
         self.update_list: List[Component] = []
 
         # Lights
@@ -49,6 +48,10 @@ class Scene:
         entity.on_removed()
 
     def register_component(self, component: Component):
+        # регистрируем коллайдеры
+        from termin.colliders.collider_component import ColliderComponent
+        if isinstance(component, ColliderComponent):
+            self.colliders.append(component)
         for shader in component.required_shaders():
             self._register_shader(shader)
         if isinstance(component, InputComponent):
@@ -57,6 +60,9 @@ class Scene:
             self.update_list.append(component)
 
     def unregister_component(self, component: Component):
+        from termin.colliders.collider_component import ColliderComponent
+        if isinstance(component, ColliderComponent) and component in self.colliders:
+            self.colliders.remove(component)
         if isinstance(component, InputComponent) and component in self._input_components:
             self._input_components.remove(component)
 
