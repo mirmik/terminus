@@ -25,6 +25,7 @@ from .world import VisualizationWorld
 from .backends.base import GraphicsBackend, WindowBackend, MouseButton, Key, Action
 from .backends.opengl import OpenGLGraphicsBackend
 from .backends.glfw import GLFWWindowBackend
+from .backends.qt import QtWindowBackend, QtGLWindowHandle
 
 __all__ = [
     "Window",
@@ -55,4 +56,6 @@ __all__ = [
     "Action",
     "OpenGLGraphicsBackend",
     "GLFWWindowBackend",
+    "QtWindowBackend",
+    "QtGLWindowHandle",
 ]

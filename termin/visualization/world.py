@@ -37,9 +37,9 @@ class VisualizationWorld:
         if scene in self.scenes:
             self.scenes.remove(scene)
 
-    def create_window(self, width: int = 1280, height: int = 720, title: str = "termin viewer") -> Window:
+    def create_window(self, width: int = 1280, height: int = 720, title: str = "termin viewer", **backend_kwargs) -> Window:
         share = self.windows[0] if self.windows else None
-        window = Window(width=width, height=height, title=title, renderer=self.renderer, graphics=self.graphics, window_backend=self.window_backend, share=share)
+        window = Window(width=width, height=height, title=title, renderer=self.renderer, graphics=self.graphics, window_backend=self.window_backend, share=share, **backend_kwargs)
         self.windows.append(window)
         return window
 

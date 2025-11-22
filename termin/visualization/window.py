@@ -29,7 +29,7 @@ class Viewport:
 class Window:
     """Manages a platform window and a set of viewports."""
 
-    def __init__(self, width: int, height: int, title: str, renderer: Renderer, graphics: GraphicsBackend, window_backend: WindowBackend, share=None):
+    def __init__(self, width: int, height: int, title: str, renderer: Renderer, graphics: GraphicsBackend, window_backend: WindowBackend, share=None, **backend_kwargs):
         self.renderer = renderer
         self.graphics = graphics
         share_handle = None
@@ -39,7 +39,7 @@ class Window:
             share_handle = share
 
         self.window_backend = window_backend
-        self.handle: BackendWindow = self.window_backend.create_window(width, height, title, share=share_handle)
+        self.handle: BackendWindow = self.window_backend.create_window(width, height, title, share=share_handle, **backend_kwargs)
 
         self.viewports: List[Viewport] = []
         self._active_viewport: Optional[Viewport] = None

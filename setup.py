@@ -40,6 +40,7 @@ setup(
             "robot/*",
             "visualization/*",
             "visualization/ui/*",
+            "visualization/backends/*",
             "mesh/*",
         ]
     },

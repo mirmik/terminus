@@ -234,7 +234,10 @@ class TexturedCubeMesh(Mesh):
 
 
 class UVSphereMesh(Mesh):
-    def __init__(self, radius: float = 1.0, segments: int = 16, rings: int = 16):
+    def __init__(self, radius: float = 1.0, n_meridians: int = 16, n_parallels: int = 16):
+        rings = n_parallels
+        segments = n_meridians
+        
         vertices = []
         triangles = []
         for r in range(rings + 1):
