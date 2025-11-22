@@ -1,6 +1,6 @@
 import math
 import numpy
-
+import numpy as np
 from termin.util import qmul, qrot, qslerp, qinv
 
 class Pose3:

@@ -18,22 +18,16 @@ class CameraComponent(Component):
     """Component that exposes view/projection matrices based on entity pose."""
 
     def screen_point_to_ray(self, x: float, y: float, viewport_rect):
-        """
-        Преобразует экранные координаты мыши в 3D-луч.
-        viewport_rect = (px, py, pw, ph)
-        """
         import numpy as np
         from termin.geombase.ray import Ray3
 
         px, py, pw, ph = viewport_rect
 
-        # нормализуем координаты в -1..1
-        nx = ( (x - px) / max(1.0, pw) ) * 2.0 - 1.0
-        ny = ( (y - py) / max(1.0, ph) ) * -2.0 + 1.0
+        nx = ( (x - px) / pw ) * 2.0 - 1.0
+        ny = ( (y - py) / ph ) * -2.0 + 1.0
 
         inv_vp = np.linalg.inv(self.get_projection_matrix() @ self.get_view_matrix())
 
-        # в пространство камеры
         near = np.array([nx, ny, -1.0, 1.0], dtype=np.float32)
         far  = np.array([nx, ny,  1.0, 1.0], dtype=np.float32)
 
@@ -61,7 +55,9 @@ class CameraComponent(Component):
     def get_view_matrix(self) -> np.ndarray:
         if self.entity is None:
             raise RuntimeError("CameraComponent has no entity.")
-        return self.entity.pose.inverse().as_matrix()
+    # Entity.pose не существует — берём позу из Transform3
+        return self.entity.transform.global_pose().inverse().as_matrix()
+        #return self.entity.pose.inverse().as_matrix()
 
     def get_projection_matrix(self) -> np.ndarray:
         raise NotImplementedError
@@ -177,7 +173,7 @@ class OrbitCameraController(CameraController):
             ],
             dtype=np.float32,
         )
-        entity.pose = Pose3.looking_at(eye=eye, target=self.target)
+        entity.transform.relocate(Pose3.looking_at(eye=eye, target=self.target))
 
     def orbit(self, delta_azimuth: float, delta_elevation: float):
         self.azimuth += math.radians(delta_azimuth)
@@ -192,7 +188,7 @@ class OrbitCameraController(CameraController):
         entity = self.entity
         if entity is None:
             return
-        rot = entity.pose.rotation_matrix()
+        rot = entity.transform.global_pose().rotation_matrix()
         right = rot[:, 0]
         up = rot[:, 1]
         self.target = self.target + right * dx + up * dy

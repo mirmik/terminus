@@ -79,10 +79,16 @@ class BoxCollider(Collider):
         # точка попадания лежит в AABB, трансформируем в мир
         p_col = p_ray
         return p_col, p_ray, 0.0
-    def __init__(self, center : numpy.ndarray, size: numpy.ndarray, pose: Pose3 = Pose3.identity()):
+    
+    def __init__(self, center : numpy.ndarray = None, size: numpy.ndarray = None, pose: Pose3 = Pose3.identity()):
         self.center = center
         self.size = size
         self.pose = pose
+
+        if self.center is None:
+            self.center = numpy.array([0.0, 0.0, 0.0], dtype=numpy.float32)
+        if self.size is None:
+            self.size = numpy.array([1.0, 1.0, 1.0], dtype=numpy.float32)
 
     def local_aabb(self) -> AABB:
         half_size = self.size / 2.0

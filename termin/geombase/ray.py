@@ -18,3 +18,6 @@ class Ray3:
         P(t) = origin + direction * t
         """
         return self.origin + self.direction * float(t)
+
+    def __repr__(self):
+        return f"Ray3(origin={self.origin}, direction={self.direction})"

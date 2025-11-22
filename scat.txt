@@ -1,3 +1,5 @@
-termin/visualization/**
-termin/examples/visual/*
+termin/visualization/world.py
+termin/visualization/scene.py
+termin/visualization/entity.py
+termin/visualization/components.py
 termin/colliders/*

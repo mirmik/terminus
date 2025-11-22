@@ -101,6 +101,27 @@ class Window:
             self._active_viewport = None
         if viewport is not None:
             viewport.scene.dispatch_input(viewport, "on_mouse_button", button=button, action=action, mods=mods)
+            
+            # Обработка 3D кликов
+            if action == Action.PRESS and button == MouseButton.LEFT:
+                cam = viewport.camera
+                print("Матрицы камеры:")
+                print("View Matrix:")
+                print(cam.get_view_matrix())
+                print("Projection Matrix:")
+                print(cam.get_projection_matrix())
+                if cam is not None:
+                    ray = cam.screen_point_to_ray(x, y, viewport_rect=viewport.rect)   # функция построения Ray3
+                    print(f"Ray: {ray}")
+                    hit = viewport.scene.raycast(ray)
+                    print(f"Raycast hit: {hit}")
+                    if hit is not None:
+                        # Диспатчим on_click в компоненты
+                        entity = hit.entity
+                        for comp in entity.components:
+                            if hasattr(comp, "on_click"):  # или isinstance(comp, Clickable)
+                                comp.on_click(hit, button)
+
 
     def _handle_cursor_pos(self, window, x, y):
         if self.handle is None:

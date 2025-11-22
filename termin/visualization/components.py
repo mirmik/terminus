@@ -36,7 +36,7 @@ class MeshRenderer(Component):
             shader.set_uniform_vec3("u_light_color", context.scene.light_color)
         camera_entity = context.camera.entity if context.camera is not None else None
         if camera_entity is not None:
-            shader.set_uniform_vec3("u_view_pos", camera_entity.pose.lin)
+            shader.set_uniform_vec3("u_view_pos", camera_entity.transform.global_pose().lin)
         self.mesh.draw(context)
 
 
