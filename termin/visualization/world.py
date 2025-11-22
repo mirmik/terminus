@@ -72,7 +72,10 @@ class VisualizationWorld:
                     window.close()
                     continue
                 window.update(dt)
-                window.render()
+                if window.handle.drives_render():
+                    window.handle.widget.update()
+                if not window.handle.drives_render():
+                    window.render()
                 alive.append(window)
             self.windows = alive
             self.window_backend.poll_events()

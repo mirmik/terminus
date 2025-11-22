@@ -59,8 +59,12 @@ void main() {
 def build_scene(world: VisualizationWorld) -> tuple[Scene, PerspectiveCameraComponent]:
     """Создаём простую сцену с шаром и skybox."""
     shader = ShaderProgram(VERT, FRAG)
-    material = Material(shader=shader, color=np.array([0.3, 0.7, 0.9, 1.0], dtype=np.float32))
+    material = Material(
+        shader=shader,
+        color=np.array([0.3, 0.7, 0.9, 1.0], dtype=np.float32),
+    )
     mesh = MeshDrawable(UVSphereMesh(radius=1.0, n_meridians=32, n_parallels=16))
+
     sphere = Entity(pose=Pose3.identity(), name="sphere")
     sphere.add_component(MeshRenderer(mesh, material))
 
@@ -74,23 +78,39 @@ def build_scene(world: VisualizationWorld) -> tuple[Scene, PerspectiveCameraComp
     cam_entity.add_component(camera)
     cam_entity.add_component(OrbitCameraController(radius=4.0))
     scene.add(cam_entity)
+
     return scene, camera
 
 
 def main():
-    # Запускаем Qt, подключаем Qt backend и создаём мир визуализации.
+    # 1) Создаём Qt backend — внутри поднимется QApplication,
+    #    поэтому до этого нельзя создавать QtWidgets.QWidget().
     qt_backend = QtWindowBackend()
+
+    # 2) Создаём мир визуализации с Qt окном.
     world = VisualizationWorld(window_backend=qt_backend)
     scene, camera = build_scene(world)
 
-    # Готовим Qt интерфейс с нашим OpenGL виджетом внутри.
+    # 3) Дальше обычный Qt-интерфейс.
     main_window = QtWidgets.QMainWindow()
     central = QtWidgets.QWidget()
     layout = QtWidgets.QVBoxLayout(central)
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(6)
 
-    vis_window = world.create_window(width=800, height=600, title="termin Qt embed", parent=central)
+    # 4) Создаём окно визуализации как "дочернее" к central.
+    #    QtWindowBackend внутри:
+    #      - создаст QOpenGLWindow,
+    #      - обернёт его в QWidget.createWindowContainer(parent),
+    #      - вернёт handle, у которого .widget — это либо контейнер, либо само окно.
+    vis_window = world.create_window(
+        width=800,
+        height=600,
+        title="termin Qt embed",
+        parent=central,  # ключевой момент — передаём parent
+    )
+
+    # handle.widget должен вернуть Qt-вский виджет (container), который можно добавить в layout
     layout.addWidget(vis_window.handle.widget)
 
     quit_btn = QtWidgets.QPushButton("Закрыть")
@@ -107,7 +127,13 @@ def main():
     main_window.setWindowTitle("Qt + termin visualization")
     main_window.show()
 
-    # Главный цикл: QtWindowBackend.poll_events() дергает QApplication.processEvents().
+    # 5) Главный цикл: внутри будет
+    #    - world.run() → while windows:
+    #        - window.render()
+    #        - window_backend.poll_events()
+    #
+    #    В Qt backend poll_events() делает app.processEvents(),
+    #    так что отдельного app.exec_() вызывать не надо.
     world.run()
 
 

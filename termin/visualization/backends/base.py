@@ -228,6 +228,13 @@ class BackendWindow(ABC):
     def set_key_callback(self, callback: Callable):
         ...
 
+    def drives_render(self) -> bool:
+        """
+        Возвращает True, если рендер вызывается бекэндом самостоятельно (например, Qt виджет),
+        и False, если движок сам вызывает render() каждый кадр (например, GLFW).
+        """
+        return False
+
 
 class WindowBackend(ABC):
     """Abstract window backend (GLFW, SDL, etc.)."""

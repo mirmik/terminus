@@ -245,6 +245,7 @@ class OpenGLGraphicsBackend(GraphicsBackend):
         self._ui_buffers: Dict[int, Tuple[int, int]] = {}
 
     def ensure_ready(self):
+        print("ENSURE READY")
         global _OPENGL_INITED
         if _OPENGL_INITED:
             return

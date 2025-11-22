@@ -1,4 +1,4 @@
-"""PyQt5-based window backend using :class:`QOpenGLWidget`."""
+"""PyQt5-based window backend using QOpenGLWindow."""
 
 from __future__ import annotations
 
@@ -7,6 +7,8 @@ from typing import Callable, Optional, Any
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 from .base import Action, BackendWindow, Key, MouseButton, WindowBackend
+
+from OpenGL import GL
 
 
 def _qt_app() -> QtWidgets.QApplication:
@@ -42,70 +44,86 @@ def _translate_key(key: int) -> Key:
 
 
 class _QtGLWidget(QtWidgets.QOpenGLWidget):
-    """Thin wrapper forwarding Qt events into backend callbacks."""
-
-    def __init__(self, owner: "QtGLWindowHandle"):
-        super().__init__(parent=None)
+    def __init__(self, owner: "QtGLWindowHandle", parent=None):
+        super().__init__(parent)
         self._owner = owner
         self.setFocusPolicy(QtCore.Qt.StrongFocus)
 
-    def resizeEvent(self, event: QtGui.QResizeEvent):
-        super().resizeEvent(event)
-        cb = self._owner._framebuffer_callback
-        if cb:
-            size = event.size()
-            cb(self._owner, size.width(), size.height())
+    # --- События мыши / клавиатуры --------------------------------------
 
-    def mousePressEvent(self, event: QtGui.QMouseEvent):
+    def mousePressEvent(self, event):
         cb = self._owner._mouse_callback
         if cb:
             cb(self._owner, _translate_mouse(event.button()), Action.PRESS, int(event.modifiers()))
 
-    def mouseReleaseEvent(self, event: QtGui.QMouseEvent):
+    def mouseReleaseEvent(self, event):
         cb = self._owner._mouse_callback
         if cb:
             cb(self._owner, _translate_mouse(event.button()), Action.RELEASE, int(event.modifiers()))
 
-    def mouseMoveEvent(self, event: QtGui.QMouseEvent):
+    def mouseMoveEvent(self, event):
         cb = self._owner._cursor_callback
         if cb:
             cb(self._owner, float(event.x()), float(event.y()))
 
-    def wheelEvent(self, event: QtGui.QWheelEvent):
+    def wheelEvent(self, event):
         cb = self._owner._scroll_callback
         if cb:
             angle = event.angleDelta()
             cb(self._owner, angle.x() / 120.0, angle.y() / 120.0)
 
-    def keyPressEvent(self, event: QtGui.QKeyEvent):
+    def keyPressEvent(self, event):
         cb = self._owner._key_callback
         if cb:
             cb(self._owner, _translate_key(event.key()), event.nativeScanCode(), Action.PRESS, int(event.modifiers()))
 
-    def keyReleaseEvent(self, event: QtGui.QKeyEvent):
+    def keyReleaseEvent(self, event):
         cb = self._owner._key_callback
         if cb:
             cb(self._owner, _translate_key(event.key()), event.nativeScanCode(), Action.RELEASE, int(event.modifiers()))
 
+    # --- Рендер ----------------------------------------------------------
+
+    def paintGL(self):
+        print("PAINTGL")
+        ctx = QtGui.QOpenGLContext.currentContext()
+        print("CTX:", ctx)
+        renderer = GL.glGetString(GL.GL_RENDERER)
+        version = GL.glGetString(GL.GL_VERSION)
+        print("GL_RENDERER:", renderer)
+        print("GL_VERSION:", version)
+        # Тут есть активный GL-контекст — выполняем рендер движка
+        window_obj = self._owner._user_ptr
+        if window_obj is not None:
+            window_obj._render_core(from_backend=True)
+
+    def resizeGL(self, w, h):
+        cb = self._owner._framebuffer_callback
+        if cb:
+            cb(self._owner, w, h)
+
 
 class QtGLWindowHandle(BackendWindow):
-    def __init__(self, width: int, height: int, title: str, share: Optional[BackendWindow] = None, parent: Optional[QtWidgets.QWidget] = None):
+    def __init__(self, width, height, title, share=None, parent=None):
         self.app = _qt_app()
-        self._widget = _QtGLWidget(self)
-        self._widget.setWindowTitle(title)
-        if parent is not None:
-            self._widget.setParent(parent)
+
+        self._widget = _QtGLWidget(self, parent=parent)
+        self._widget.setMinimumSize(width, height)
         self._widget.resize(width, height)
         self._widget.show()
-        self._closed = False
-        self._user_ptr: Any = None
-        self._framebuffer_callback: Optional[Callable] = None
-        self._cursor_callback: Optional[Callable] = None
-        self._scroll_callback: Optional[Callable] = None
-        self._mouse_callback: Optional[Callable] = None
-        self._key_callback: Optional[Callable] = None
 
-    # BackendWindow interface --------------------------------------------
+        self._closed = False
+        self._user_ptr = None
+
+        # Все callback-и окна (их вызывает Window)
+        self._framebuffer_callback = None
+        self._cursor_callback = None
+        self._scroll_callback = None
+        self._mouse_callback = None
+        self._key_callback = None
+
+    # --- BackendWindow API ----------------------------------------------
+
     def close(self):
         if self._closed:
             return
@@ -116,15 +134,16 @@ class QtGLWindowHandle(BackendWindow):
         return self._closed or not self._widget.isVisible()
 
     def make_current(self):
+        # QOpenGLWidget сам делает makeCurrent() прямо перед paintGL
+        # но движок может вызвать это — тогда просто делегируем
         self._widget.makeCurrent()
 
     def swap_buffers(self):
-        ctx = self._widget.context()
-        if ctx is not None:
-            ctx.swapBuffers(ctx.surface())
+        # QOpenGLWidget сам вызывает swapBuffers
+        pass
 
     def framebuffer_size(self):
-        ratio = float(self._widget.devicePixelRatioF())
+        ratio = self._widget.devicePixelRatioF()
         return int(self._widget.width() * ratio), int(self._widget.height() * ratio)
 
     def window_size(self):
@@ -138,41 +157,55 @@ class QtGLWindowHandle(BackendWindow):
         if flag:
             self.close()
 
-    def set_user_pointer(self, ptr: Any):
+    def set_user_pointer(self, ptr):
         self._user_ptr = ptr
 
-    def set_framebuffer_size_callback(self, callback: Callable):
-        self._framebuffer_callback = callback
+    # --- callback setters -----------------------------------------------
 
-    def set_cursor_pos_callback(self, callback: Callable):
-        self._cursor_callback = callback
+    def set_framebuffer_size_callback(self, cb):
+        self._framebuffer_callback = cb
 
-    def set_scroll_callback(self, callback: Callable):
-        self._scroll_callback = callback
+    def set_cursor_pos_callback(self, cb):
+        self._cursor_callback = cb
 
-    def set_mouse_button_callback(self, callback: Callable):
-        self._mouse_callback = callback
+    def set_scroll_callback(self, cb):
+        self._scroll_callback = cb
 
-    def set_key_callback(self, callback: Callable):
-        self._key_callback = callback
+    def set_mouse_button_callback(self, cb):
+        self._mouse_callback = cb
 
-    # Convenience to access underlying widget from examples
+    def set_key_callback(self, cb):
+        self._key_callback = cb
+
+    # --- Чтобы движок понимал push-модель Qt ----------------------------
+
+    def drives_render(self) -> bool:
+        return True
+
     @property
-    def widget(self) -> _QtGLWidget:
+    def widget(self):
         return self._widget
 
 
+
 class QtWindowBackend(WindowBackend):
-    """Window backend relying on PyQt5 for event loop and GL surface."""
+    """Window backend, использующий QOpenGLWindow и Qt event loop."""
 
     def __init__(self, app: Optional[QtWidgets.QApplication] = None):
         self.app = app or _qt_app()
 
-    def create_window(self, width: int, height: int, title: str, share: Optional[BackendWindow] = None, parent: Optional[QtWidgets.QWidget] = None) -> QtGLWindowHandle:
+    def create_window(
+        self,
+        width: int,
+        height: int,
+        title: str,
+        share: Optional[BackendWindow] = None,
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> QtGLWindowHandle:
         return QtGLWindowHandle(width, height, title, share=share, parent=parent)
 
     def poll_events(self):
-        # process pending events without blocking
+        # Обрабатываем накопившиеся Qt-события
         self.app.processEvents()
 
     def terminate(self):

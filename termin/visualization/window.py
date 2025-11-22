@@ -78,27 +78,28 @@ class Window:
         return
 
     def render(self):
-        if self.handle is None:
-            return
-        self.graphics.ensure_ready()
-        self.make_current()
-        context_key = id(self)
-        width, height = self.handle.framebuffer_size()
-        for viewport in self.viewports:
-            vx, vy, vw, vh = viewport.rect
-            px = int(vx * width)
-            py = int(vy * height)
-            pw = max(1, int(vw * width))
-            ph = max(1, int(vh * height))
-            viewport.camera.set_aspect(pw / max(1.0, float(ph)))
-            self.graphics.enable_scissor(px, py, pw, ph)
-            bg = viewport.scene.background_color
-            self.graphics.clear_color_depth(bg)
-            self.graphics.disable_scissor()
-            self.renderer.render_viewport(viewport.scene, viewport.camera, (px, py, pw, ph), context_key)
-            if viewport.canvas:
-                viewport.canvas.render(self.graphics, context_key, (px, py, pw, ph))
-        self.handle.swap_buffers()
+        # if self.handle is None:
+        #     return
+        # self.graphics.ensure_ready()
+        # self.make_current()
+        # context_key = id(self)
+        # width, height = self.handle.framebuffer_size()
+        # for viewport in self.viewports:
+        #     vx, vy, vw, vh = viewport.rect
+        #     px = int(vx * width)
+        #     py = int(vy * height)
+        #     pw = max(1, int(vw * width))
+        #     ph = max(1, int(vh * height))
+        #     viewport.camera.set_aspect(pw / max(1.0, float(ph)))
+        #     self.graphics.enable_scissor(px, py, pw, ph)
+        #     bg = viewport.scene.background_color
+        #     self.graphics.clear_color_depth(bg)
+        #     self.graphics.disable_scissor()
+        #     self.renderer.render_viewport(viewport.scene, viewport.camera, (px, py, pw, ph), context_key)
+        #     if viewport.canvas:
+        #         viewport.canvas.render(self.graphics, context_key, (px, py, pw, ph))
+        # self.handle.swap_buffers()
+        self._render_core(from_backend=False)
 
 
     # Event handlers -----------------------------------------------------
@@ -162,6 +163,47 @@ class Window:
             if vx <= nx <= vx + vw and vy <= ny <= vy + vh:
                 return viewport
         return None
+
+    def _render_core(self, from_backend: bool):
+        print("WINDOW RENDER CALLED. from_backend =", from_backend)
+        if self.handle is None:
+            return
+
+        self.graphics.ensure_ready()
+        
+        if not from_backend:
+            self.make_current()
+
+        context_key = id(self)
+        width, height = self.handle.framebuffer_size()
+
+        for viewport in self.viewports:
+            vx, vy, vw, vh = viewport.rect
+            px = int(vx * width)
+            py = int(vy * height)
+            pw = max(1, int(vw * width))
+            ph = max(1, int(vh * height))
+
+            viewport.camera.set_aspect(pw / max(1.0, float(ph)))
+
+            self.graphics.enable_scissor(px, py, pw, ph)
+            bg = viewport.scene.background_color
+            self.graphics.clear_color_depth(bg)
+            self.graphics.disable_scissor()
+
+            self.renderer.render_viewport(
+                viewport.scene, viewport.camera,
+                (px, py, pw, ph),
+                context_key
+            )
+
+            if viewport.canvas:
+                viewport.canvas.render(self.graphics, context_key, (px, py, pw, ph))
+
+        # GLFW — делает swap
+        if not from_backend:
+            self.handle.swap_buffers()
+
 
 
 # Backwards compatibility
