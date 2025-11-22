@@ -103,6 +103,17 @@ class Window:
             return
         x, y = self.handle.get_cursor_pos()
         viewport = self._viewport_under_cursor(x, y)
+
+        # ---- NEW: UI click handling ----
+        if viewport and viewport.canvas:
+            ui_hit = viewport.canvas.hit_test(x, y, self.viewport_rect_to_pixels(viewport))
+            if ui_hit:
+                if action == Action.PRESS and hasattr(ui_hit, "on_click") and ui_hit.on_click:
+                    ui_hit.on_click()
+                # UI перехватывает клик — дальше в 3D не лезем
+                return
+
+        # Обработка 3D сцены (сперва глобальная)
         if action == Action.PRESS:
             self._active_viewport = viewport
         if action == Action.RELEASE:
@@ -113,7 +124,8 @@ class Window:
         if viewport is not None:
             viewport.scene.dispatch_input(viewport, "on_mouse_button", button=button, action=action, mods=mods)
             
-            # Обработка 3D кликов
+        # Теперь обработка кликов по объектам сцены
+        if viewport is not None:
             if action == Action.PRESS and button == MouseButton.LEFT:
                 cam = viewport.camera
                 if cam is not None:

@@ -1,13 +1,11 @@
 from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Tuple
-
 import numpy as np
+from ..material import Material
 
 IDENTITY = np.identity(4, dtype=np.float32)
 
-from ..material import Material
 
 
 class UIElement:
@@ -22,6 +20,9 @@ class UIElement:
         if self.material is None:
             raise RuntimeError(f"{self.__class__.__name__} has no material assigned.")
         return self.material
+    
+    def contains(self, nx: float, ny: float) -> bool:
+        return False
 
 
 @dataclass
@@ -49,6 +50,11 @@ class UIRectangle(UIElement):
             ],
             dtype=np.float32,
         )
+
+    def contains(self, nx: float, ny: float) -> bool:
+        x, y = self.position
+        w, h = self.size
+        return x <= nx <= x + w and y <= ny <= y + h
 
     def draw(self, canvas, graphics, context_key: int, viewport_rect: Tuple[int, int, int, int]):
         material = self._require_material()
@@ -112,3 +118,51 @@ class UIText(UIElement):
             canvas.draw_textured_quad(graphics, context_key, vertices)
 
             cx += (w * self.scale) / pw
+
+
+@dataclass
+class UIButton(UIElement):
+    position: tuple[float, float]
+    size: tuple[float, float]
+    text: str
+    on_click: callable | None = None
+
+    material: Material | None = None          # фон
+    text_material: Material | None = None     # текст
+
+    background_color: tuple = (0.2, 0.2, 0.25, 1.0)
+    text_color: tuple = (1, 1, 1, 1)
+
+    def __post_init__(self):
+        if self.material is None:
+            raise RuntimeError("UIButton requires material for background")
+        if self.text_material is None:
+            raise RuntimeError("UIButton requires text_material for label")
+
+        self.bg = UIRectangle(
+            position=self.position,
+            size=self.size,
+            color=self.background_color,
+            material=self.material,
+        )
+
+        # небольшое смещение текста внутрь
+        text_pos = (
+            self.position[0] + 0.01,
+            self.position[1] + 0.01,
+        )
+
+        self.label = UIText(
+            text=self.text,
+            position=text_pos,
+            color=self.text_color,
+            scale=1.0,
+            material=self.text_material,
+        )
+
+    def contains(self, nx, ny):
+        return self.bg.contains(nx, ny)
+
+    def draw(self, canvas, graphics, context_key, viewport_rect):
+        self.bg.draw(canvas, graphics, context_key, viewport_rect)
+        self.label.draw(canvas, graphics, context_key, viewport_rect)

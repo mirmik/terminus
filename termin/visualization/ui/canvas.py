@@ -42,3 +42,17 @@ class Canvas:
 
     def draw_textured_quad(self, graphics: GraphicsBackend, context_key: int, vertices: np.ndarray):
         graphics.draw_ui_textured_quad(context_key, vertices)
+
+    def hit_test(self, x: float, y: float, viewport_rect_pixels: Tuple[int, int, int, int]) -> "UIElement | None":
+        px, py, pw, ph = viewport_rect_pixels
+
+        # координаты UIElement в нормализованном 0..1 пространстве
+        nx = (x - px) / pw
+        ny = (y - py) / ph
+
+        # проходим с конца (верхние слои имеют приоритет)
+        for elem in reversed(self.elements):
+            if hasattr(elem, "contains"):
+                if elem.contains(nx, ny):
+                    return elem
+        return None
