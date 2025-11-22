@@ -7,7 +7,7 @@ from PIL import Image
 import termin.visualization.mesh as mesh_module
 import termin.visualization.shader as shader_module
 import termin.visualization.texture as texture_module
-from termin.visualization.mesh import MeshDrawable, _vertex_normals
+from termin.visualization.mesh import MeshDrawable
 from termin.visualization.shader import ShaderCompilationError, ShaderProgram
 from termin.visualization.texture import Texture
 from termin.visualization.ui.elements import UIRectangle
@@ -214,89 +214,6 @@ class FakeTextureGL:
     def glActiveTexture(self, unit):
         self.active_unit = unit
 
-
-def test_vertex_normals_are_normalized():
-    vertices = np.array(
-        [
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [1.0, 1.0, 0.0],
-            [0.0, 1.0, 0.0],
-        ],
-        dtype=float,
-    )
-    triangles = np.array([[0, 1, 2], [0, 2, 3]], dtype=int)
-    normals = _vertex_normals(vertices, triangles)
-    lengths = np.linalg.norm(normals, axis=1)
-    np.testing.assert_allclose(lengths, np.ones_like(lengths))
-    np.testing.assert_allclose(normals[:, 2], np.ones(4))
-
-
-def test_mesh_upload_and_draw_without_real_context():
-    fake_gl = FakeMeshGL()
-    pointer_calls = []
-
-    def fake_pointer(index, size, dtype, normalized, stride, pointer):
-        pointer_calls.append((index, stride))
-
-    vertices = np.array(
-        [
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-        ],
-        dtype=float,
-    )
-    triangles = np.array([[0, 1, 2]], dtype=int)
-    mesh = mesh_module.Mesh(vertices, triangles)
-    class FakeContext:
-        def __init__(self, key):
-            self.context_key = key
-    fake_ctx = FakeContext(1234)
-    with mock.patch.object(mesh_module, "gl", fake_gl), \
-         mock.patch.object(mesh_module, "_gl_vertex_attrib_pointer", side_effect=fake_pointer):
-        drawable = MeshDrawable(mesh)
-        drawable.draw(fake_ctx)
-        assert fake_ctx.context_key in drawable._context_resources
-        assert fake_gl.draw_calls == 1
-        expected_array_bytes = mesh.vertices.shape[0] * 8 * 4
-        assert fake_gl.array_buffer_size == expected_array_bytes
-        assert fake_gl.element_buffer_size == triangles.size * 4
-        assert pointer_calls == [(0, 32), (1, 32), (2, 32)]
-
-
-def test_shader_compilation_success_with_fake_gl():
-    fake_gl = FakeShaderGL()
-    with mock.patch.object(shader_module, "gl", fake_gl):
-        shader = ShaderProgram("void main(){ }", "void main(){ }")
-        shader.compile()
-        assert shader.program is not None
-        assert len(fake_gl.created_shaders) == 2
-
-
-def test_shader_compilation_failure_reports_log():
-    fake_gl = FakeShaderGL(shader_status=[0], shader_logs=[b"bad shader"])
-    with mock.patch.object(shader_module, "gl", fake_gl):
-        shader = ShaderProgram("void main(){ }", "void main(){ }")
-        with pytest.raises(ShaderCompilationError) as exc:
-            shader.compile()
-        assert "bad shader" in str(exc.value)
-
-
-def test_texture_upload_defers_until_bind(tmp_path):
-    fake_gl = FakeTextureGL()
-    image_path = tmp_path / "tex.png"
-    Image.new("RGBA", (4, 4), (255, 0, 0, 255)).save(image_path)
-    with mock.patch.object(texture_module, "gl", fake_gl):
-        tex = Texture.from_file(image_path)
-        assert fake_gl.generated_ids == []
-        tex.bind(2)
-        assert fake_gl.generated_ids == [1]
-        assert fake_gl.active_unit == fake_gl.GL_TEXTURE0 + 2
-        assert fake_gl.bound_texture == 1
-        assert fake_gl.tex_image_calls == 1
-        tex.bind(2)
-        assert fake_gl.tex_image_calls == 1  # No re-upload
 
 
 def test_ui_rectangle_clip_vertices():

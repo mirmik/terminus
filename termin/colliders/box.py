@@ -6,6 +6,63 @@ from termin.geomalgo.project import closest_of_aabb_and_capsule, closest_of_aabb
 
 
 class BoxCollider(Collider):
+    def closest_to_ray(self, ray: "Ray3"):
+        """
+        Переносим луч в локальное пространство коробки и применяем стандартный
+        алгоритм пересечения луча с AABB.
+        """
+        import numpy as np
+
+        # Перенос луча в локальные координаты
+        O_local = self.point_in_local_frame(ray.origin)
+        D_local = self.pose.inverse_transform_vector(ray.direction)
+
+        # Нормализуем, чтобы корректно считать t
+        n = np.linalg.norm(D_local)
+        if n < 1e-8:
+            D_local = np.array([0, 0, 1], dtype=np.float32)
+        else:
+            D_local = D_local / n
+
+        aabb = self.local_aabb()
+
+        tmin = -1e9
+        tmax =  1e9
+
+        for i in range(3):
+            if abs(D_local[i]) < 1e-8:
+                # Луч параллелен плоскости AABB, проверяем попадание
+                if O_local[i] < aabb.min_point[i] or O_local[i] > aabb.max_point[i]:
+                    # не пересекает — nearest point
+                    pass
+            else:
+                t1 = (aabb.min_point[i] - O_local[i]) / D_local[i]
+                t2 = (aabb.max_point[i] - O_local[i]) / D_local[i]
+                t1, t2 = min(t1, t2), max(t1, t2)
+                tmin = max(tmin, t1)
+                tmax = min(tmax, t2)
+
+        # Нет пересечения → nearest point
+        if tmax < max(tmin, 0):
+            t = max(tmin, 0)
+            p_ray_local = O_local + D_local * t
+            # Клиппинг к границам AABB
+            p_box_local = np.minimum(np.maximum(p_ray_local, aabb.min_point), aabb.max_point)
+            p_ray = self.pose.transform_point_inv(O_local)  # вернем обратно
+            p_ray = ray.point_at(t)
+            p_col = self.pose.transform_point(p_box_local)
+            return p_col, p_ray, np.linalg.norm(p_col - p_ray)
+
+        # Есть пересечение, используем t_hit ≥ 0
+        t_hit = tmin if tmin >= 0 else tmax
+        if t_hit < 0:
+            t_hit = tmax
+
+        p_ray_local = O_local + D_local * t_hit
+        p_ray = ray.point_at(t_hit)
+        # точка попадания лежит в AABB, трансформируем в мир
+        p_col = p_ray
+        return p_col, p_ray, 0.0
     def __init__(self, center : numpy.ndarray, size: numpy.ndarray, pose: Pose3 = Pose3.identity()):
         self.center = center
         self.size = size

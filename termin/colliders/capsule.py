@@ -5,6 +5,41 @@ from termin.colliders.collider import Collider
 from termin.colliders.sphere import SphereCollider
 
 class CapsuleCollider(Collider):
+    def closest_to_ray(self, ray: "Ray3"):
+        """
+        Ближайшие точки между сегментом капсулы и лучом:
+        Используем closest_points_between_segments(…)
+        Луч считаем как сегмент O + D * t, t >= 0.
+        Для упрощения ограничиваем t большим числом.
+        """
+        from termin.closest import closest_points_between_segments
+
+        O = ray.origin
+        D = ray.direction
+        FAR = 1e6  # ограничение луча
+
+        ray_a = O
+        ray_b = O + D * FAR
+
+        p_seg, p_ray, dist = closest_points_between_segments(
+            self.a, self.b,
+            ray_a, ray_b
+        )
+
+        # Если мы дальше радиуса, то это просто ближайшая точка
+        if dist > self.radius:
+            p_col = p_seg
+            return p_col, p_ray, dist - self.radius
+
+        # Иначе луч пересекает капсулу
+        dir_vec = p_ray - p_seg
+        n = numpy.linalg.norm(dir_vec)
+        if n > 1e-8:
+            p_col = p_seg + dir_vec * (self.radius / n)
+        else:
+            p_col = p_seg
+        return p_col, p_ray, max(0.0, numpy.linalg.norm(p_col - p_ray))
+    
     def __init__(self, a: numpy.ndarray, b: numpy.ndarray, radius: float):
         self.a = a
         self.b = b

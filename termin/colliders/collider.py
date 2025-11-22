@@ -2,6 +2,12 @@
 import numpy
 
 class Collider:
+    def closest_to_ray(self, ray: "Ray3"):
+        """
+        Возвращает (p_col, p_ray, distance) — ближайшие точки между коллайдером и лучом.
+        """
+        raise NotImplementedError("closest_to_ray must be implemented by subclasses.")
+    
     def transform_by(self, transform: 'Pose3'):
         """Return a new Collider transformed by the given Pose3."""
         raise NotImplementedError("transform_by must be implemented by subclasses.")

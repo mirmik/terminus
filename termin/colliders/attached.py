@@ -29,6 +29,12 @@ class AttachedCollider:
         """Return the distance between this attached collider and another attached collider."""
         return self.transformed_collider().distance(other.transformed_collider())
  
+    def closest_to_ray(self, ray: "Ray3"):
+        """
+        Делегируем вычисление трансформированному коллайдеру.
+        """
+        return self.transformed_collider().closest_to_ray(ray)
+    
     def closest_to_collider(self, other: "AttachedCollider"):
         """Return the closest points and distance between this attached collider and another attached collider."""
         return self.transformed_collider().closest_to_collider(other.transformed_collider())

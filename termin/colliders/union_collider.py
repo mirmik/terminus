@@ -2,6 +2,19 @@ from termin.colliders.collider import Collider
 import numpy
 
 class UnionCollider(Collider):
+    def closest_to_ray(self, ray: "Ray3"):
+        min_dist = float("inf")
+        best_p = None
+        best_q = None
+
+        for col in self.colliders:
+            p, q, d = col.closest_to_ray(ray)
+            if d < min_dist:
+                min_dist = d
+                best_p = p
+                best_q = q
+
+        return best_p, best_q, min_dist
     def __init__(self, colliders):
         self.colliders = colliders
 
