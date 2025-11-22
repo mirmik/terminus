@@ -27,7 +27,8 @@ class SphereCollider(Collider):
         # Нет пересечения — вернуть ближайшие точки
         if disc < 0:
             # t = -dot(OC, D)
-            t = -numpy.dot(OC, D)
+            #t = -numpy.dot(OC, D)
+            t = numpy.dot((C - O), D)
             if t < 0:
                 t = 0
             p_ray = ray.point_at(t)

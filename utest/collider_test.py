@@ -185,3 +185,156 @@ class AttachedColliderTest(unittest.TestCase):
         self.assertAlmostEqual(dist, expected_distance)
         numpy.testing.assert_array_almost_equal(p_near, expected_p_near)
         numpy.testing.assert_array_almost_equal(q_near, expected_q_near)
+
+class TestColliderRay(unittest.TestCase):
+    def test_ray_hits_sphere(self):
+        sphere = SphereCollider(
+            center=numpy.array([0.0, 0.0, 5.0]),
+            radius=1.0
+        )
+        from termin.geombase.ray import Ray3
+
+        ray = Ray3(
+            origin=numpy.array([0.0, 0.0, 0.0]),
+            direction=numpy.array([0.0, 0.0, 1.0])
+        )
+
+        p_col, p_ray, dist = sphere.closest_to_ray(ray)
+
+        # Должно быть прямое попадание — расстояние 0
+        self.assertAlmostEqual(dist, 0.0)
+
+        # Точка пересечения должна быть на z = 4 (радиус = 1)
+        expected = numpy.array([0.0, 0.0, 4.0])
+        numpy.testing.assert_array_almost_equal(p_ray, expected)
+        numpy.testing.assert_array_almost_equal(p_col, expected)
+
+    def test_ray_misses_sphere(self):
+        sphere = SphereCollider(
+            center=numpy.array([0.0, 5.0, 5.0]),
+            radius=1.0
+        )
+        from termin.geombase.ray import Ray3
+
+        ray = Ray3(
+            origin=numpy.array([0.0, 0.0, 0.0]),
+            direction=numpy.array([0.0, 0.0, 1.0])
+        )
+
+        p_col, p_ray, dist = sphere.closest_to_ray(ray)
+
+        # Простая геометрия: кратчайшая точка луча — (0,0,5)
+        numpy.testing.assert_array_almost_equal(p_ray, numpy.array([0.0, 0.0, 5.0]))
+
+        # Точка на сфере ближе всего по вертикали
+        # центр = (0,5,5), радиус=1 → ближайшая точка = (0,4,5)
+        numpy.testing.assert_array_almost_equal(p_col, numpy.array([0.0, 4.0, 5.0]))
+
+        # Расстояние от луча до центра = 5, до поверхности = 5 - 1 = 4
+        self.assertAlmostEqual(dist, 4.0)
+
+    def test_ray_hits_capsule(self):
+        capsule = CapsuleCollider(
+            a=numpy.array([0.0, 0.0, 3.0]),
+            b=numpy.array([0.0, 0.0, 7.0]),
+            radius=1.0
+        )
+        from termin.geombase.ray import Ray3
+
+        ray = Ray3(
+            origin=numpy.array([0.0, 0.0, 0.0]),
+            direction=numpy.array([0.0, 0.0, 1.0])
+        )
+
+        p_col, p_ray, dist = capsule.closest_to_ray(ray)
+
+        # Луч входит в капсулу на z=2 (нижняя сфера)
+        self.assertAlmostEqual(dist, 0.0)
+        numpy.testing.assert_array_almost_equal(p_ray, numpy.array([0.0, 0.0, 2.0]))
+        numpy.testing.assert_array_almost_equal(p_col, numpy.array([0.0, 0.0, 2.0]))
+
+    def test_ray_misses_capsule(self):
+        capsule = CapsuleCollider(
+            a=numpy.array([5.0, 0.0, 0.0]),
+            b=numpy.array([5.0, 0.0, 5.0]),
+            radius=0.5
+        )
+        from termin.geombase.ray import Ray3
+
+        ray = Ray3(
+            origin=numpy.array([0.0, 0.0, 0.0]),
+            direction=numpy.array([0.0, 0.0, 1.0])
+        )
+
+        p_col, p_ray, dist = capsule.closest_to_ray(ray)
+
+        # Геометрия:
+        # Луч проходит по линии x=0 → кратчайшая точка луча к сегменту — (0,0,z)
+        # Ближайшая точка сегмента — (5,0,z)
+        # Расстояние = 5 - 0.5 = 4.5
+        self.assertAlmostEqual(dist, 4.5)
+
+    def test_ray_hits_box(self):
+        box = BoxCollider(
+            center=numpy.array([0.0, 0.0, 5.0]),
+            size=numpy.array([2.0, 2.0, 2.0])
+        )
+        from termin.geombase.ray import Ray3
+
+        ray = Ray3(
+            origin=numpy.array([0.0, 0.0, 0.0]),
+            direction=numpy.array([0.0, 0.0, 1.0])
+        )
+
+        p_col, p_ray, dist = box.closest_to_ray(ray)
+
+        # Бокс начинается на z = 4 (size z=2, центр на 5)
+        self.assertAlmostEqual(dist, 0.0)
+        numpy.testing.assert_array_almost_equal(p_ray, numpy.array([0.0, 0.0, 4.0]))
+
+    def test_ray_misses_box(self):
+        box = BoxCollider(
+            center=numpy.array([5.0, 0.0, 5.0]),
+            size=numpy.array([2.0, 2.0, 2.0])
+        )
+        from termin.geombase.ray import Ray3
+
+        ray = Ray3(
+            origin=numpy.array([0.0, 0.0, 0.0]),
+            direction=numpy.array([0.0, 0.0, 1.0])
+        )
+
+        p_col, p_ray, dist = box.closest_to_ray(ray)
+
+        # Минимальная точка на луче лежит на входной грани z=4 (любая z∈[4,6] эквивалентна)
+        numpy.testing.assert_array_almost_equal(p_ray, numpy.array([0.0, 0.0, 4.0]))
+
+        # Ближайшая точка в коробке по x — 4 (центр 5, halfsize=1)
+        expected_box_pt = numpy.array([4.0, 0.0, 4.0])
+        numpy.testing.assert_array_almost_equal(p_col, expected_box_pt)
+
+        # Расстояние между точками = 4 (смещение только по x)
+        self.assertAlmostEqual(dist, 4.0)
+
+    def test_ray_hits_union(self):
+        sphere1 = SphereCollider(
+            center=numpy.array([0.0, 0.0, 5.0]),
+            radius=1.0
+        )
+        sphere2 = SphereCollider(
+            center=numpy.array([10.0, 0.0, 5.0]),
+            radius=1.0
+        )
+        union = UnionCollider([sphere1, sphere2])
+
+        from termin.geombase.ray import Ray3
+        ray = Ray3(
+            origin=numpy.array([0.0, 0.0, 0.0]),
+            direction=numpy.array([0.0, 0.0, 1.0])
+        )
+
+        p_col, p_ray, dist = union.closest_to_ray(ray)
+
+        # Попадёт в sphere1
+        self.assertAlmostEqual(dist, 0.0)
+        numpy.testing.assert_array_almost_equal(p_ray, numpy.array([0.0, 0.0, 4.0]))

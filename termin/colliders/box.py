@@ -26,15 +26,15 @@ class BoxCollider(Collider):
 
         aabb = self.local_aabb()
 
-        tmin = -1e9
-        tmax =  1e9
+        tmin = -np.inf
+        tmax =  np.inf
+        hit_possible = True
 
         for i in range(3):
             if abs(D_local[i]) < 1e-8:
                 # Луч параллелен плоскости AABB, проверяем попадание
                 if O_local[i] < aabb.min_point[i] or O_local[i] > aabb.max_point[i]:
-                    # не пересекает — nearest point
-                    pass
+                    hit_possible = False
             else:
                 t1 = (aabb.min_point[i] - O_local[i]) / D_local[i]
                 t2 = (aabb.max_point[i] - O_local[i]) / D_local[i]
@@ -42,16 +42,32 @@ class BoxCollider(Collider):
                 tmin = max(tmin, t1)
                 tmax = min(tmax, t2)
 
-        # Нет пересечения → nearest point
-        if tmax < max(tmin, 0):
-            t = max(tmin, 0)
-            p_ray_local = O_local + D_local * t
-            # Клиппинг к границам AABB
-            p_box_local = np.minimum(np.maximum(p_ray_local, aabb.min_point), aabb.max_point)
-            p_ray = self.pose.transform_point_inv(O_local)  # вернем обратно
-            p_ray = ray.point_at(t)
+        # Нет пересечения → ищем ближайшую точку на луче
+        if (not hit_possible) or (tmax < max(tmin, 0)):
+            candidates = [0.0]
+            for i in range(3):
+                if abs(D_local[i]) < 1e-8:
+                    continue
+                candidates.append((aabb.min_point[i] - O_local[i]) / D_local[i])
+                candidates.append((aabb.max_point[i] - O_local[i]) / D_local[i])
+
+            best_t = 0.0
+            best_dist = float("inf")
+            for t in candidates:
+                if t < 0:
+                    continue
+                p_ray_local = O_local + D_local * t
+                p_box_local = np.minimum(np.maximum(p_ray_local, aabb.min_point), aabb.max_point)
+                dist = np.linalg.norm(p_box_local - p_ray_local)
+                if dist < best_dist:
+                    best_dist = dist
+                    best_t = t
+
+            p_ray = ray.point_at(best_t)
+            p_box_local = O_local + D_local * best_t
+            p_box_local = np.minimum(np.maximum(p_box_local, aabb.min_point), aabb.max_point)
             p_col = self.pose.transform_point(p_box_local)
-            return p_col, p_ray, np.linalg.norm(p_col - p_ray)
+            return p_col, p_ray, best_dist
 
         # Есть пересечение, используем t_hit ≥ 0
         t_hit = tmin if tmin >= 0 else tmax

@@ -8,37 +8,110 @@ class CapsuleCollider(Collider):
     def closest_to_ray(self, ray: "Ray3"):
         """
         Ближайшие точки между сегментом капсулы и лучом:
-        Используем closest_points_between_segments(…)
-        Луч считаем как сегмент O + D * t, t >= 0.
-        Для упрощения ограничиваем t большим числом.
+        Реализуем прямой рейкаст в капсулу (цилиндр вдоль [a,b] + две сферы)
+        через аналитические уравнения:
+            |(w_perp + t * D_perp)|^2 = r^2  — пересечение с цилиндром
+            |O + tD - C|^2 = r^2              — пересечение с каждой сферой
         """
         from termin.closest import closest_points_between_segments
 
         O = ray.origin
         D = ray.direction
-        FAR = 1e6  # ограничение луча
+        A = self.a
+        B = self.b
+        r = self.radius
 
-        ray_a = O
-        ray_b = O + D * FAR
+        axis = B - A
+        length = numpy.linalg.norm(axis)
+        if length < 1e-8:
+            # Вырожденная капсула → сфера.
+            return SphereCollider(A, r).closest_to_ray(ray)
 
-        p_seg, p_ray, dist = closest_points_between_segments(
-            self.a, self.b,
-            ray_a, ray_b
+        U = axis / length
+
+        # Проверяем, стартует ли луч внутри капсулы.
+        proj0 = numpy.dot(O - A, U)
+        closest_axis_pt = A + numpy.clip(proj0, 0.0, length) * U
+        dist_axis0 = numpy.linalg.norm(O - closest_axis_pt)
+        if dist_axis0 <= r + 1e-8:
+            return O, O, 0.0
+
+        def sphere_hit(center: numpy.ndarray) -> float | None:
+            m = O - center
+            b = numpy.dot(m, D)
+            c = numpy.dot(m, m) - r * r
+            disc = b * b - c
+            if disc < 0:
+                return None
+            sqrt_disc = numpy.sqrt(disc)
+            t0 = -b - sqrt_disc
+            if t0 >= 0:
+                return t0
+            t1 = -b + sqrt_disc
+            return t1 if t1 >= 0 else None
+
+        t_candidates = []
+
+        # Пересечение с цилиндрической частью: |w_perp + t D_perp|^2 = r^2
+        w = O - A
+        w_par = numpy.dot(w, U)
+        w_perp = w - w_par * U
+        D_par = numpy.dot(D, U)
+        D_perp = D - D_par * U
+
+        a = numpy.dot(D_perp, D_perp)
+        b = 2.0 * numpy.dot(D_perp, w_perp)
+        c = numpy.dot(w_perp, w_perp) - r * r
+
+        if a > 1e-12:
+            disc = b * b - 4.0 * a * c
+            if disc >= 0.0:
+                sqrt_disc = numpy.sqrt(disc)
+                t0 = (-b - sqrt_disc) / (2.0 * a)
+                t1 = (-b + sqrt_disc) / (2.0 * a)
+                for t in (t0, t1):
+                    if t < 0:
+                        continue
+                    s = w_par + t * D_par  # параметр вдоль оси капсулы
+                    if 0.0 <= s <= length:
+                        t_candidates.append(t)
+        else:
+            # Луч параллелен оси. Если проекция в пределах радиуса, стукнемся об крышки.
+            if c <= 0.0 and (D_par > 0.0 or D_par < 0.0):
+                # Попадание в цилиндрическую часть, но точное t определят сферы.
+                pass
+
+        # Пересечения с капами
+        t_sphere_a = sphere_hit(A)
+        if t_sphere_a is not None:
+            t_candidates.append(t_sphere_a)
+        t_sphere_b = sphere_hit(B)
+        if t_sphere_b is not None:
+            t_candidates.append(t_sphere_b)
+
+        if t_candidates:
+            t_hit = min(t_candidates)
+            p_hit = ray.point_at(t_hit)
+            return p_hit, p_hit, 0.0
+
+        # Нет пересечения — берем ближайшие точки между лучом (обрезанным) и осью капсулы.
+        FAR = 1e6
+        p_seg, p_ray, dist_axis = closest_points_between_segments(
+            A, B,
+            O, O + D * FAR
         )
-
-        # Если мы дальше радиуса, то это просто ближайшая точка
-        if dist > self.radius:
-            p_col = p_seg
-            return p_col, p_ray, dist - self.radius
-
-        # Иначе луч пересекает капсулу
         dir_vec = p_ray - p_seg
         n = numpy.linalg.norm(dir_vec)
         if n > 1e-8:
-            p_col = p_seg + dir_vec * (self.radius / n)
+            p_col = p_seg + dir_vec * (r / n)
         else:
-            p_col = p_seg
-        return p_col, p_ray, max(0.0, numpy.linalg.norm(p_col - p_ray))
+            # Луч параллелен оси: сдвигаем вдоль любой нормали.
+            normal = numpy.cross(U, numpy.array([1.0, 0.0, 0.0]))
+            if numpy.linalg.norm(normal) < 1e-8:
+                normal = numpy.cross(U, numpy.array([0.0, 1.0, 0.0]))
+            normal = normal / numpy.linalg.norm(normal)
+            p_col = p_seg + normal * r
+        return p_col, p_ray, numpy.linalg.norm(p_col - p_ray)
     
     def __init__(self, a: numpy.ndarray, b: numpy.ndarray, radius: float):
         self.a = a
