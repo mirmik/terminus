@@ -1,6 +1,3 @@
-termin/visualization/backends/qt.py
-termin/visualization/backends/base.py
-termin/visualization/world.py
-termin/visualization/window.py
-termin/visualization/render.py
-termin/visualization/opengl.py
+termin/visualization/**
+termin/examples/visual/*
+termin/colliders/*
