@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import Tuple
 
 import numpy as np
-import OpenGL.GL as gl
 
 IDENTITY = np.identity(4, dtype=np.float32)
 
@@ -16,7 +15,7 @@ class UIElement:
 
     material: Material | None = None
 
-    def draw(self, canvas, context_key: int, viewport_rect: Tuple[int, int, int, int]):
+    def draw(self, canvas, graphics, context_key: int, viewport_rect: Tuple[int, int, int, int]):
         raise NotImplementedError
 
     def _require_material(self) -> Material:
@@ -51,15 +50,14 @@ class UIRectangle(UIElement):
             dtype=np.float32,
         )
 
-    def draw(self, canvas, context_key: int, viewport_rect: Tuple[int, int, int, int]):
+    def draw(self, canvas, graphics, context_key: int, viewport_rect: Tuple[int, int, int, int]):
         material = self._require_material()
-        material.shader.ensure_ready()
-        material.apply(IDENTITY, IDENTITY, IDENTITY)
+        material.apply(IDENTITY, IDENTITY, IDENTITY, graphics=graphics, context_key=context_key)
         vertices = self._to_clip_vertices()
         shader = material.shader
         shader.set_uniform_vec4("u_color", np.array(self.color, dtype=np.float32))
         shader.set_uniform_int("u_use_texture", 0)
-        canvas.draw_vertices(context_key, vertices)
+        canvas.draw_vertices(graphics, context_key, vertices)
 
 
 @dataclass
@@ -70,18 +68,17 @@ class UIText(UIElement):
     scale: float = 1.0
     material: Material | None = None
 
-    def draw(self, canvas, context_key, viewport):
+    def draw(self, canvas, graphics, context_key, viewport):
         if not hasattr(canvas, "font"):
             return
         material = self._require_material()
-        material.shader.ensure_ready()
-        material.apply(IDENTITY, IDENTITY, IDENTITY)
+        material.apply(IDENTITY, IDENTITY, IDENTITY, graphics=graphics, context_key=context_key)
 
         shader = material.shader
         shader.set_uniform_vec4("u_color", np.array(self.color, dtype=np.float32))
         shader.set_uniform_int("u_use_texture", 1)
-        gl.glActiveTexture(gl.GL_TEXTURE0)
-        gl.glBindTexture(gl.GL_TEXTURE_2D, canvas.font.texture)
+        texture_handle = canvas.font.ensure_texture(graphics, context_key=context_key)
+        texture_handle.bind(0)
         shader.set_uniform_int("u_texture", 0)
 
         x, y = self.position
@@ -112,6 +109,6 @@ class UIText(UIElement):
                 [vx1, vy1, u1, v1],
             ], dtype=np.float32)
 
-            canvas.draw_textured_quad(context_key, vertices)
+            canvas.draw_textured_quad(graphics, context_key, vertices)
 
             cx += (w * self.scale) / pw

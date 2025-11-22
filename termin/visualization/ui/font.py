@@ -1,34 +1,64 @@
 # termin/visualization/ui/font.py
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
-from OpenGL import GL as gl
 
 import os
+from ..backends.base import GraphicsBackend, TextureHandle
 
 class FontTextureAtlas:
     def __init__(self, path: str, size: int = 32):
         if not os.path.exists(path):
             raise FileNotFoundError(f"Font file not found: {path}")
-
         self.font = ImageFont.truetype(path, size)
         self.size = size
         self.glyphs = {}
-        self.texture = None
+        self._handles: dict[int | None, TextureHandle] = {}
+        self._atlas_data = None
         self.tex_w = 0
         self.tex_h = 0
         self._build_atlas()
+
+    @property
+    def texture(self) -> TextureHandle | None:
+        """Backend texture handle (uploaded lazily once a context exists)."""
+        return self._handles.get(None)
+
+    def ensure_texture(self, graphics: GraphicsBackend, context_key: int | None = None) -> TextureHandle:
+        """Uploads atlas into the current graphics backend if not done yet."""
+        handle = self._handles.get(context_key)
+        if handle is None:
+            handle = self._upload_texture(graphics)
+            self._handles[context_key] = handle
+        return handle
 
     def _build_atlas(self):
         chars = [chr(i) for i in range(32, 127)]
         padding = 2
 
+        ascent, descent = self.font.getmetrics()
+        line_height = ascent + descent
+
+        max_w = 0
+        max_h = 0
+
         glyph_images = []
-        max_w = max_h = 0
         for ch in chars:
-            w, h = self.font.getsize(ch)
-            img = Image.new("L", (w, h))
+            try:
+                bbox = self.font.getbbox(ch)
+                w = bbox[2] - bbox[0]
+                h = bbox[3] - bbox[1]
+            except:
+                continue
+
+            # создаём глиф высотой всей строки
+            img = Image.new("L", (w, line_height))
             draw = ImageDraw.Draw(img)
-            draw.text((0, 0), ch, fill=255, font=self.font)
+
+            # вертикальное смещение так, чтобы bbox правильно лег на baseline
+            offset_x = -bbox[0]
+            offset_y = ascent - bbox[3]
+
+            draw.text((offset_x, offset_y), ch, fill=255, font=self.font)
             glyph_images.append((ch, img))
             max_w = max(max_w, w)
             max_h = max(max_h, h)
@@ -61,13 +91,10 @@ class FontTextureAtlas:
                 x = 0
                 y += max_h + padding
 
-        data = np.array(atlas, dtype=np.uint8)
-        self.texture = gl.glGenTextures(1)
-        gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture)
-        gl.glTexImage2D(
-            gl.GL_TEXTURE_2D, 0, gl.GL_RED,
-            atlas_w, atlas_h, 0,
-            gl.GL_RED, gl.GL_UNSIGNED_BYTE, data
-        )
-        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
-        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+        # Keep CPU-side atlas; upload to GPU later when a graphics context is guaranteed.
+        self._atlas_data = np.array(atlas, dtype=np.uint8)
+
+    def _upload_texture(self, graphics: GraphicsBackend) -> TextureHandle:
+        if self._atlas_data is None:
+            raise RuntimeError("Font atlas data is missing; cannot upload texture.")
+        return graphics.create_texture(self._atlas_data, (self.tex_w, self.tex_h), channels=1, mipmap=False, clamp=True)

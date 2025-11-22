@@ -1,4 +1,4 @@
-"""Simple 2D texture wrapper for GLFW/PyOpenGL stack."""
+"""Simple 2D texture wrapper for the graphics backend."""
 
 from __future__ import annotations
 
@@ -7,14 +7,14 @@ from typing import Optional
 
 import numpy as np
 from PIL import Image
-from OpenGL import GL as gl
+from .backends.base import GraphicsBackend, TextureHandle
 
 
 class Texture:
     """Loads an image via Pillow and uploads it as ``GL_TEXTURE_2D``."""
 
     def __init__(self, path: Optional[str | Path] = None):
-        self.handle = None
+        self._handles: dict[int | None, TextureHandle] = {}
         self._image_data: Optional[np.ndarray] = None
         self._size: Optional[tuple[int, int]] = None
         if path is not None:
@@ -28,36 +28,21 @@ class Texture:
 
         self._image_data = data
         self._size = (width, height)
-        self.handle = None  # Mark for upload in the next bind.
+        self._handles.clear()
 
-    def _upload_if_needed(self):
-        if self.handle is not None:
-            return
+    def _ensure_handle(self, graphics: GraphicsBackend, context_key: int | None) -> TextureHandle:
+        handle = self._handles.get(context_key)
+        if handle is not None:
+            return handle
         if self._image_data is None or self._size is None:
             raise RuntimeError("Texture has no image data to upload.")
-        self.handle = gl.glGenTextures(1)
-        gl.glBindTexture(gl.GL_TEXTURE_2D, self.handle)
-        gl.glTexImage2D(
-            gl.GL_TEXTURE_2D,
-            0,
-            gl.GL_RGBA,
-            self._size[0],
-            self._size[1],
-            0,
-            gl.GL_RGBA,
-            gl.GL_UNSIGNED_BYTE,
-            self._image_data,
-        )
-        gl.glGenerateMipmap(gl.GL_TEXTURE_2D)
-        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR_MIPMAP_LINEAR)
-        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
-        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_REPEAT)
-        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_REPEAT)
+        handle = graphics.create_texture(self._image_data, self._size, channels=4)
+        self._handles[context_key] = handle
+        return handle
 
-    def bind(self, unit: int = 0):
-        self._upload_if_needed()
-        gl.glActiveTexture(gl.GL_TEXTURE0 + unit)
-        gl.glBindTexture(gl.GL_TEXTURE_2D, self.handle or 0)
+    def bind(self, graphics: GraphicsBackend, unit: int = 0, context_key: int | None = None):
+        handle = self._ensure_handle(graphics, context_key)
+        handle.bind(unit)
 
     @classmethod
     def from_file(cls, path: str | Path) -> "Texture":

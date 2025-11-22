@@ -1,1 +1,4 @@
 termin/visualization/**
+examples/visual/*
+!termin/visualization/__pycache__/*
+!termin/visualization/ui/__pycache__/*

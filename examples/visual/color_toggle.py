@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-import glfw
-
-from termin.geombase.pose3 import Pose3
 from termin.mesh.mesh import CubeMesh
 from termin.visualization import (
     Entity,
@@ -17,10 +14,10 @@ from termin.visualization import (
     OrbitCameraController,
     InputComponent,
 )
+from termin.visualization.backends.base import Action, Key
 from termin.visualization.components import MeshRenderer
 from termin.visualization.shader import ShaderProgram
 from termin.visualization.skybox import SkyBoxEntity
-from termin.visualization.camera import CameraController
 
 
 VERT = """
@@ -66,7 +63,7 @@ class ColorToggleComponent(InputComponent):
         self.index = 0
 
     def on_key(self, viewport, key: int, scancode: int, action: int, mods: int):
-        if key == glfw.KEY_SPACE and action == glfw.PRESS:
+        if key == Key.SPACE and action == Action.PRESS:
             self.index = (self.index + 1) % len(self.colors)
             self.material.update_color(self.colors[self.index])
 

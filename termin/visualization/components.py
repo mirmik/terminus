@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Iterable
 
 import numpy as np
-from OpenGL import GL as gl
 
 from .entity import Component, RenderContext
 from .material import Material
@@ -27,7 +26,7 @@ class MeshRenderer(Component):
         if self.entity is None:
             return
         model = self.entity.model_matrix()
-        self.material.apply(model, context.view, context.projection)
+        self.material.apply(model, context.view, context.projection, graphics=context.graphics, context_key=context.context_key)
         shader = self.material.shader
         if hasattr(context.scene, "light_direction"):
             shader.set_uniform_vec3("u_light_dir", context.scene.light_direction)
@@ -51,9 +50,9 @@ class SkyboxRenderer(MeshRenderer):
         original_view = context.view
         view_no_translation = np.array(original_view, copy=True)
         view_no_translation[:3, 3] = 0.0
-        gl.glDepthMask(gl.GL_FALSE)
-        gl.glDepthFunc(gl.GL_LEQUAL)
-        self.material.apply(self.entity.model_matrix(), view_no_translation, context.projection)
+        context.graphics.set_depth_mask(False)
+        context.graphics.set_depth_func("lequal")
+        self.material.apply(self.entity.model_matrix(), view_no_translation, context.projection, graphics=context.graphics, context_key=context.context_key)
         self.mesh.draw(context)
-        gl.glDepthFunc(gl.GL_LESS)
-        gl.glDepthMask(gl.GL_TRUE)
+        context.graphics.set_depth_func("less")
+        context.graphics.set_depth_mask(True)

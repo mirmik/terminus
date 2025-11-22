@@ -8,6 +8,7 @@ from typing import Iterable, List, Optional, Type, TypeVar, TYPE_CHECKING
 import numpy as np
 
 from termin.geombase.pose3 import Pose3
+from .backends.base import GraphicsBackend
 
 if TYPE_CHECKING:  # pragma: no cover
     from .camera import Camera
@@ -26,6 +27,7 @@ class RenderContext:
     scene: "Scene"
     renderer: "Renderer"
     context_key: int
+    graphics: GraphicsBackend
 
 
 class Component:

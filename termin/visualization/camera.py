@@ -7,11 +7,11 @@ from dataclasses import dataclass
 from typing import Dict, Iterable, Optional
 
 import numpy as np
-import glfw
 
 from termin.geombase.pose3 import Pose3
 
 from .entity import Component, InputComponent
+from .backends.base import Action, MouseButton
 
 
 class CameraComponent(Component):
@@ -178,11 +178,11 @@ class OrbitCameraController(CameraController):
         if viewport != self.camera_component.viewport:
             return
         state = self._state(viewport)
-        if button == glfw.MOUSE_BUTTON_LEFT:
-            state["orbit"] = action == glfw.PRESS
-        elif button == glfw.MOUSE_BUTTON_RIGHT:
-            state["pan"] = action == glfw.PRESS
-        if action == glfw.RELEASE:
+        if button == MouseButton.LEFT:
+            state["orbit"] = action == Action.PRESS
+        elif button == MouseButton.RIGHT:
+            state["pan"] = action == Action.PRESS
+        if action == Action.RELEASE:
             state["last"] = None
 
     def on_mouse_move(self, viewport, x: float, y: float, dx: float, dy: float):

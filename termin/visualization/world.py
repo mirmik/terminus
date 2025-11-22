@@ -3,22 +3,28 @@
 from __future__ import annotations
 
 import time
-from typing import List, Optional, Sequence, Tuple
-
-import glfw
+from typing import List, Optional
 
 from .renderer import Renderer
 from .scene import Scene
-from .window import GLWindow
+from .window import Window
+from .backends.glfw import GLFWWindowBackend
+from .backends.opengl import OpenGLGraphicsBackend
+from .backends.base import GraphicsBackend, WindowBackend
+from .backends import set_default_graphics_backend, set_default_window_backend
 
 
 class VisualizationWorld:
     """High-level application controller."""
 
-    def __init__(self):
-        self.renderer = Renderer()
+    def __init__(self, graphics_backend: GraphicsBackend | None = None, window_backend: WindowBackend | None = None):
+        self.graphics = graphics_backend or OpenGLGraphicsBackend()
+        self.window_backend = window_backend or GLFWWindowBackend()
+        set_default_graphics_backend(self.graphics)
+        set_default_window_backend(self.window_backend)
+        self.renderer = Renderer(self.graphics)
         self.scenes: List[Scene] = []
-        self.windows: List[GLWindow] = []
+        self.windows: List[Window] = []
         self._running = False
         
         self.fps = 0
@@ -31,13 +37,13 @@ class VisualizationWorld:
         if scene in self.scenes:
             self.scenes.remove(scene)
 
-    def create_window(self, width: int = 1280, height: int = 720, title: str = "termin viewer") -> GLWindow:
+    def create_window(self, width: int = 1280, height: int = 720, title: str = "termin viewer") -> Window:
         share = self.windows[0] if self.windows else None
-        window = GLWindow(width=width, height=height, title=title, renderer=self.renderer, share=share)
+        window = Window(width=width, height=height, title=title, renderer=self.renderer, graphics=self.graphics, window_backend=self.window_backend, share=share)
         self.windows.append(window)
         return window
 
-    def add_window(self, window: GLWindow):
+    def add_window(self, window: Window):
         self.windows.append(window)
 
     def update_fps(self, dt):
@@ -69,10 +75,10 @@ class VisualizationWorld:
                 window.render()
                 alive.append(window)
             self.windows = alive
-            glfw.poll_events()
+            self.window_backend.poll_events()
             self.update_fps(dt)
             
         for window in self.windows:
             window.close()
-        glfw.terminate()
+        self.window_backend.terminate()
         self._running = False

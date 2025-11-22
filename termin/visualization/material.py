@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable
 
 import numpy as np
 
 from .shader import ShaderProgram
 from .texture import Texture
+from .backends.base import GraphicsBackend
 
 
 class Material:
@@ -39,8 +39,9 @@ class Material:
         self.uniforms = uniforms if uniforms is not None else {}
 
 
-    def apply(self, model: np.ndarray, view: np.ndarray, projection: np.ndarray):
+    def apply(self, model: np.ndarray, view: np.ndarray, projection: np.ndarray, graphics: GraphicsBackend, context_key: int | None = None):
         """Bind shader, upload MVP matrices and all statically defined uniforms."""
+        self.shader.ensure_ready(graphics)
         self.shader.use()
         self.shader.set_uniform_matrix4("u_model", model)
         self.shader.set_uniform_matrix4("u_view", view)
@@ -50,8 +51,7 @@ class Material:
 
         texture_slots = enumerate(self.textures.items())
         for unit, (uniform_name, texture) in texture_slots:
-            #print(f"Binding texture to unit {unit} for uniform {uniform_name}")
-            texture.bind(unit)
+            texture.bind(graphics, unit, context_key=context_key)
             self.shader.set_uniform_int(uniform_name, unit)
 
         for name, value in self.uniforms.items():

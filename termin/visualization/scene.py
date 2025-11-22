@@ -7,6 +7,7 @@ from typing import List, Sequence, TYPE_CHECKING
 import numpy as np
 
 from .entity import Component, Entity, InputComponent
+from .backends.base import GraphicsBackend
 
 if TYPE_CHECKING:  # pragma: no cover
     from .shader import ShaderProgram
@@ -24,6 +25,7 @@ class Scene:
         self._shaders_set = set()
         self._inited = False
         self._input_components: List[InputComponent] = []
+        self._graphics: GraphicsBackend | None = None
 
         self.update_list: List[Component] = []
 
@@ -62,19 +64,20 @@ class Scene:
         for component in self.update_list:
             component.update(dt)
 
-    def ensure_ready(self):
+    def ensure_ready(self, graphics: GraphicsBackend):
         if self._inited:
             return
+        self._graphics = graphics
         for shader in list(self._shaders_set):
-            shader.ensure_ready()
+            shader.ensure_ready(graphics)
         self._inited = True
 
     def _register_shader(self, shader: "ShaderProgram"):
         if shader in self._shaders_set:
             return
         self._shaders_set.add(shader)
-        if self._inited:
-            shader.ensure_ready()
+        if self._inited and self._graphics is not None:
+            shader.ensure_ready(self._graphics)
 
     def dispatch_input(self, viewport, event: str, **kwargs):
         listeners = list(self._input_components)

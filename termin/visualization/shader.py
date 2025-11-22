@@ -1,54 +1,18 @@
-"""OpenGL shader helpers implemented with PyOpenGL + GLFW contexts."""
+"""Shader wrapper delegating compilation and uniform uploads to a graphics backend."""
 
 from __future__ import annotations
 
-import ctypes
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
-
-from .opengl_helpers import init_opengl, opengl_is_inited
+from typing import Any, Optional
 
 import numpy as np
-from OpenGL import GL as gl
 
-import sys
+from .backends import get_default_graphics_backend
+from .backends.base import GraphicsBackend, ShaderHandle
 
 
 class ShaderCompilationError(RuntimeError):
     """Raised when GLSL compilation or program linking fails."""
-
-
-def _compile_shader(source: str, shader_type: int) -> int:
-    shader = gl.glCreateShader(shader_type)
-    gl.glShaderSource(shader, source)
-    gl.glCompileShader(shader)
-
-    status = ctypes.c_int()
-    gl.glGetShaderiv(shader, gl.GL_COMPILE_STATUS, ctypes.byref(status))
-    if not status.value:
-        log = gl.glGetShaderInfoLog(shader)
-        sys.stderr.write(f"Shader compilation failed:\n{log}\n")
-        raise ShaderCompilationError(log.decode("utf-8") if isinstance(log, bytes) else str(log))
-    return shader
-
-
-def _link_program(vertex_shader: int, fragment_shader: int) -> int:
-    program = gl.glCreateProgram()
-    gl.glAttachShader(program, vertex_shader)
-    gl.glAttachShader(program, fragment_shader)
-    gl.glLinkProgram(program)
-
-    status = ctypes.c_int()
-    gl.glGetProgramiv(program, gl.GL_LINK_STATUS, ctypes.byref(status))
-    if not status.value:
-        log = gl.glGetProgramInfoLog(program)
-        raise ShaderCompilationError(log.decode("utf-8") if isinstance(log, bytes) else str(log))
-    gl.glDetachShader(program, vertex_shader)
-    gl.glDetachShader(program, fragment_shader)
-    gl.glDeleteShader(vertex_shader)
-    gl.glDeleteShader(fragment_shader)
-    return program
 
 
 class ShaderProgram:
@@ -65,63 +29,56 @@ class ShaderProgram:
     ):
         self.vertex_source = vertex_source
         self.fragment_source = fragment_source
-        self.program: Optional[int] = None
-        self._uniform_cache: Dict[str, int] = {}
         self._compiled = False
+        self._handle: ShaderHandle | None = None
+        self._backend: GraphicsBackend | None = None
 
     def __post_init__(self):
-        self._uniform_cache = {}
+        self._handle = None
+        self._backend = None
 
-    def compile(self):
-        vertex_shader = _compile_shader(self.vertex_source, gl.GL_VERTEX_SHADER)
-        fragment_shader = _compile_shader(self.fragment_source, gl.GL_FRAGMENT_SHADER)
-        self.program = _link_program(vertex_shader, fragment_shader)
+    def ensure_ready(self, graphics: GraphicsBackend | None = None):
+        if self._compiled:
+            return
+        backend = graphics or self._backend or get_default_graphics_backend()
+        if backend is None:
+            raise RuntimeError("Graphics backend is not available for shader compilation.")
+        self._backend = backend
+        self._handle = backend.create_shader(self.vertex_source, self.fragment_source)
         self._compiled = True
 
-    def ensure_ready(self):
-        if not self._compiled:
-            self.compile()
+    def _require_handle(self) -> ShaderHandle:
+        if self._handle is None:
+            raise RuntimeError("ShaderProgram is not compiled. Call ensure_ready() first.")
+        return self._handle
 
     def use(self):
-        gl.glUseProgram(self.program)
+        self._require_handle().use()
 
     def stop(self):
-        gl.glUseProgram(0)
+        if self._handle:
+            self._handle.stop()
 
     def delete(self):
-        if self.program:
-            gl.glDeleteProgram(self.program)
-            self.program = None
-
-    def uniform_location(self, name: str) -> int:
-        if name not in self._uniform_cache:
-            location = gl.glGetUniformLocation(self.program, name.encode("utf-8"))
-            self._uniform_cache[name] = location
-        return self._uniform_cache[name]
+        if self._handle:
+            self._handle.delete()
+            self._handle = None
 
     def set_uniform_matrix4(self, name: str, matrix: np.ndarray):
         """Upload a 4x4 matrix (float32) to uniform ``name``."""
-        location = self.uniform_location(name)
-        mat = np.asarray(matrix, dtype=np.float32)
-        gl.glUniformMatrix4fv(location, 1, True, mat.ctypes.data_as(ctypes.POINTER(ctypes.c_float)))
+        self._require_handle().set_uniform_matrix4(name, matrix)
 
     def set_uniform_vec3(self, name: str, vector: np.ndarray):
-        location = self.uniform_location(name)
-        vec = np.asarray(vector, dtype=np.float32)
-        gl.glUniform3f(location, float(vec[0]), float(vec[1]), float(vec[2]))
+        self._require_handle().set_uniform_vec3(name, vector)
 
     def set_uniform_vec4(self, name: str, vector: np.ndarray):
-        location = self.uniform_location(name)
-        vec = np.asarray(vector, dtype=np.float32)
-        gl.glUniform4f(location, float(vec[0]), float(vec[1]), float(vec[2]), float(vec[3]))
+        self._require_handle().set_uniform_vec4(name, vector)
 
     def set_uniform_float(self, name: str, value: float):
-        location = self.uniform_location(name)
-        gl.glUniform1f(location, float(value))
+        self._require_handle().set_uniform_float(name, value)
 
     def set_uniform_int(self, name: str, value: int):
-        location = self.uniform_location(name)
-        gl.glUniform1i(location, int(value))
+        self._require_handle().set_uniform_int(name, value)
 
     def set_uniform_auto(self, name: str, value: Any):
         """Best-effort setter that infers uniform type based on ``value``."""

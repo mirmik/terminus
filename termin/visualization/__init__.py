@@ -1,11 +1,11 @@
 """
-Visualization package providing a minimal OpenGL-based rendering stack.
+Visualization package providing a minimal rendering stack with pluggable backends.
 
 The module exposes abstractions for window/context management, scene graphs,
 camera models and GPU resources such as meshes, shaders, materials and textures.
 """
 
-from .window import GLWindow
+from .window import Window, GLWindow
 from .renderer import Renderer
 from .scene import Scene
 from .entity import Entity, Component, InputComponent, RenderContext
@@ -22,8 +22,12 @@ from .texture import Texture
 from .components import MeshRenderer
 from .ui import Canvas, UIElement, UIRectangle
 from .world import VisualizationWorld
+from .backends.base import GraphicsBackend, WindowBackend, MouseButton, Key, Action
+from .backends.opengl import OpenGLGraphicsBackend
+from .backends.glfw import GLFWWindowBackend
 
 __all__ = [
+    "Window",
     "GLWindow",
     "Renderer",
     "Scene",
@@ -44,4 +48,11 @@ __all__ = [
     "ShaderProgram",
     "Texture",
     "VisualizationWorld",
+    "GraphicsBackend",
+    "WindowBackend",
+    "MouseButton",
+    "Key",
+    "Action",
+    "OpenGLGraphicsBackend",
+    "GLFWWindowBackend",
 ]
