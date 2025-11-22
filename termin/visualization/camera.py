@@ -22,23 +22,28 @@ class CameraComponent(Component):
         from termin.geombase.ray import Ray3
 
         px, py, pw, ph = viewport_rect
-
+        
         nx = ( (x - px) / pw ) * 2.0 - 1.0
         ny = ( (y - py) / ph ) * -2.0 + 1.0
-
-        inv_vp = np.linalg.inv(self.get_projection_matrix() @ self.get_view_matrix())
-
+        
+        PV = self.get_projection_matrix() @ self.get_view_matrix()
+        
+        inv_PV = np.linalg.inv(PV)
+        
         near = np.array([nx, ny, -1.0, 1.0], dtype=np.float32)
         far  = np.array([nx, ny,  1.0, 1.0], dtype=np.float32)
-
-        p_near = inv_vp @ near
-        p_far  = inv_vp @ far
+        
+        p_near = inv_PV @ near
+        p_far  = inv_PV @ far
+        
         p_near /= p_near[3]
         p_far  /= p_far[3]
-
+        
         origin = p_near[:3]
         direction = p_far[:3] - p_near[:3]
-
+        
+        direction /= np.linalg.norm(direction)
+        
         return Ray3(origin, direction)
 
     def __init__(self, near: float = 0.1, far: float = 100.0):

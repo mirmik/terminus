@@ -81,6 +81,17 @@ class Window:
     def render(self):
         self._render_core(from_backend=False)
 
+    def viewport_rect_to_pixels(self, viewport: Viewport) -> Tuple[int, int, int, int]:
+        if self.handle is None:
+            return (0, 0, 0, 0)
+        width, height = self.handle.framebuffer_size()
+        vx, vy, vw, vh = viewport.rect
+        px = vx * width
+        py = vy * height
+        pw = vw * width
+        ph = vh * height
+        return px, py, pw, ph
+        
 
     # Event handlers -----------------------------------------------------
 
@@ -105,16 +116,9 @@ class Window:
             # Обработка 3D кликов
             if action == Action.PRESS and button == MouseButton.LEFT:
                 cam = viewport.camera
-                print("Матрицы камеры:")
-                print("View Matrix:")
-                print(cam.get_view_matrix())
-                print("Projection Matrix:")
-                print(cam.get_projection_matrix())
                 if cam is not None:
-                    ray = cam.screen_point_to_ray(x, y, viewport_rect=viewport.rect)   # функция построения Ray3
-                    print(f"Ray: {ray}")
+                    ray = cam.screen_point_to_ray(x, y, viewport_rect=self.viewport_rect_to_pixels(viewport))   # функция построения Ray3
                     hit = viewport.scene.raycast(ray)
-                    print(f"Raycast hit: {hit}")
                     if hit is not None:
                         # Диспатчим on_click в компоненты
                         entity = hit.entity

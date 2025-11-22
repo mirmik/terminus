@@ -30,11 +30,7 @@ class Scene:
         best_hit = None
         best_ray_dist = float("inf")
 
-        print("Начинаем рейкастинг по сцене...")
         for comp in self.colliders:
-            print(f"Проверяем коллайдер в сущности '{comp.entity.name}'")
-            print(f"Луч: {ray}")
-            print(f"Коллайдер: {comp.attached.transformed_collider()}")
             attached = comp.attached
             if attached is None:
                 continue

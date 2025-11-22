@@ -104,6 +104,7 @@ def build_scene(world: VisualizationWorld) -> tuple[Scene, PerspectiveCameraComp
     cube1 = Entity(pose=Pose3.identity(), name="cube_1")
     cube1.add_component(MeshRenderer(drawable, material))
     cube1.add_component(CubeClickHandler("cube_1"))
+    cube1.add_component(ColliderComponent(BoxCollider(size=np.array([1.0, 1.0, 1.0]))))
     cube1.transform.relocate(Pose3(lin=np.array([-2.0, 0.0, 0.0])))
 
     # Второй куб
