@@ -1,4 +1,6 @@
-termin/visualization/**
-examples/visual/*
-!termin/visualization/__pycache__/*
-!termin/visualization/ui/__pycache__/*
+termin/visualization/backends/qt.py
+termin/visualization/backends/base.py
+termin/visualization/world.py
+termin/visualization/window.py
+termin/visualization/render.py
+termin/visualization/opengl.py
