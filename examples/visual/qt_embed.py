@@ -110,6 +110,9 @@ def main():
         parent=central,  # ключевой момент — передаём parent
     )
 
+
+    vis_window.add_viewport(scene, camera)
+
     # handle.widget должен вернуть Qt-вский виджет (container), который можно добавить в layout
     layout.addWidget(vis_window.handle.widget)
 

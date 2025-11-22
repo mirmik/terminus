@@ -85,13 +85,6 @@ class _QtGLWidget(QtWidgets.QOpenGLWidget):
     # --- Рендер ----------------------------------------------------------
 
     def paintGL(self):
-        print("PAINTGL")
-        ctx = QtGui.QOpenGLContext.currentContext()
-        print("CTX:", ctx)
-        renderer = GL.glGetString(GL.GL_RENDERER)
-        version = GL.glGetString(GL.GL_VERSION)
-        print("GL_RENDERER:", renderer)
-        print("GL_VERSION:", version)
         # Тут есть активный GL-контекст — выполняем рендер движка
         window_obj = self._owner._user_ptr
         if window_obj is not None:

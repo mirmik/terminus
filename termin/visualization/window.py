@@ -66,7 +66,8 @@ class Window:
             self.handle.make_current()
 
     def add_viewport(self, scene: Scene, camera: CameraComponent, rect: Tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0), canvas: Optional[Canvas] = None) -> Viewport:
-        self.make_current()
+        if not self.handle.drives_render():
+            self.make_current()
         scene.ensure_ready(self.graphics)
         viewport = Viewport(scene=scene, camera=camera, rect=rect, canvas=canvas)
         camera.viewport = viewport
@@ -78,27 +79,6 @@ class Window:
         return
 
     def render(self):
-        # if self.handle is None:
-        #     return
-        # self.graphics.ensure_ready()
-        # self.make_current()
-        # context_key = id(self)
-        # width, height = self.handle.framebuffer_size()
-        # for viewport in self.viewports:
-        #     vx, vy, vw, vh = viewport.rect
-        #     px = int(vx * width)
-        #     py = int(vy * height)
-        #     pw = max(1, int(vw * width))
-        #     ph = max(1, int(vh * height))
-        #     viewport.camera.set_aspect(pw / max(1.0, float(ph)))
-        #     self.graphics.enable_scissor(px, py, pw, ph)
-        #     bg = viewport.scene.background_color
-        #     self.graphics.clear_color_depth(bg)
-        #     self.graphics.disable_scissor()
-        #     self.renderer.render_viewport(viewport.scene, viewport.camera, (px, py, pw, ph), context_key)
-        #     if viewport.canvas:
-        #         viewport.canvas.render(self.graphics, context_key, (px, py, pw, ph))
-        # self.handle.swap_buffers()
         self._render_core(from_backend=False)
 
 
@@ -165,7 +145,6 @@ class Window:
         return None
 
     def _render_core(self, from_backend: bool):
-        print("WINDOW RENDER CALLED. from_backend =", from_backend)
         if self.handle is None:
             return
 
