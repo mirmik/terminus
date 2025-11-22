@@ -75,8 +75,8 @@ class RotateComponent(Component):
             return
         self.angle += self.speed * dt
         rot_pose = Pose3.rotation(self.axis, self.angle)
-        translation = self.entity.pose.lin.copy()
-        self.entity.pose = Pose3(ang=rot_pose.ang.copy(), lin=translation)
+        translation = self.entity.transform.global_pose().lin.copy()
+        self.entity.transform.relocate(Pose3(ang=rot_pose.ang.copy(), lin=translation))
 
 
 def build_scene(world: VisualizationWorld) -> tuple[Scene, PerspectiveCameraComponent]:

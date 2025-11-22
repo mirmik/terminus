@@ -9,6 +9,12 @@ import numpy as np
 from .entity import Component, Entity, InputComponent
 from .backends.base import GraphicsBackend
 
+from termin.geombase.ray import Ray3
+from termin.colliders.raycast_hit import RaycastHit
+from termin.colliders.collider_component import ColliderComponent
+
+
+
 if TYPE_CHECKING:  # pragma: no cover
     from .shader import ShaderProgram
 
@@ -16,6 +22,55 @@ def is_overrides_method(obj, method_name, base_class):
     return getattr(obj.__class__, method_name) is not getattr(base_class, method_name)
 
 class Scene:
+    def raycast(self, ray: Ray3):
+        """
+        Возвращает первое пересечение с любым ColliderComponent,
+        где distance == 0 (чистое попадание).
+        """
+        best_hit = None
+        best_ray_dist = float("inf")
+
+        for comp in self.colliders:
+            attached = comp.attached
+            if attached is None:
+                continue
+
+            p_col, p_ray, dist = attached.closest_to_ray(ray)
+
+            # Интересуют только пересечения
+            if dist != 0.0:
+                continue
+
+            # Реальное расстояние вдоль луча
+            d_ray = np.linalg.norm(p_ray - ray.origin)
+
+            if d_ray < best_ray_dist:
+                best_ray_dist = d_ray
+                best_hit = RaycastHit(comp.entity, comp, p_ray, p_col, 0.0)
+
+        return best_hit
+
+    def closest_to_ray(self, ray: Ray3):
+        """
+        Возвращает ближайший объект к лучу (минимальная distance).
+        Не требует пересечения.
+        """
+        best_hit = None
+        best_dist = float("inf")
+
+        for comp in self.colliders:
+            attached = comp.attached
+            if attached is None:
+                continue
+
+            p_col, p_ray, dist = attached.closest_to_ray(ray)
+
+            if dist < best_dist:
+                best_dist = dist
+                best_hit = RaycastHit(comp.entity, comp, p_ray, p_col, dist)
+
+        return best_hit
+
     """Container for renderable entities and lighting data."""
     def __init__(self, background_color: Sequence[float] = (0.05, 0.05, 0.08, 1.0)):
         self.entities: List[Entity] = []

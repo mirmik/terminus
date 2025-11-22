@@ -1,5 +1,3 @@
-=== file: utest/scene_raycast_test.py ===
---- create-file
 import unittest
 import numpy as np
 
@@ -7,6 +5,7 @@ from termin.visualization.scene import Scene
 from termin.visualization.entity import Entity
 from termin.colliders.sphere import SphereCollider
 from termin.colliders.box import BoxCollider
+from termin.colliders.raycast_hit import RaycastHit
 from termin.colliders.collider_component import ColliderComponent
 from termin.geombase.ray import Ray3
 
@@ -91,4 +90,3 @@ class SceneRaycastTest(unittest.TestCase):
 
         # Расстояние между точками — 2.0
         self.assertAlmostEqual(hit.distance, 2.0)
-=END=
