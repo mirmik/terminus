@@ -17,6 +17,7 @@ from .base import (
     PolylineHandle,
     ShaderHandle,
     TextureHandle,
+    FramebufferHandle,
 )
 
 _OPENGL_INITED = False
@@ -98,6 +99,11 @@ class OpenGLShaderHandle(ShaderHandle):
         self._ensure_compiled()
         mat = np.asarray(matrix, dtype=np.float32)
         gl.glUniformMatrix4fv(self._uniform_location(name), 1, True, mat.ctypes.data_as(ctypes.POINTER(ctypes.c_float)))
+
+    def set_uniform_vec2(self, name: str, vector):
+        self._ensure_compiled()
+        vec = np.asarray(vector, dtype=np.float32)
+        gl.glUniform2f(self._uniform_location(name), float(vec[0]), float(vec[1]))
 
     def set_uniform_vec3(self, name: str, vector):
         self._ensure_compiled()
@@ -341,7 +347,17 @@ class OpenGLGraphicsBackend(GraphicsBackend):
         gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, 0, 4)
         gl.glBindVertexArray(0)
 
-    def draw_ui_textured_quad(self, context_key: int, vertices):
+    FS_VERTS = np.array(
+    [
+        [-1, -1, 0, 0],
+        [ 1, -1, 1, 0],
+        [-1,  1, 0, 1],
+        [ 1,  1, 1, 1],
+    ],
+    dtype=np.float32,
+    )
+
+    def draw_ui_textured_quad(self, context_key: int):
         vao, vbo = self._ui_buffers.get(context_key, (None, None))
         if vao is None:
             vao = gl.glGenVertexArrays(1)
@@ -349,7 +365,7 @@ class OpenGLGraphicsBackend(GraphicsBackend):
             self._ui_buffers[context_key] = (vao, vbo)
         gl.glBindVertexArray(vao)
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, vbo)
-        gl.glBufferData(gl.GL_ARRAY_BUFFER, vertices.nbytes, vertices, gl.GL_DYNAMIC_DRAW)
+        gl.glBufferData(gl.GL_ARRAY_BUFFER, self.FS_VERTS.nbytes, self.FS_VERTS, gl.GL_DYNAMIC_DRAW)
         stride = 4 * 4
         gl.glEnableVertexAttribArray(0)
         _gl_vertex_attrib_pointer(0, 2, gl.GL_FLOAT, gl.GL_FALSE, stride, ctypes.c_void_p(0))
@@ -382,3 +398,111 @@ class OpenGLGraphicsBackend(GraphicsBackend):
     def set_depth_write_enabled(self, enabled: bool):
         from OpenGL import GL as gl
         gl.glDepthMask(gl.GL_TRUE if enabled else gl.GL_FALSE)
+
+    def create_framebuffer(self, size: Tuple[int, int]) -> FramebufferHandle:
+        return OpenGLFramebufferHandle(size)
+
+    def bind_framebuffer(self, framebuffer: FramebufferHandle | None):
+        if framebuffer is None:
+            gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
+        else:
+            assert isinstance(framebuffer, OpenGLFramebufferHandle)
+            gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebuffer._fbo or 0)
+
+class _OpenGLColorTextureHandle(TextureHandle):
+    """
+    Лёгкая обёртка над уже созданной GL-текстурой.
+    Жизненный цикл управляется фреймбуфером, delete() ничего не делает.
+    """
+    def __init__(self, tex_id: int):
+        self._tex_id = tex_id
+
+    def bind(self, unit: int = 0):
+        gl.glActiveTexture(gl.GL_TEXTURE0 + unit)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, self._tex_id or 0)
+
+    def delete(self):
+        # Фактическое удаление делает владелец FBO
+        pass
+
+    def _set_tex_id(self, tex_id: int):
+        self._tex_id = tex_id
+
+class OpenGLFramebufferHandle(FramebufferHandle):
+    def __init__(self, size: Tuple[int, int]):
+        self._size = size
+        self._fbo: int | None = None
+        self._color_tex: int | None = None
+        self._depth_rb: int | None = None
+        self._color_handle = _OpenGLColorTextureHandle(0)
+        self._create()
+
+    def _create(self):
+        w, h = self._size
+
+        # создаём FBO
+        self._fbo = gl.glGenFramebuffers(1)
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, self._fbo)
+
+        # цветовой attachment (RGBA8)
+        self._color_tex = gl.glGenTextures(1)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, self._color_tex)
+        gl.glTexImage2D(
+            gl.GL_TEXTURE_2D, 0, gl.GL_RGBA8,
+            w, h, 0,
+            gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, None
+        )
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
+
+        gl.glFramebufferTexture2D(
+            gl.GL_FRAMEBUFFER,
+            gl.GL_COLOR_ATTACHMENT0,
+            gl.GL_TEXTURE_2D,
+            self._color_tex,
+            0,
+        )
+
+        # depth renderbuffer
+        self._depth_rb = gl.glGenRenderbuffers(1)
+        gl.glBindRenderbuffer(gl.GL_RENDERBUFFER, self._depth_rb)
+        gl.glRenderbufferStorage(gl.GL_RENDERBUFFER, gl.GL_DEPTH_COMPONENT24, w, h)
+        gl.glFramebufferRenderbuffer(
+            gl.GL_FRAMEBUFFER,
+            gl.GL_DEPTH_ATTACHMENT,
+            gl.GL_RENDERBUFFER,
+            self._depth_rb,
+        )
+
+        status = gl.glCheckFramebufferStatus(gl.GL_FRAMEBUFFER)
+        if status != gl.GL_FRAMEBUFFER_COMPLETE:
+            gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
+            raise RuntimeError(f"Framebuffer is incomplete: 0x{status:X}")
+
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
+
+        # обновляем handle текстуры
+        self._color_handle._set_tex_id(self._color_tex)
+
+    def resize(self, size: Tuple[int, int]):
+        if size == self._size and self._fbo is not None:
+            return
+        self.delete()
+        self._size = size
+        self._create()
+
+    def color_texture(self) -> TextureHandle:
+        return self._color_handle
+
+    def delete(self):
+        if self._fbo is not None:
+            gl.glDeleteFramebuffers(1, [self._fbo])
+            self._fbo = None
+        if self._color_tex is not None:
+            gl.glDeleteTextures(1, [self._color_tex])
+            self._color_tex = None
+        if self._depth_rb is not None:
+            gl.glDeleteRenderbuffers(1, [self._depth_rb])
+            self._depth_rb = None

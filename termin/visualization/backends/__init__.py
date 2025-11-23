@@ -15,6 +15,7 @@ from .base import (
     ShaderHandle,
     TextureHandle,
     WindowBackend,
+    FramebufferHandle,
 )
 
 _default_graphics_backend: Optional[GraphicsBackend] = None
@@ -50,6 +51,7 @@ __all__ = [
     "ShaderHandle",
     "TextureHandle",
     "WindowBackend",
+    "FramebufferHandle",
     "set_default_graphics_backend",
     "get_default_graphics_backend",
     "set_default_window_backend",

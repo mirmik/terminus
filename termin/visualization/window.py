@@ -16,15 +16,8 @@ from .backends.base import (
     WindowBackend,
     BackendWindow,
 )
-
-
-@dataclass
-class Viewport:
-    scene: Scene
-    camera: CameraComponent
-    rect: Tuple[float, float, float, float]
-    canvas: Optional["Canvas"] = None
-
+from .viewport import Viewport
+from .ui.canvas import Canvas
 
 class Window:
     """Manages a platform window and a set of viewports."""
@@ -203,6 +196,16 @@ class Window:
                 return viewport
         return None
 
+    def get_viewport_fbo(self, viewport, key, size):
+        d = viewport.__dict__.setdefault("_fbo_pool", {})
+        fb = d.get(key)
+        if fb is None:
+            fb = self.graphics.create_framebuffer(size)
+            d[key] = fb
+        else:
+            fb.resize(size)
+        return fb
+
     def _render_core(self, from_backend: bool):
         if self.handle is None:
             return
@@ -222,25 +225,70 @@ class Window:
             pw = max(1, int(vw * width))
             ph = max(1, int(vh * height))
 
-            viewport.camera.set_aspect(pw / max(1.0, float(ph)))
+            viewport.camera.set_aspect(pw / float(max(1, ph)))
+            effects = viewport.postprocess  # список эффектов, может быть пустой
 
-            self.graphics.enable_scissor(px, py, pw, ph)
-            bg = viewport.scene.background_color
-            self.graphics.clear_color_depth(bg)
-            self.graphics.disable_scissor()
+            # --- вариант без постпроцесса ---
+            if not effects:
+                # рендерим прямо в экран
+                self.graphics.enable_scissor(px, py, pw, ph)
+                self.graphics.set_viewport(px, py, pw, ph)
+
+                self.graphics.clear_color_depth(viewport.scene.background_color)
+                self.graphics.disable_scissor()
+
+                self.renderer.render_viewport(
+                    viewport.scene, viewport.camera,
+                    (px, py, pw, ph),
+                    context_key
+                )
+
+                if viewport.canvas:
+                    viewport.canvas.render(self.graphics, context_key, (px, py, pw, ph))
+
+                continue
+
+            # --- есть постпроцесс ---
+            # 1) рендерим сцену в FBO_A
+            fb_a = self.get_viewport_fbo(viewport, "A", (pw, ph))
+            self.graphics.bind_framebuffer(fb_a)
+            self.graphics.set_viewport(0, 0, pw, ph)
+            self.graphics.clear_color_depth(viewport.scene.background_color)
 
             self.renderer.render_viewport(
                 viewport.scene, viewport.camera,
-                (px, py, pw, ph),
+                (0, 0, pw, ph),
                 context_key
             )
 
+            # 2) цепочка эффектов
+            fb_in = fb_a
+            fb_out = self.get_viewport_fbo(viewport, "B", (pw, ph))
+
+            # все эффекты кроме последнего пишут в ping-pong
+            for effect in effects[:-1]:
+                self.graphics.bind_framebuffer(fb_out)
+                self.graphics.set_viewport(0, 0, pw, ph)
+
+                effect.draw(self.graphics, context_key, fb_in.color_texture(), (pw, ph))
+
+                fb_in, fb_out = fb_out, fb_in
+
+            # 3) последний эффект пишет прямо в экран
+            last = effects[-1]
+            self.graphics.bind_framebuffer(None)
+            self.graphics.set_viewport(px, py, pw, ph)
+
+            last.draw(self.graphics, context_key, fb_in.color_texture(), (pw, ph))
+
+            # 4) UI поверх
             if viewport.canvas:
                 viewport.canvas.render(self.graphics, context_key, (px, py, pw, ph))
 
-        # GLFW — делает swap
+        # Для окон, которые не рендерятся из бэкенда, свапаем буферы здесь
         if not from_backend:
             self.handle.swap_buffers()
+
 
 
 

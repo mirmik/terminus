@@ -70,6 +70,9 @@ class ShaderProgram:
         """Upload a 4x4 matrix (float32) to uniform ``name``."""
         self._require_handle().set_uniform_matrix4(name, matrix)
 
+    def set_uniform_vec2(self, name: str, vector: np.ndarray):
+        self._require_handle().set_uniform_vec2(name, vector)
+
     def set_uniform_vec3(self, name: str, vector: np.ndarray):
         self._require_handle().set_uniform_vec3(name, vector)
 
@@ -88,6 +91,8 @@ class ShaderProgram:
             arr = np.asarray(value)
             if arr.shape == (4, 4):
                 self.set_uniform_matrix4(name, arr)
+            elif arr.shape == (2,):
+                self.set_uniform_vec2(name, arr)
             elif arr.shape == (3,):
                 self.set_uniform_vec3(name, arr)
             elif arr.shape == (4,):

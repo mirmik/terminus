@@ -96,6 +96,22 @@ class TextureHandle(ABC):
     def delete(self):
         ...
 
+class FramebufferHandle(ABC):
+    """Offscreen framebuffer with a color attachment texture."""
+
+    @abstractmethod
+    def resize(self, size: Tuple[int, int]):
+        ...
+
+    @abstractmethod
+    def color_texture(self) -> TextureHandle:
+        """TextureHandle for color attachment."""
+        ...
+
+    @abstractmethod
+    def delete(self):
+        ...
+
 
 class GraphicsBackend(ABC):
     """Abstract graphics backend (OpenGL, Vulkan, etc.)."""
@@ -165,7 +181,7 @@ class GraphicsBackend(ABC):
         ...
 
     @abstractmethod
-    def draw_ui_textured_quad(self, context_key: int, vertices):
+    def draw_ui_textured_quad(self, context_key: int):
         ...
 
     @abstractmethod
@@ -196,6 +212,17 @@ class GraphicsBackend(ABC):
         self.set_blend(state.blend)
         if state.blend:
             self.set_blend_func(state.blend_src, state.blend_dst)
+
+    @abstractmethod
+    def create_framebuffer(self, size: Tuple[int, int]) -> "FramebufferHandle":
+        ...
+
+    @abstractmethod
+    def bind_framebuffer(self, framebuffer: "FramebufferHandle | None"):
+        """
+        Bind custom framebuffer or default (if None).
+        """
+        ...
 
 
 class BackendWindow(ABC):
