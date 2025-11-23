@@ -36,3 +36,11 @@ class MeshDrawable:
         for handle in self._context_resources.values():
             handle.delete()
         self._context_resources.clear()
+    
+    def serialize(self):
+        return {"mesh": self._mesh.source_path}
+
+    @classmethod
+    def deserialize(cls, data, context):
+        mesh = context.load_mesh(data["mesh"])
+        return cls(mesh)

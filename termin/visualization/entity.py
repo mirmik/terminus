@@ -17,6 +17,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from .scene import Scene
     from .shader import ShaderProgram
 
+from termin.visualization.serialization import COMPONENT_REGISTRY
+
 
 @dataclass
 class RenderContext:
@@ -58,6 +60,49 @@ class Component:
     def on_removed(self):
         """Called when component is removed from its entity."""
         return
+
+    # Если None → компонент не сериализуется
+    serializable_fields = None
+
+    def serialize_data(self):
+        if self._serializable_fields is None:
+            return None
+
+        result = {}
+        fields = self._serializable_fields
+
+        if isinstance(fields, dict):
+            for key, typ in fields.items():
+                value = getattr(self, key)
+                result[key] = typ.serialize(value) if typ else value
+        else:
+            for key in fields:
+                result[key] = getattr(self, key)
+
+        return result
+
+    def serialize(self):
+        data = self.serialize_data()
+        return {
+            "data": data,
+            "type": self.__class__.__name__,
+        }
+        
+    @classmethod
+    def deserialize(cls, data, context):
+        obj = cls.__new__(cls)
+        cls.__init__(obj)
+
+        fields = cls._serializable_fields
+        if isinstance(fields, dict):
+            for key, typ in fields.items():
+                value = data[key]
+                setattr(obj, key, typ.deserialize(value, context) if typ else value)
+        else:
+            for key in fields:
+                setattr(obj, key, data[key])
+
+        return obj
 
 
 class InputComponent(Component):
@@ -162,3 +207,43 @@ class Entity:
             component.on_removed()
             component.entity = None
         self.scene = None
+
+    def serialize(self):
+        pose = self.transform.local_pose()
+
+        return {
+            "name": self.name,
+            "priority": self.priority,
+            "scale": self.scale,
+            "pose": {
+                "position": pose.lin.tolist(),
+                "rotation": pose.ang.tolist(),
+            },
+            "components": [
+                comp.serialize()
+                for comp in self.components
+                if comp.serialize() is not None
+            ]
+        }
+
+    @classmethod
+    def deserialize(cls, data, context):
+        import numpy as np
+        from termin.geombase.pose3 import Pose3
+
+        ent = cls(
+            pose=Pose3(
+                lin=np.array(data["pose"]["position"]),
+                ang=np.array(data["pose"]["rotation"]),
+            ),
+            name=data["name"],
+            scale=data["scale"],
+            priority=data["priority"],
+        )
+
+        for c in data["components"]:
+            comp_cls = COMPONENT_REGISTRY[c["type"]]
+            comp = comp_cls.deserialize(c["data"], context)
+            ent.add_component(comp)
+
+        return ent

@@ -146,3 +146,23 @@ class Scene:
             handler = getattr(component, event, None)
             if handler:
                 handler(viewport, **kwargs)
+
+    def serialize(self):
+        return {
+            "background_color": self.background_color.tolist(),
+            "light_direction": self.light_direction.tolist(),
+            "light_color": self.light_color.tolist(),
+            "entities": [e.serialize() for e in self.entities]
+        }
+
+    @classmethod
+    def deserialize(cls, data, context, EntityClass):
+        scene = cls(background_color=data["background_color"])
+        scene.light_direction = data["light_direction"]
+        scene.light_color = data["light_color"]
+
+        for ed in data["entities"]:
+            ent = EntityClass.deserialize(ed, context)
+            scene.add(ent)
+
+        return scene

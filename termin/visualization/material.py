@@ -66,4 +66,20 @@ class Material:
 
         for name, value in self.uniforms.items():
             self.shader.set_uniform_auto(name, value)
-            
+
+    def serialize(self):
+        return {
+            "shader": self.shader.source_path,
+            "color": self.color.tolist(),
+            "textures": {k: tex.source_path for k, tex in self.textures.items()},
+            "uniforms": self.uniforms,
+        }
+
+    @classmethod
+    def deserialize(cls, data, context):
+        shader = context.load_shader(data["shader"])
+        mat = cls(shader, data["color"])
+        for k, p in data["textures"].items():
+            mat.textures[k] = context.load_texture(p)
+        mat.uniforms.update(data["uniforms"])
+        return mat
