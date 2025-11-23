@@ -65,6 +65,24 @@ class Mesh:
         self.vertex_normals = (normals.T / norms).T.astype(np.float32)
         return self.vertex_normals
 
+    def from_convex_hull(hull) -> "Mesh":
+        """Create a Mesh from a scipy.spatial.ConvexHull object."""
+        vertices = hull.points
+        triangles = hull.simplices
+
+        center = np.mean(vertices, axis=0)
+
+        for i in range(triangles.shape[0]):
+            v0 = vertices[triangles[i, 0]]
+            v1 = vertices[triangles[i, 1]]
+            v2 = vertices[triangles[i, 2]]
+            normal = np.cross(v1 - v0, v2 - v0)
+            to_center = center - v0
+            if np.dot(normal, to_center) > 0:
+                triangles[i, [1, 2]] = triangles[i, [2, 1]]
+
+        return Mesh(vertices=vertices, triangles=triangles)
+
 class CubeMesh(Mesh):
     def __init__(self, size: float = 1.0, y: float = None, z: float = None):
         x = size

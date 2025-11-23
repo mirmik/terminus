@@ -145,7 +145,7 @@ class GraphicsBackend(ABC):
         ...
 
     @abstractmethod
-    def create_shader(self, vertex_source: str, fragment_source: str) -> ShaderHandle:
+    def create_shader(self, vertex_source: str, fragment_source: str, geometry_source: str | None = None) -> ShaderHandle:
         ...
 
     @abstractmethod
@@ -167,6 +167,35 @@ class GraphicsBackend(ABC):
     @abstractmethod
     def draw_ui_textured_quad(self, context_key: int, vertices):
         ...
+
+    @abstractmethod
+    def set_polygon_mode(self, mode: str):  # "fill" / "line"
+        ...
+
+    @abstractmethod
+    def set_cull_face_enabled(self, enabled: bool):
+        ...
+
+    @abstractmethod
+    def set_depth_test_enabled(self, enabled: bool):
+        ...
+
+    @abstractmethod
+    def set_depth_write_enabled(self, enabled: bool):
+        ...
+
+    def apply_render_state(self, state: RenderState):
+        """
+        Применяет полное состояние рендера.
+        Все значения — абсолютные, без "оставь как было".
+        """
+        self.set_polygon_mode(state.polygon_mode)
+        self.set_cull_face(state.cull)
+        self.set_depth_test(state.depth_test)
+        self.set_depth_mask(state.depth_write)
+        self.set_blend(state.blend)
+        if state.blend:
+            self.set_blend_func(state.blend_src, state.blend_dst)
 
 
 class BackendWindow(ABC):

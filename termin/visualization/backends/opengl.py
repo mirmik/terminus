@@ -33,35 +33,47 @@ def _compile_shader(source: str, shader_type: int) -> int:
     return shader
 
 
-def _link_program(vertex_shader: int, fragment_shader: int) -> int:
+def _link_program(shaders: list[int]) -> int:
     program = gl.glCreateProgram()
-    gl.glAttachShader(program, vertex_shader)
-    gl.glAttachShader(program, fragment_shader)
+    
+    for shader in shaders:
+        gl.glAttachShader(program, shader)
+    
     gl.glLinkProgram(program)
     status = gl.glGetProgramiv(program, gl.GL_LINK_STATUS)
     if not status:
         log = gl.glGetProgramInfoLog(program)
         raise RuntimeError(log.decode("utf-8") if isinstance(log, bytes) else str(log))
-    gl.glDetachShader(program, vertex_shader)
-    gl.glDetachShader(program, fragment_shader)
-    gl.glDeleteShader(vertex_shader)
-    gl.glDeleteShader(fragment_shader)
+    
+    for shader in shaders:
+        gl.glDetachShader(program, shader)
+        gl.glDeleteShader(shader)
+
     return program
 
 
 class OpenGLShaderHandle(ShaderHandle):
-    def __init__(self, vertex_source: str, fragment_source: str):
+    def __init__(self, vertex_source: str, fragment_source: str, geometry_source: str | None = None):
         self.vertex_source = vertex_source
         self.fragment_source = fragment_source
+        self.geometry_source = geometry_source
         self.program: int | None = None
         self._uniform_cache: Dict[str, int] = {}
 
     def _ensure_compiled(self):
         if self.program is not None:
             return
+        shaders = []
         vert = _compile_shader(self.vertex_source, gl.GL_VERTEX_SHADER)
+        shaders.append(vert)
+
+        if self.geometry_source:
+            geom = _compile_shader(self.geometry_source, gl.GL_GEOMETRY_SHADER)
+            shaders.append(geom)
+
         frag = _compile_shader(self.fragment_source, gl.GL_FRAGMENT_SHADER)
-        self.program = _link_program(vert, frag)
+        shaders.append(frag)
+        self.program = _link_program(shaders)
 
     def use(self):
         self._ensure_compiled()
@@ -302,8 +314,8 @@ class OpenGLGraphicsBackend(GraphicsBackend):
         }
         gl.glBlendFunc(mapping.get(src, gl.GL_SRC_ALPHA), mapping.get(dst, gl.GL_ONE_MINUS_SRC_ALPHA))
 
-    def create_shader(self, vertex_source: str, fragment_source: str) -> ShaderHandle:
-        return OpenGLShaderHandle(vertex_source, fragment_source)
+    def create_shader(self, vertex_source: str, fragment_source: str, geometry_source: str | None = None) -> ShaderHandle:
+        return OpenGLShaderHandle(vertex_source, fragment_source, geometry_source)
 
     def create_mesh(self, mesh: Mesh) -> MeshHandle:
         return OpenGLMeshHandle(mesh)
@@ -345,3 +357,28 @@ class OpenGLGraphicsBackend(GraphicsBackend):
         _gl_vertex_attrib_pointer(1, 2, gl.GL_FLOAT, gl.GL_FALSE, stride, ctypes.c_void_p(8))
         gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, 0, 4)
         gl.glBindVertexArray(0)
+
+    def set_polygon_mode(self, mode: str):
+        from OpenGL import GL as gl
+        if mode == "line":
+            gl.glPolygonMode(gl.GL_FRONT_AND_BACK, gl.GL_LINE)
+        else:
+            gl.glPolygonMode(gl.GL_FRONT_AND_BACK, gl.GL_FILL)
+
+    def set_cull_face_enabled(self, enabled: bool):
+        from OpenGL import GL as gl
+        if enabled:
+            gl.glEnable(gl.GL_CULL_FACE)
+        else:
+            gl.glDisable(gl.GL_CULL_FACE)
+
+    def set_depth_test_enabled(self, enabled: bool):
+        from OpenGL import GL as gl
+        if enabled:
+            gl.glEnable(gl.GL_DEPTH_TEST)
+        else:
+            gl.glDisable(gl.GL_DEPTH_TEST)
+
+    def set_depth_write_enabled(self, enabled: bool):
+        from OpenGL import GL as gl
+        gl.glDepthMask(gl.GL_TRUE if enabled else gl.GL_FALSE)

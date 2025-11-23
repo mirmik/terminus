@@ -25,10 +25,12 @@ class ShaderProgram:
     def __init__(
         self,
         vertex_source: str,
-        fragment_source: str
+        fragment_source: str,
+        geometry_source: str | None = None
     ):
         self.vertex_source = vertex_source
         self.fragment_source = fragment_source
+        self.geometry_source = geometry_source
         self._compiled = False
         self._handle: ShaderHandle | None = None
         self._backend: GraphicsBackend | None = None
@@ -44,7 +46,7 @@ class ShaderProgram:
         if backend is None:
             raise RuntimeError("Graphics backend is not available for shader compilation.")
         self._backend = backend
-        self._handle = backend.create_shader(self.vertex_source, self.fragment_source)
+        self._handle = backend.create_shader(self.vertex_source, self.fragment_source, self.geometry_source)
         self._compiled = True
 
     def _require_handle(self) -> ShaderHandle:

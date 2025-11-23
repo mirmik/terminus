@@ -41,6 +41,7 @@ setup(
             "visualization/*",
             "visualization/ui/*",
             "visualization/backends/*",
+            "visualization/material_collection/*",
             "mesh/*",
         ]
     },

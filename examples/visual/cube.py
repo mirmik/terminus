@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from termin.geombase.pose3 import Pose3
-from termin.mesh.mesh import UVSphereMesh
+from termin.mesh.mesh import UVSphereMesh, Mesh, CubeMesh
 from termin.visualization import (
     Entity,
     MeshDrawable,
@@ -101,7 +101,7 @@ void main() {
 """
 
 def build_scene(world: VisualizationWorld) -> tuple[Scene, PerspectiveCameraComponent]:
-    cube_mesh = UVSphereMesh()
+    cube_mesh = CubeMesh()
     drawable = MeshDrawable(cube_mesh)
     shader_prog = ShaderProgram(vert, frag)
     material = Material(shader=shader_prog, color=np.array([0.8, 0.3, 0.3, 1.0], dtype=np.float32))

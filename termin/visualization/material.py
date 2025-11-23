@@ -38,6 +38,18 @@ class Material:
         self.textures = textures if textures is not None else {}
         self.uniforms = uniforms if uniforms is not None else {}
 
+        if self.uniforms.get("u_color") is None:
+            self.uniforms["u_color"] = color
+
+    def set_param(self, name: str, value: Any):
+        """Удобный метод задания параметров шейдера."""
+        self.uniforms[name] = value
+
+    def update_color(self, rgba):
+        rgba = self._rgba(rgba)
+        self.color = rgba
+        self.uniforms["u_color"] = rgba
+
 
     def apply(self, model: np.ndarray, view: np.ndarray, projection: np.ndarray, graphics: GraphicsBackend, context_key: int | None = None):
         """Bind shader, upload MVP matrices and all statically defined uniforms."""
@@ -46,8 +58,6 @@ class Material:
         self.shader.set_uniform_matrix4("u_model", model)
         self.shader.set_uniform_matrix4("u_view", view)
         self.shader.set_uniform_matrix4("u_projection", projection)
-        if self.color is not None:
-            self.shader.set_uniform_vec4("u_color", self.color)
 
         texture_slots = enumerate(self.textures.items())
         for unit, (uniform_name, texture) in texture_slots:
