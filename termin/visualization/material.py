@@ -66,6 +66,4 @@ class Material:
 
         for name, value in self.uniforms.items():
             self.shader.set_uniform_auto(name, value)
-
-    def update_color(self, rgba: Iterable[float]):
-        self.color = self._rgba(rgba)
+            

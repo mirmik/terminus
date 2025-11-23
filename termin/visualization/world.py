@@ -11,15 +11,15 @@ from .window import Window
 from .backends.glfw import GLFWWindowBackend
 from .backends.opengl import OpenGLGraphicsBackend
 from .backends.base import GraphicsBackend, WindowBackend
-from .backends import set_default_graphics_backend, set_default_window_backend
+from .backends import set_default_graphics_backend, set_default_window_backend, get_default_graphics_backend, get_default_window_backend
 
 
 class VisualizationWorld:
     """High-level application controller."""
 
     def __init__(self, graphics_backend: GraphicsBackend | None = None, window_backend: WindowBackend | None = None):
-        self.graphics = graphics_backend or OpenGLGraphicsBackend()
-        self.window_backend = window_backend or GLFWWindowBackend()
+        self.graphics = graphics_backend or get_default_graphics_backend() or OpenGLGraphicsBackend()
+        self.window_backend = window_backend or get_default_window_backend() or GLFWWindowBackend()
         set_default_graphics_backend(self.graphics)
         set_default_window_backend(self.window_backend)
         self.renderer = Renderer(self.graphics)

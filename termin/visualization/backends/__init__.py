@@ -1,8 +1,8 @@
 """Backend registry and default implementations."""
 
 from __future__ import annotations
-
 from typing import Optional
+
 
 from .base import (
     Action,
@@ -17,6 +17,8 @@ from .base import (
     WindowBackend,
     FramebufferHandle,
 )
+from .nop_graphics import NOPGraphicsBackend
+from .nop_window import NOPWindowBackend
 
 _default_graphics_backend: Optional[GraphicsBackend] = None
 _default_window_backend: Optional[WindowBackend] = None
@@ -56,4 +58,6 @@ __all__ = [
     "get_default_graphics_backend",
     "set_default_window_backend",
     "get_default_window_backend",
+    "NOPGraphicsBackend",   # <-- экспортируем
+    "NOPWindowBackend",     # <-- экспортируем
 ]
