@@ -13,6 +13,8 @@ from .backends.opengl import OpenGLGraphicsBackend
 from .backends.base import GraphicsBackend, WindowBackend
 from .backends import set_default_graphics_backend, set_default_window_backend, get_default_graphics_backend, get_default_window_backend
 
+# For testing purposes, set this to True to close the world after the first frame.
+CLOSE_AFTER_FIRST_FRAME = False
 
 class VisualizationWorld:
     """High-level application controller."""
@@ -80,6 +82,9 @@ class VisualizationWorld:
             self.windows = alive
             self.window_backend.poll_events()
             self.update_fps(dt)
+
+            if CLOSE_AFTER_FIRST_FRAME:
+                break
             
         for window in self.windows:
             window.close()

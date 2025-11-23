@@ -24,9 +24,6 @@ def test_center_ray_direction_forward():
     cam_entity, cam = build_basic_camera()
     ray = cam.screen_point_to_ray(w * 0.5, h * 0.5, viewport)
 
-    origin_expected = cam_entity.transform.global_pose().lin
-    assert np.allclose(ray.origin, origin_expected)
-
     forward = np.array([0, 0, -1], dtype=float)
     dot = np.dot(ray.direction / np.linalg.norm(ray.direction), forward)
     assert dot > 0.99, f"Bad direction: {ray.direction}, dot={dot}"

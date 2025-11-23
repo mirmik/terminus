@@ -36,6 +36,9 @@ class NOPShaderHandle(ShaderHandle):
     def set_uniform_matrix4(self, name: str, matrix):
         pass
 
+    def set_uniform_vec2(self, name: str, vector):
+        pass
+
     def set_uniform_vec3(self, name: str, vector):
         pass
 
